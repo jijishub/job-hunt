@@ -51,7 +51,8 @@ export default function Header({
   const activeRole = (session?.user as any)?.role || currentUser?.role || 'admin';
   const isAdmin = activeRole === 'admin';
   const activeIndustry = (session?.user as any)?.industry || currentUser?.industry || (isAdmin ? 'IT / Software' : 'General');
-  const activeAvatar = currentUser?.avatar || (isAdmin ? '🌸' : '✨');
+  const activeAvatar = session?.user?.image || currentUser?.avatar || (isAdmin ? '🌸' : '✨');
+  const isAvatarUrl = activeAvatar?.startsWith('http') || activeAvatar?.startsWith('/');
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -169,8 +170,18 @@ export default function Header({
               onClick={() => setDropdownOpen(!dropdownOpen)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#F1DDE9] bg-white hover:bg-[#FAF7F9] transition text-left shadow-2xs"
             >
-              <div className="w-6 h-6 rounded-lg bg-[#FAF7F9] flex items-center justify-center text-xs border border-[#F1DDE9]">
-                {activeAvatar}
+              <div className="w-7 h-7 rounded-lg bg-[#FAF7F9] flex items-center justify-center text-xs border border-[#F1DDE9] overflow-hidden shrink-0">
+                {isAvatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={activeAvatar}
+                    alt={activeName}
+                    className="w-full h-full object-cover rounded-lg"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span>{activeAvatar}</span>
+                )}
               </div>
               <div className="hidden sm:block">
                 <div className="flex items-center gap-1.5">
@@ -194,20 +205,37 @@ export default function Header({
               <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-[#F1DDE9] shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
                 {/* Active Profile Info */}
                 <div className="p-3 bg-[#FAF7F9] rounded-xl border border-[#F1DDE9]/60 mb-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#4A3E44] truncate">{activeName}</span>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                        isAdmin
-                          ? 'bg-[#FFF0F6] text-[#9D3C5E] border-[#F1DDE9]'
-                          : 'bg-stone-50 text-stone-600 border-stone-200'
-                      }`}
-                    >
-                      {isAdmin ? '👑 ADMIN' : '👤 MEMBER'}
-                    </span>
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className="w-8 h-8 rounded-lg bg-white border border-[#F1DDE9] flex items-center justify-center text-xs overflow-hidden shrink-0">
+                      {isAvatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={activeAvatar}
+                          alt={activeName}
+                          className="w-full h-full object-cover rounded-lg"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <span>{activeAvatar}</span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-[#4A3E44] truncate">{activeName}</span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            isAdmin
+                              ? 'bg-[#FFF0F6] text-[#9D3C5E] border-[#F1DDE9]'
+                              : 'bg-stone-50 text-stone-600 border-stone-200'
+                          }`}
+                        >
+                          {isAdmin ? '👑 ADMIN' : '👤 MEMBER'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#736A6D] truncate mt-0.5">{activeEmail}</p>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-[#736A6D] truncate mt-0.5">{activeEmail}</p>
-                  <p className="text-[10px] text-[#9D3C5E] font-medium mt-1">Focus: {activeIndustry}</p>
+                  <p className="text-[10px] text-[#9D3C5E] font-medium pt-1 border-t border-[#F1DDE9]/40">Focus: {activeIndustry}</p>
                 </div>
 
                 {/* Workspace Access Note */}

@@ -218,7 +218,14 @@ export default function JobLeadsView({
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="text-lg">{currentUser?.avatar || '✨'}</span>
+                <span className="w-6 h-6 rounded-lg overflow-hidden shrink-0 inline-flex items-center justify-center text-lg">
+                  {currentUser?.avatar?.startsWith('http') ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={currentUser.avatar} alt="" className="w-full h-full object-cover rounded-lg" />
+                  ) : (
+                    currentUser?.avatar || '✨'
+                  )}
+                </span>
                 <h3 className="text-sm font-bold text-[#4A3E44]">
                   {currentUser?.name}&apos;s Sourcing Hub • {userIndustry}
                 </h3>

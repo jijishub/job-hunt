@@ -235,18 +235,6 @@ export default function SSOLandingView() {
 
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="relative z-10 w-full max-w-7xl mx-auto px-6 py-6 border-t border-[#F1DDE9]/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#736A6D]">
-        <div className="flex items-center gap-2">
-          <span>Job Hunt & Leads</span>
-          <span>•</span>
-          <span>Curated for Focus, Precision & Success</span>
-        </div>
-        <div className="text-[11px] text-stone-400">
-          Powered by Next.js, Google OAuth & Gemini AI
-        </div>
-      </footer>
     </div>
   );
 }
