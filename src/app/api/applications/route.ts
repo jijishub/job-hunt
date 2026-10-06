@@ -1,10 +1,19 @@
 import { NextResponse } from 'next/server';
 import { getApplications, createApplication, getOrCreateCompany } from '@/lib/db';
-import { pushApplicationToNotion } from '@/lib/notion';
+import { pushApplicationToNotion, pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
 
 export async function GET() {
   try {
-    const apps = await getApplications();
+    let apps = await getApplications();
+    if (apps.length === 0) {
+      const config = getNotionConfig();
+      if (config.isConfigured) {
+        const pull = await pullApplicationsFromNotion();
+        if (pull.success) {
+          apps = await getApplications();
+        }
+      }
+    }
     return NextResponse.json({ success: true, data: apps });
   } catch (error: any) {
     return NextResponse.json(

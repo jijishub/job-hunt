@@ -78,6 +78,20 @@ export default function JobHuntDashboard() {
       if (compsData.success) setCompanies(compsData.data);
       setNotionStatus(notionData);
 
+      // Auto-recovery: if applications is empty on load but Notion is connected, auto-sync!
+      if (
+        (!appsData.data || appsData.data.length === 0) &&
+        notionData.configured &&
+        notionData.status?.success
+      ) {
+        const syncRes = await fetch('/api/notion/sync', { method: 'POST' });
+        const syncResult = await syncRes.json();
+        if (syncResult.success) {
+          if (syncResult.data) setApplications(syncResult.data);
+          if (syncResult.companies) setCompanies(syncResult.companies);
+        }
+      }
+
       if (usersData.success && usersData.data.length > 0) {
         setUsers(usersData.data);
         setCurrentUser((prev) => {
@@ -105,7 +119,11 @@ export default function JobHuntDashboard() {
     setIsSyncing(true);
     try {
       const res = await fetch('/api/notion/sync', { method: 'POST' });
-      await res.json();
+      const syncResult = await res.json();
+      if (syncResult.success) {
+        if (syncResult.data) setApplications(syncResult.data);
+        if (syncResult.companies) setCompanies(syncResult.companies);
+      }
       await fetchData();
     } catch (err) {
       console.error('Error during sync:', err);
