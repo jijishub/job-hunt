@@ -4,6 +4,13 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { getOrCreateUser, getUserByEmail, getUserById } from '@/lib/db';
 
 function getAuthOptions(): NextAuthOptions {
+  if (!process.env.NEXTAUTH_URL) {
+    const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+    if (vercelHost) {
+      process.env.NEXTAUTH_URL = `https://${vercelHost.replace(/^https?:\/\//, '')}`;
+    }
+  }
+
   const googleClientId = process.env.GOOGLE_CLIENT_ID;
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
