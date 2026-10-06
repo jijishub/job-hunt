@@ -14,7 +14,30 @@ interface LocalDatabase {
   users: UserAccount[];
 }
 
-export const INITIAL_USERS: UserAccount[] = [];
+export const INITIAL_USERS: UserAccount[] = [
+  {
+    id: 'user_ji',
+    name: 'Jizelle Casia',
+    email: (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim(),
+    role: 'admin',
+    industry: 'IT / AI & Forward-Deployed Software',
+    avatar: '🌸',
+    notion_enabled: true,
+    created_at: '2026-10-06T09:34:43.840Z',
+    updated_at: '2026-10-06T11:47:20.892Z',
+  },
+  {
+    id: 'user_denise',
+    name: 'Denise',
+    email: 'denise@hospitality.com',
+    role: 'member',
+    industry: 'Hospitality Management',
+    avatar: '✨',
+    notion_enabled: false,
+    created_at: '2026-10-06T09:34:43.840Z',
+    updated_at: '2026-10-06T11:47:24.070Z',
+  },
+];
 
 const INITIAL_COMPANIES: Company[] = [];
 
@@ -27,7 +50,7 @@ function getPostgresClient() {
 }
 
 function readLocalDb(): LocalDatabase {
-  if (!isServer) return { companies: [], applications: [], users: [] };
+  if (!isServer) return { companies: [], applications: [], users: INITIAL_USERS };
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -36,13 +59,17 @@ function readLocalDb(): LocalDatabase {
       const initial: LocalDatabase = {
         companies: [],
         applications: [],
-        users: [],
+        users: [...INITIAL_USERS],
       };
       fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2), 'utf-8');
       return initial;
     }
     const content = fs.readFileSync(DB_FILE, 'utf-8');
     const parsed = JSON.parse(content) as LocalDatabase;
+    if (!parsed.users || parsed.users.length === 0) {
+      parsed.users = [...INITIAL_USERS];
+      writeLocalDb(parsed);
+    }
     return parsed;
   } catch (error) {
     console.error('Error reading local db file:', error);
@@ -126,6 +153,44 @@ async function initPostgresSchema(sql: any) {
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS notion_status TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS service TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS information TEXT;`;
+
+    // Always seed the Master Admin user (Jizelle)
+    const adminEmail = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
+    await sql`
+      INSERT INTO users (id, name, email, role, industry, avatar, notion_enabled, created_at, updated_at)
+      VALUES (
+        'user_ji',
+        'Jizelle Casia',
+        ${adminEmail},
+        'admin',
+        'IT / AI & Forward-Deployed Software',
+        '🌸',
+        TRUE,
+        NOW(),
+        NOW()
+      )
+      ON CONFLICT (email) DO UPDATE SET
+        role = 'admin',
+        notion_enabled = TRUE;
+    `;
+
+    // Pre-seed demo invited member (Denise) so member role testing works out of the box
+    await sql`
+      INSERT INTO users (id, name, email, role, industry, avatar, notion_enabled, created_at, updated_at)
+      VALUES (
+        'user_denise',
+        'Denise',
+        'denise@hospitality.com',
+        'member',
+        'Hospitality Management',
+        '✨',
+        FALSE,
+        NOW(),
+        NOW()
+      )
+      ON CONFLICT (email) DO NOTHING;
+    `;
+
     schemaInitialized = true;
   } catch (err) {
     console.error('Postgres schema init error:', err);
@@ -454,30 +519,31 @@ export async function getUsers(): Promise<UserAccount[]> {
 
     if (rows.length > 0) return rows as UserAccount[];
 
-    // If database has 0 users, only auto-create the Admin account from ADMIN_EMAIL if configured
-    const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase();
-    if (adminEmail) {
-      const defaultAdmin: UserAccount = {
-        id: `user_${Date.now()}`,
-        name: adminEmail.split('@')[0],
-        email: adminEmail,
-        role: 'admin',
-        industry: 'IT / AI & Software',
-        avatar: '🌸',
-        notion_enabled: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      await sql`
-        INSERT INTO users (id, name, email, role, industry, avatar, notion_enabled, created_at, updated_at)
-        VALUES (${defaultAdmin.id}, ${defaultAdmin.name}, ${defaultAdmin.email}, ${defaultAdmin.role}, ${defaultAdmin.industry}, ${defaultAdmin.avatar}, ${defaultAdmin.notion_enabled}, NOW(), NOW())
-        ON CONFLICT (email) DO NOTHING;
-      `;
-      return [defaultAdmin];
-    }
-    return [];
+    // If database has 0 users, auto-seed from INITIAL_USERS
+    const adminEmail = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
+    const defaultAdmin: UserAccount = {
+      id: 'user_ji',
+      name: 'Jizelle Casia',
+      email: adminEmail,
+      role: 'admin',
+      industry: 'IT / AI & Forward-Deployed Software',
+      avatar: '🌸',
+      notion_enabled: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    await sql`
+      INSERT INTO users (id, name, email, role, industry, avatar, notion_enabled, created_at, updated_at)
+      VALUES (${defaultAdmin.id}, ${defaultAdmin.name}, ${defaultAdmin.email}, ${defaultAdmin.role}, ${defaultAdmin.industry}, ${defaultAdmin.avatar}, ${defaultAdmin.notion_enabled}, NOW(), NOW())
+      ON CONFLICT (email) DO UPDATE SET role = 'admin', notion_enabled = TRUE;
+    `;
+    return [defaultAdmin];
   }
   const db = readLocalDb();
+  if (!db.users || db.users.length === 0) {
+    db.users = [...INITIAL_USERS];
+    writeLocalDb(db);
+  }
   db.users.forEach((u) => {
     if (u.name && u.name.includes('(Ji)')) {
       u.name = u.name.replace(/\s*\(Ji\)/gi, '').trim() || 'Jizelle Casia';
@@ -514,24 +580,25 @@ export async function getOrCreateUser(data: {
     return existing;
   }
 
-  const lowerEmail = data.email.toLowerCase();
-  const adminConfig = (process.env.ADMIN_EMAIL || '').toLowerCase();
+  const lowerEmail = data.email.toLowerCase().trim();
+  const adminConfig = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
   const allUsers = await getUsers();
   const hasAdmin = allUsers.some((u) => u.role === 'admin');
 
   const isAdmin =
     data.role === 'admin' ||
-    (adminConfig && lowerEmail === adminConfig) ||
+    lowerEmail === adminConfig ||
+    lowerEmail === 'jizellecasia@gmail.com' ||
     lowerEmail.includes('jizelle') ||
     lowerEmail.includes('cloudji') ||
     !hasAdmin;
 
   const newUser: UserAccount = {
     id: `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    name: data.name || 'Job Hunt Member',
-    email: data.email.toLowerCase(),
+    name: data.name || (isAdmin ? 'Jizelle Casia' : 'Job Hunt Member'),
+    email: lowerEmail,
     role: isAdmin ? 'admin' : 'member',
-    industry: data.industry || (isAdmin ? 'IT / AI & Software' : 'General'),
+    industry: data.industry || (isAdmin ? 'IT / AI & Forward-Deployed Software' : 'General'),
     avatar: data.avatar || (isAdmin ? '🌸' : '👤'),
     notion_enabled: isAdmin,
     created_at: new Date().toISOString(),
