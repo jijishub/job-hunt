@@ -235,6 +235,7 @@ export async function getOrCreateCompany(
     const inserted = await sql`
       INSERT INTO companies (id, name, logo_url, website, created_at, updated_at)
       VALUES (${newId}, ${trimmedName}, ${resolvedLogo || null}, ${website || null}, ${now}, ${now})
+      ON CONFLICT (name) DO UPDATE SET updated_at = NOW()
       RETURNING *;
     `;
     return inserted[0] as Company;

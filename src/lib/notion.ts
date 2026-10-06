@@ -317,174 +317,204 @@ export async function pullApplicationsFromNotion() {
     const defaultOwnerId =
       users.find((u) => u.role === 'admin' || u.notion_enabled)?.id || users[0]?.id || 'admin';
 
+    // 1. Preload existing companies and applications in memory to avoid hundreds of roundtrips
+    const existingCompanies = await getCompanies();
+    const companyMap = new Map<string, any>();
+    existingCompanies.forEach((c) => companyMap.set(c.name.trim().toLowerCase(), c));
+
+    const existingApps = await getApplications();
+    const appMap = new Map<string, any>();
+    existingApps.forEach((a) => {
+      if (a.notion_page_id) appMap.set(a.notion_page_id, a);
+    });
+
     for (const page of pages) {
-      const pageId = page.id;
-      const props = page.properties || {};
+      try {
+        const pageId = page.id;
+        const props = page.properties || {};
 
-      // 1. Company Name
-      const titleProp = Object.values(props).find((p: any) => p.type === 'title') as any;
-      const companyName =
-        props['Company Name']?.title?.[0]?.plain_text ||
-        titleProp?.title?.[0]?.plain_text ||
-        props.Company?.select?.name ||
-        props.Company?.rich_text?.[0]?.plain_text ||
-        props.Name?.title?.[0]?.plain_text ||
-        'Untitled Company';
+        // 1. Company Name
+        const titleProp = Object.values(props).find((p: any) => p.type === 'title') as any;
+        const companyName = (
+          props['Company Name']?.title?.[0]?.plain_text ||
+          titleProp?.title?.[0]?.plain_text ||
+          props.Company?.select?.name ||
+          props.Company?.rich_text?.[0]?.plain_text ||
+          props.Name?.title?.[0]?.plain_text ||
+          'Untitled Company'
+        ).trim();
 
-      // 2. Role Title
-      const roleTitle =
-        props['Intern Position']?.select?.name ||
-        props['Intern Position']?.rich_text?.[0]?.plain_text ||
-        props.Role?.rich_text?.[0]?.plain_text ||
-        props.Position?.rich_text?.[0]?.plain_text ||
-        props.Title?.title?.[0]?.plain_text ||
-        'IT Intern';
+        // 2. Role Title
+        const roleTitle =
+          props['Intern Position']?.select?.name ||
+          props['Intern Position']?.rich_text?.[0]?.plain_text ||
+          props.Role?.rich_text?.[0]?.plain_text ||
+          props.Position?.rich_text?.[0]?.plain_text ||
+          props.Title?.title?.[0]?.plain_text ||
+          'IT Intern';
 
-      // 3. Exact Notion Status & Standard Status
-      const notion_status =
-        props['Application Status']?.select?.name ||
-        props['Application Status']?.status?.name ||
-        props.Status?.select?.name ||
-        props.Status?.status?.name ||
-        undefined;
+        // 3. Exact Notion Status & Standard Status
+        const notion_status =
+          props['Application Status']?.select?.name ||
+          props['Application Status']?.status?.name ||
+          props.Status?.select?.name ||
+          props.Status?.status?.name ||
+          undefined;
 
-      const sLower = (notion_status || '').toLowerCase().trim();
-      let status: ApplicationStatus = 'APPLIED';
-      let priority: Priority = 'MEDIUM';
+        const sLower = (notion_status || '').toLowerCase().trim();
+        let status: ApplicationStatus = 'APPLIED';
+        let priority: Priority = 'MEDIUM';
 
-      if (sLower === 'accepted') {
-        status = 'ACCEPTED';
-        priority = 'HIGH';
-      } else if (sLower.includes('accepted - not proceeding')) {
-        status = 'OFFER';
-        priority = 'MEDIUM';
-      } else if (
-        sLower.includes('not accepted') ||
-        sLower.includes('not accepting') ||
-        sLower.includes('reject') ||
-        sLower === 'repeated'
-      ) {
-        status = 'REJECTED';
-        priority = 'LOW';
-      } else if (sLower.includes('interview')) {
-        status = 'INTERVIEWING';
-        priority = 'HIGH';
-      } else if (sLower.includes('screen') || sLower.includes('exam')) {
-        status = 'SCREENING';
-        priority = 'MEDIUM';
-      } else if (sLower === 'do not proceed' || sLower.includes('withdraw')) {
-        status = 'WITHDRAWN';
-        priority = 'LOW';
-      } else if (sLower === 'not started' || sLower === 'inquiry') {
-        status = 'LEAD';
-        priority = 'MEDIUM';
-      } else if (sLower.includes('applied')) {
-        status = 'APPLIED';
-        priority = 'MEDIUM';
+        if (sLower === 'accepted') {
+          status = 'ACCEPTED';
+          priority = 'HIGH';
+        } else if (sLower.includes('accepted - not proceeding')) {
+          status = 'OFFER';
+          priority = 'MEDIUM';
+        } else if (
+          sLower.includes('not accepted') ||
+          sLower.includes('not accepting') ||
+          sLower.includes('reject') ||
+          sLower === 'repeated'
+        ) {
+          status = 'REJECTED';
+          priority = 'LOW';
+        } else if (sLower.includes('interview')) {
+          status = 'INTERVIEWING';
+          priority = 'HIGH';
+        } else if (sLower.includes('screen') || sLower.includes('exam')) {
+          status = 'SCREENING';
+          priority = 'MEDIUM';
+        } else if (sLower === 'do not proceed' || sLower.includes('withdraw')) {
+          status = 'WITHDRAWN';
+          priority = 'LOW';
+        } else if (sLower === 'not started' || sLower === 'inquiry') {
+          status = 'LEAD';
+          priority = 'MEDIUM';
+        } else if (sLower.includes('applied')) {
+          status = 'APPLIED';
+          priority = 'MEDIUM';
+        }
+
+        // Explicit Priority from Notion
+        const priorityProp = props.Priority || props.Rating;
+        const priorityRaw = (priorityProp?.select?.name || '').toUpperCase();
+        if (priorityRaw.includes('DREAM') || priorityRaw.includes('⭐')) priority = 'DREAM';
+        else if (priorityRaw.includes('HIGH')) priority = 'HIGH';
+        else if (priorityRaw.includes('LOW')) priority = 'LOW';
+        else if (priorityRaw.includes('MED')) priority = 'MEDIUM';
+
+        // 5. Work Model
+        const workModelProp = props['Work Model'] || props.Workplace || props.Setup;
+        const workModelRaw = (workModelProp?.select?.name || 'HYBRID').toUpperCase();
+        let work_model: WorkModel = 'HYBRID';
+        if (workModelRaw.includes('REMOTE')) work_model = 'REMOTE';
+        else if (workModelRaw.includes('ON-SITE') || workModelRaw.includes('ONSITE')) work_model = 'ON_SITE';
+
+        // 6. Service & Location Categorization
+        const rawServiceLocation =
+          props['Service & Location']?.rich_text?.[0]?.plain_text ||
+          props.Location?.rich_text?.[0]?.plain_text ||
+          undefined;
+        const { service, location } = parseServiceAndLocation(rawServiceLocation);
+
+        // 7. Contact Email
+        const contact_email =
+          props['Company Email ']?.email ||
+          props['Company Email']?.email ||
+          props.Email?.email ||
+          undefined;
+
+        // 8. URL
+        const job_url =
+          props.URL?.url ||
+          props['Job URL']?.url ||
+          props.Url?.url ||
+          undefined;
+
+        // 9. Date Applied (Safely formatted to ISO string)
+        const rawDate =
+          props['Application/ Inquiry Date']?.date?.start ||
+          props['Date Applied']?.date?.start;
+        let date_applied: string = new Date().toISOString();
+        if (rawDate) {
+          try {
+            date_applied = new Date(rawDate).toISOString();
+          } catch {
+            date_applied = new Date().toISOString();
+          }
+        }
+
+        // 10. Information & Post Notes
+        const information = props['Information']?.rich_text?.[0]?.plain_text || undefined;
+        const notes =
+          props['Post Notes']?.rich_text?.[0]?.plain_text ||
+          props.Notes?.rich_text?.[0]?.plain_text ||
+          undefined;
+
+        // Efficient cached company retrieval / creation
+        let company = companyMap.get(companyName.toLowerCase());
+        if (!company) {
+          company = await getOrCreateCompany(companyName);
+          companyMap.set(companyName.toLowerCase(), company);
+        }
+        if (service && !company.industry) {
+          await updateCompany(company.id, { industry: service });
+          company.industry = service;
+        }
+
+        const existingApp = appMap.get(pageId);
+
+        if (existingApp) {
+          await updateApplication(existingApp.id, {
+            company_id: company.id,
+            company_name: company.name,
+            company_logo: company.logo_url,
+            role_title: roleTitle,
+            status,
+            notion_status,
+            service,
+            information,
+            priority,
+            work_model,
+            location,
+            job_url,
+            contact_email,
+            date_applied,
+            notes,
+            sync_status: 'SYNCED',
+            last_synced_at: new Date().toISOString(),
+          });
+        } else {
+          const created = await createApplication({
+            company_id: company.id,
+            company_name: company.name,
+            company_logo: company.logo_url,
+            role_title: roleTitle,
+            status,
+            notion_status,
+            service,
+            information,
+            priority,
+            job_type: 'INTERNSHIP',
+            work_model,
+            location,
+            salary_currency: 'PHP',
+            job_url,
+            contact_email,
+            date_applied,
+            notes,
+            owner: defaultOwnerId,
+            notion_page_id: pageId,
+            sync_status: 'SYNCED',
+            last_synced_at: new Date().toISOString(),
+          });
+          appMap.set(pageId, created);
+        }
+        syncedCount++;
+      } catch (rowErr) {
+        console.error('Failed to process Notion row:', rowErr);
       }
-
-      // Explicit Priority from Notion
-      const priorityProp = props.Priority || props.Rating;
-      const priorityRaw = (priorityProp?.select?.name || '').toUpperCase();
-      if (priorityRaw.includes('DREAM') || priorityRaw.includes('⭐')) priority = 'DREAM';
-      else if (priorityRaw.includes('HIGH')) priority = 'HIGH';
-      else if (priorityRaw.includes('LOW')) priority = 'LOW';
-      else if (priorityRaw.includes('MED')) priority = 'MEDIUM';
-
-      // 5. Work Model
-      const workModelProp = props['Work Model'] || props.Workplace || props.Setup;
-      const workModelRaw = (workModelProp?.select?.name || 'HYBRID').toUpperCase();
-      let work_model: WorkModel = 'HYBRID';
-      if (workModelRaw.includes('REMOTE')) work_model = 'REMOTE';
-      else if (workModelRaw.includes('ON-SITE') || workModelRaw.includes('ONSITE')) work_model = 'ON_SITE';
-
-      // 6. Service & Location Categorization
-      const rawServiceLocation =
-        props['Service & Location']?.rich_text?.[0]?.plain_text ||
-        props.Location?.rich_text?.[0]?.plain_text ||
-        undefined;
-      const { service, location } = parseServiceAndLocation(rawServiceLocation);
-
-      // 7. Contact Email
-      const contact_email =
-        props['Company Email ']?.email ||
-        props['Company Email']?.email ||
-        props.Email?.email ||
-        undefined;
-
-      // 8. URL
-      const job_url =
-        props.URL?.url ||
-        props['Job URL']?.url ||
-        props.Url?.url ||
-        undefined;
-
-      // 9. Date Applied
-      const date_applied =
-        props['Application/ Inquiry Date']?.date?.start ||
-        props['Date Applied']?.date?.start ||
-        new Date().toISOString();
-
-      // 10. Information & Post Notes
-      const information = props['Information']?.rich_text?.[0]?.plain_text || undefined;
-      const notes =
-        props['Post Notes']?.rich_text?.[0]?.plain_text ||
-        props.Notes?.rich_text?.[0]?.plain_text ||
-        undefined;
-
-      const company = await getOrCreateCompany(companyName);
-      if (service && !company.industry) {
-        await updateCompany(company.id, { industry: service });
-      }
-
-      const existingApp = await getApplicationByNotionId(pageId);
-
-      if (existingApp) {
-        await updateApplication(existingApp.id, {
-          company_id: company.id,
-          company_name: company.name,
-          company_logo: company.logo_url,
-          role_title: roleTitle,
-          status,
-          notion_status,
-          service,
-          information,
-          priority,
-          work_model,
-          location,
-          job_url,
-          contact_email,
-          date_applied,
-          notes,
-          sync_status: 'SYNCED',
-          last_synced_at: new Date().toISOString(),
-        });
-      } else {
-        await createApplication({
-          company_id: company.id,
-          company_name: company.name,
-          company_logo: company.logo_url,
-          role_title: roleTitle,
-          status,
-          notion_status,
-          service,
-          information,
-          priority,
-          job_type: 'INTERNSHIP',
-          work_model,
-          location,
-          salary_currency: 'PHP',
-          job_url,
-          contact_email,
-          date_applied,
-          notes,
-          owner: defaultOwnerId,
-          notion_page_id: pageId,
-          sync_status: 'SYNCED',
-          last_synced_at: new Date().toISOString(),
-        });
-      }
-      syncedCount++;
     }
 
     return { success: true, count: syncedCount };
