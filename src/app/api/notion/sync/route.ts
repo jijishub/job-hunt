@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getNotionConfig, testNotionConnection, performTwoWaySync } from '@/lib/notion';
+import { getApplications, getCompanies } from '@/lib/db';
 
 export async function GET() {
   try {
@@ -21,7 +22,9 @@ export async function GET() {
 export async function POST() {
   try {
     const result = await performTwoWaySync();
-    return NextResponse.json(result);
+    const apps = await getApplications();
+    const comps = await getCompanies();
+    return NextResponse.json({ ...result, data: apps, companies: comps });
   } catch (error: any) {
     console.error('Error during Notion sync:', error);
     return NextResponse.json(

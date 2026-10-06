@@ -1,10 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getCompanies, getOrCreateCompany, getApplications, updateCompany, deleteCompany } from '@/lib/db';
+import { pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
 
 export async function GET() {
   try {
-    const companies = await getCompanies();
-    const applications = await getApplications();
+    let companies = await getCompanies();
+    let applications = await getApplications();
+
+    if (companies.length === 0 && applications.length === 0) {
+      const config = getNotionConfig();
+      if (config.isConfigured) {
+        await pullApplicationsFromNotion();
+        companies = await getCompanies();
+        applications = await getApplications();
+      }
+    }
 
     const countsByCompanyId: Record<string, number> = {};
     applications.forEach((app) => {
