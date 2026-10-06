@@ -325,7 +325,7 @@ export default function UserManagementModal({
                 <p className="font-semibold text-[#9D3C5E]">Role-Based Access Control (RBAC):</p>
                 <p>
                   <strong>Admin (You)</strong>: Has Notion 2-way sync & live portfolio discovery.{' '}
-                  <strong>Members (Denise & others)</strong>: Stored solely in Cloud DB. Zero Notion confusion.
+                  <strong>Members</strong>: Stored in Cloud DB. Zero Notion confusion.
                 </p>
               </div>
             </div>
@@ -356,7 +356,7 @@ export default function UserManagementModal({
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-[#4A3E44] truncate">{u.name}</span>
+                            <span className="text-xs font-bold text-[#4A3E44] truncate">{u.name.replace(/\s*\(Ji\)/gi, '').trim()}</span>
                             {isCurrent && (
                               <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded-md">
                                 You
@@ -385,7 +385,7 @@ export default function UserManagementModal({
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0">
-                        {/* Edit Button for Denise and all users */}
+                        {/* Edit Button */}
                         <button
                           onClick={() => startEditing(u)}
                           title={`Edit ${u.name}'s profile`}
@@ -468,7 +468,7 @@ export default function UserManagementModal({
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Denise Santos"
+                      placeholder="e.g. Alex Rivera"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs text-[#4A3E44] focus:outline-none focus:border-[#FF7AB3] transition bg-white"
@@ -482,7 +482,7 @@ export default function UserManagementModal({
                     <input
                       type="email"
                       required
-                      placeholder="e.g. denise@gmail.com"
+                      placeholder="e.g. alex@company.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs text-[#4A3E44] focus:outline-none focus:border-[#FF7AB3] transition bg-white"

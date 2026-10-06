@@ -11,6 +11,7 @@ import {
   Sparkles,
   User,
   Plus,
+  Upload,
 } from 'lucide-react';
 
 interface ApplicationModalProps {
@@ -21,6 +22,41 @@ interface ApplicationModalProps {
   initialData?: JobApplication | null;
   users?: UserAccount[];
   currentUserId?: string;
+}
+
+function compressImage(file: File, callback: (base64: string) => void) {
+  if (!file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const maxDim = 128;
+      let width = img.width;
+      let height = img.height;
+      if (width > height) {
+        if (width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        }
+      } else {
+        if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/webp', 0.85);
+        callback(dataUrl);
+      }
+    };
+    img.src = e.target?.result as string;
+  };
+  reader.readAsDataURL(file);
 }
 
 const STATUS_OPTIONS: { value: ApplicationStatus; label: string }[] = [
@@ -66,7 +102,7 @@ export default function ApplicationModal({
   const [contactEmail, setContactEmail] = useState('');
   const [dateApplied, setDateApplied] = useState('');
   const [notes, setNotes] = useState('');
-  const [owner, setOwner] = useState<string>(currentUserId || 'user_ji');
+  const [owner, setOwner] = useState<string>(currentUserId || users[0]?.id || 'admin');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
@@ -89,7 +125,7 @@ export default function ApplicationModal({
       setContactEmail(initialData.contact_email || '');
       setDateApplied(initialData.date_applied ? initialData.date_applied.split('T')[0] : '');
       setNotes(initialData.notes || '');
-      setOwner(initialData.owner || currentUserId || 'user_ji');
+      setOwner(initialData.owner || currentUserId || users[0]?.id || 'admin');
     } else {
       setRoleTitle('');
       setCompanyName('');
@@ -107,9 +143,9 @@ export default function ApplicationModal({
       setContactEmail('');
       setDateApplied('');
       setNotes('');
-      setOwner(currentUserId || 'user_ji');
+      setOwner(currentUserId || users[0]?.id || 'admin');
     }
-  }, [initialData, isOpen, currentUserId]);
+  }, [initialData, isOpen, currentUserId, users]);
 
   if (!isOpen) return null;
 
@@ -194,14 +230,11 @@ export default function ApplicationModal({
                 {users && users.length > 0 ? (
                   users.map((u) => (
                     <option key={u.id} value={u.id}>
-                      {u.avatar || '👤'} {u.name} ({u.role.toUpperCase()} • {u.notion_enabled ? 'Notion Sync' : 'Cloud DB'})
+                      {u.avatar || '👤'} {u.name.replace(/\s*\(Ji\)/gi, '').trim()} ({u.role.toUpperCase()} • {u.notion_enabled ? 'Notion Sync' : 'Cloud DB'})
                     </option>
                   ))
                 ) : (
-                  <>
-                    <option value="user_ji">🌸 Ji (ADMIN • Notion Sync)</option>
-                    <option value="user_denise">✨ Denise (MEMBER • Cloud DB)</option>
-                  </>
+                  <option value="admin">👤 Active Profile</option>
                 )}
               </select>
             </div>
@@ -221,9 +254,27 @@ export default function ApplicationModal({
             </div>
 
             <div className="relative">
-              <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
-                Company (Reusable with Icon) *
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider">
+                  Company (Reusable with Icon) *
+                </label>
+                <label
+                  title="Upload logo photo (<20KB auto-compressed)"
+                  className="cursor-pointer inline-flex items-center gap-1 text-[11px] font-semibold text-[#9D3C5E] hover:text-[#FF7AB3] transition"
+                >
+                  <Upload className="w-3 h-3 text-[#FF7AB3]" />
+                  <span>Upload Logo</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) compressImage(file, (dataUrl) => setCustomLogoUrl(dataUrl));
+                    }}
+                  />
+                </label>
+              </div>
               <div className="relative">
                 <input
                   type="text"

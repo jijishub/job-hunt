@@ -124,7 +124,7 @@ export default function JobLeadsView({
         work_model: lead.remote ? 'REMOTE' : 'HYBRID',
         location: lead.location,
         job_url: lead.url,
-        owner: currentUser?.id || 'user_ji',
+        owner: currentUser?.id || 'admin',
         notes: `Discovered from Job Leads Explorer.\nTags: ${lead.tags.join(', ')}\n${lead.description}`,
       });
       setAddedIds((prev) => new Set(prev).add(lead.id));
@@ -148,7 +148,7 @@ export default function JobLeadsView({
         status: 'LEAD',
         priority: 'HIGH',
         job_url: manualUrl.trim() || undefined,
-        owner: currentUser?.id || 'user_denise',
+        owner: currentUser?.id || 'admin',
         notes: manualNotes.trim() || `Manual lead entry for ${currentUser?.industry || 'pipeline'}`,
       });
       setManualTitle('');

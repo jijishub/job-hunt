@@ -50,8 +50,8 @@ export default function Header({
   const isNotionConnected = notionStatus?.configured && notionStatus?.status?.success;
 
   // Active user details
-  const activeName = session?.user?.name || currentUser?.name || 'Jizelle (Ji)';
-  const activeEmail = session?.user?.email || currentUser?.email || 'jizellecasia@gmail.com';
+  const activeName = (session?.user?.name || currentUser?.name || 'Admin').replace(/\s*\(Ji\)/gi, '').trim();
+  const activeEmail = session?.user?.email || currentUser?.email || '';
   const activeRole = (session?.user as any)?.role || currentUser?.role || 'admin';
   const isAdmin = activeRole === 'admin';
   const activeIndustry = (session?.user as any)?.industry || currentUser?.industry || (isAdmin ? 'IT / Software' : 'General');
@@ -216,7 +216,7 @@ export default function Header({
 
                 <div className="space-y-1 my-1 max-h-48 overflow-y-auto">
                   {users.map((u) => {
-                    const isSelected = (currentUser?.id || 'user_ji') === u.id;
+                    const isSelected = (currentUser?.id || users[0]?.id) === u.id;
                     return (
                       <button
                         key={u.id}
@@ -232,7 +232,7 @@ export default function Header({
                       >
                         <div className="flex items-center gap-2 truncate">
                           <span>{u.avatar || '👤'}</span>
-                          <span className="truncate">{u.name}</span>
+                          <span className="truncate">{u.name.replace(/\s*\(Ji\)/gi, '').trim()}</span>
                           <span className="text-[10px] text-stone-400 font-normal">
                             ({u.role})
                           </span>

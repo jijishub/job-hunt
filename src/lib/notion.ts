@@ -6,7 +6,17 @@ import {
   updateApplication,
   getApplicationByNotionId,
   getOrCreateCompany,
+  getUsers,
 } from './db';
+
+async function isAppEligibleForNotionSync(app: JobApplication): Promise<boolean> {
+  const users = await getUsers();
+  const eligibleIds = new Set(
+    users.filter((u) => u.role === 'admin' || u.notion_enabled).map((u) => u.id)
+  );
+  if (!app.owner) return true;
+  return eligibleIds.has(app.owner) || app.owner === 'admin' || app.owner === 'user_ji';
+}
 
 function getNotionClient() {
   const apiKey = process.env.NOTION_API_KEY;
@@ -171,9 +181,8 @@ function buildNotionProperties(app: JobApplication) {
 }
 
 export async function pushApplicationToNotion(app: JobApplication): Promise<string | null> {
-  // Only Admin (Ji) applications sync to Notion. Other members remain solely in the DB
-  const isJiApp = !app.owner || app.owner === 'user_ji' || app.owner === 'jizelle' || app.owner === 'ji';
-  if (!isJiApp) {
+  const isEligible = await isAppEligibleForNotionSync(app);
+  if (!isEligible) {
     return null;
   }
 
@@ -233,6 +242,9 @@ export async function pullApplicationsFromNotion() {
   try {
     const pages = await queryNotionRows(notion, databaseId);
     let syncedCount = 0;
+    const users = await getUsers();
+    const defaultOwnerId =
+      users.find((u) => u.role === 'admin' || u.notion_enabled)?.id || users[0]?.id || 'admin';
 
     for (const page of pages) {
       const pageId = page.id;
@@ -356,7 +368,7 @@ export async function pullApplicationsFromNotion() {
           contact_email,
           date_applied,
           notes,
-          owner: 'user_ji',
+          owner: defaultOwnerId,
           notion_page_id: pageId,
           sync_status: 'SYNCED',
           last_synced_at: new Date().toISOString(),
@@ -389,9 +401,8 @@ export async function performTwoWaySync() {
   let pushedCount = 0;
 
   for (const app of allApps) {
-    // Only Admin (Ji) applications sync to Notion. All other members remain safely in the DB.
-    const isJiApp = !app.owner || app.owner === 'user_ji' || app.owner === 'jizelle' || app.owner === 'ji';
-    if (!isJiApp) {
+    const isEligible = await isAppEligibleForNotionSync(app);
+    if (!isEligible) {
       continue;
     }
     if (app.sync_status === 'PENDING' || !app.notion_page_id) {

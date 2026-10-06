@@ -42,7 +42,7 @@ export interface JobApplication {
   salary_currency: string;
   job_url?: string;
   source?: 'LINKEDIN' | 'JOBSTREET' | 'INDEED' | 'GOOGLE' | 'DIRECT' | 'OTHER';
-  owner?: 'jizelle' | 'denise' | string;
+  owner?: string;
   contact_name?: string;
   contact_email?: string;
   date_applied?: string;
