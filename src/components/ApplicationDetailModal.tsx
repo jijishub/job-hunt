@@ -16,6 +16,7 @@ import {
   Clock,
   Sparkles,
   CheckCircle2,
+  Tag,
 } from 'lucide-react';
 
 interface ApplicationDetailModalProps {
@@ -154,9 +155,16 @@ export default function ApplicationDetailModal({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <span className="text-[11px] font-semibold text-[#736A6D] uppercase tracking-wider block mb-1">
-                  Status
+                  Status & Stage
                 </span>
-                <StatusBadge status={app.status} />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <StatusBadge status={app.status} />
+                  {app.notion_status && (
+                    <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#FFF0F6] text-[#9D3C5E] border border-[#F1DDE9]">
+                      Notion: {app.notion_status}
+                    </span>
+                  )}
+                </div>
               </div>
               <div>
                 <span className="text-[11px] font-semibold text-[#736A6D] uppercase tracking-wider block mb-1">
@@ -169,12 +177,23 @@ export default function ApplicationDetailModal({
             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[#F1DDE9]/60">
               <div>
                 <span className="text-[11px] font-semibold text-[#736A6D] uppercase tracking-wider block mb-1">
+                  Service / Category
+                </span>
+                <span className="text-xs text-[#9D3C5E] font-semibold">
+                  {app.service ? `🏷️ ${app.service}` : 'General'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] font-semibold text-[#736A6D] uppercase tracking-wider block mb-1">
                   Work Model & Type
                 </span>
                 <span className="text-xs text-[#4A3E44] capitalize font-medium">
                   {app.work_model.toLowerCase().replace('_', ' ')} • {app.job_type.toLowerCase().replace('_', ' ')}
                 </span>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[#F1DDE9]/60">
               <div>
                 <span className="text-[11px] font-semibold text-[#736A6D] uppercase tracking-wider block mb-1">
                   Location
@@ -184,9 +203,6 @@ export default function ApplicationDetailModal({
                   {app.location || 'Not specified'}
                 </span>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[#F1DDE9]/60">
               <div>
                 <span className="text-[11px] font-semibold text-[#736A6D] uppercase tracking-wider block mb-1">
                   Compensation
@@ -203,6 +219,9 @@ export default function ApplicationDetailModal({
                     : 'Not disclosed'}
                 </span>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[#F1DDE9]/60">
               <div>
                 <span className="text-[11px] font-semibold text-[#736A6D] uppercase tracking-wider block mb-1">
                   Date Applied
@@ -225,6 +244,18 @@ export default function ApplicationDetailModal({
               </div>
             )}
           </div>
+
+          {app.information && (
+            <div>
+              <h3 className="text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-[#FF7AB3]" />
+                <span>Information & Source Details</span>
+              </h3>
+              <div className="p-4 rounded-xl border border-[#F1DDE9] bg-white text-xs text-[#4A3E44] whitespace-pre-wrap leading-relaxed">
+                {app.information}
+              </div>
+            </div>
+          )}
 
           <div>
             <h3 className="text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-2 flex items-center gap-1.5">

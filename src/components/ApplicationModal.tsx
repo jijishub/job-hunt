@@ -94,6 +94,9 @@ export default function ApplicationModal({
   const [jobType, setJobType] = useState<JobType>('FULL_TIME');
   const [workModel, setWorkModel] = useState<WorkModel>('REMOTE');
   const [location, setLocation] = useState('');
+  const [service, setService] = useState('');
+  const [notionStatus, setNotionStatus] = useState('');
+  const [information, setInformation] = useState('');
   const [salaryMin, setSalaryMin] = useState<string>('');
   const [salaryMax, setSalaryMax] = useState<string>('');
   const [salaryCurrency, setSalaryCurrency] = useState('USD');
@@ -113,6 +116,9 @@ export default function ApplicationModal({
       setCompanyName(initialData.company_name || '');
       setCustomLogoUrl(initialData.company_logo || '');
       setStatus(initialData.status || 'LEAD');
+      setService(initialData.service || '');
+      setNotionStatus(initialData.notion_status || '');
+      setInformation(initialData.information || '');
       setPriority(initialData.priority || 'MEDIUM');
       setJobType(initialData.job_type || 'FULL_TIME');
       setWorkModel(initialData.work_model || 'REMOTE');
@@ -131,6 +137,9 @@ export default function ApplicationModal({
       setCompanyName('');
       setCustomLogoUrl('');
       setStatus('LEAD');
+      setService('');
+      setNotionStatus('');
+      setInformation('');
       setPriority('MEDIUM');
       setJobType('FULL_TIME');
       setWorkModel('REMOTE');
@@ -170,6 +179,9 @@ export default function ApplicationModal({
         company_name: companyName.trim(),
         company_logo: customLogoUrl || undefined,
         status,
+        service: service.trim() || undefined,
+        notion_status: notionStatus.trim() || undefined,
+        information: information.trim() || undefined,
         priority,
         job_type: jobType,
         work_model: workModel,

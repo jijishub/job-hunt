@@ -80,10 +80,15 @@ export default function ApplicationTable({
                       </span>
                       {app.notion_page_id && (
                         <span title="Synced with Notion">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
                         </span>
                       )}
                     </div>
+                    {app.information && (
+                      <span className="text-[10px] text-[#736A6D] block truncate max-w-[220px] mt-0.5" title={app.information}>
+                        📌 {app.information}
+                      </span>
+                    )}
                     {app.salary_min || app.salary_max ? (
                       <span className="text-[11px] text-[#736A6D] block mt-0.5">
                         {app.salary_currency}{' '}
@@ -115,10 +120,22 @@ export default function ApplicationTable({
                       </div>
                       <span className="font-medium text-[#4A3E44]">{app.company_name}</span>
                     </div>
+                    {app.service && (
+                      <div className="mt-1">
+                        <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#FFF0F6] text-[#9D3C5E] border border-[#F1DDE9] truncate max-w-[180px]" title={app.service}>
+                          🏷️ {app.service}
+                        </span>
+                      </div>
+                    )}
                   </td>
 
                   <td className="py-3.5 px-4">
                     <StatusBadge status={app.status} size="sm" />
+                    {app.notion_status && (
+                      <span className="block text-[10px] text-[#736A6D] font-medium mt-1 truncate max-w-[130px]" title={app.notion_status}>
+                        {app.notion_status}
+                      </span>
+                    )}
                   </td>
 
                   <td className="py-3.5 px-4">

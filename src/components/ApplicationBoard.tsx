@@ -99,9 +99,32 @@ export default function ApplicationBoard({
                     </div>
                   </div>
 
-                  <h4 className="text-sm font-semibold text-[#4A3E44] group-hover:text-[#9D3C5E] transition line-clamp-2">
-                    {app.role_title}
-                  </h4>
+                  <div>
+                    <h4 className="text-sm font-semibold text-[#4A3E44] group-hover:text-[#9D3C5E] transition line-clamp-2">
+                      {app.role_title}
+                    </h4>
+                    {app.information && (
+                      <p className="text-[10px] text-[#736A6D] italic truncate mt-0.5" title={app.information}>
+                        📌 {app.information}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Notion Stage & Service Categorization Badges */}
+                  {(app.notion_status || app.service) && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {app.notion_status && (
+                        <span className="inline-block px-2 py-0.5 rounded-md text-[9px] font-bold bg-[#FFF0F6] text-[#9D3C5E] border border-[#F1DDE9] truncate max-w-[140px]" title={app.notion_status}>
+                          {app.notion_status}
+                        </span>
+                      )}
+                      {app.service && (
+                        <span className="inline-block px-2 py-0.5 rounded-md text-[9px] font-semibold bg-stone-100 text-[#736A6D] border border-stone-200/60 truncate max-w-[120px]" title={app.service}>
+                          🏷️ {app.service}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   <div className="text-[11px] text-[#736A6D] space-y-1">
                     {app.salary_min || app.salary_max ? (

@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Image from 'next/image';
+import { useSession } from 'next-auth/react';
 import {
   JobApplication,
   Company,
@@ -9,6 +11,7 @@ import {
   UserAccount,
 } from '@/types/job';
 import Header from '@/components/Header';
+import SSOLandingView from '@/components/SSOLandingView';
 import ApplicationTable from '@/components/ApplicationTable';
 import ApplicationBoard from '@/components/ApplicationBoard';
 import CompaniesView from '@/components/CompaniesView';
@@ -32,6 +35,7 @@ import {
 } from 'lucide-react';
 
 export default function JobHuntDashboard() {
+  const { data: session, status: authStatus } = useSession();
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [users, setUsers] = useState<UserAccount[]>([]);
@@ -47,6 +51,9 @@ export default function JobHuntDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [ownerFilter, setOwnerFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [notionStatusFilter, setNotionStatusFilter] = useState<string>('ALL');
+  const [serviceFilter, setServiceFilter] = useState<string>('ALL');
+  const [positionFilter, setPositionFilter] = useState<string>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
   const [sortBy, setSortBy] = useState<'updated' | 'date_applied' | 'priority' | 'company'>('updated');
 
@@ -97,15 +104,23 @@ export default function JobHuntDashboard() {
 
       if (usersData.success && usersData.data.length > 0) {
         setUsers(usersData.data);
-        setCurrentUser((prev) => {
-          if (prev) {
-            const found = usersData.data.find((u: UserAccount) => u.id === prev.id);
-            return found || prev;
-          }
-          // Default to the admin account or first user
-          const admin = usersData.data.find((u: UserAccount) => u.role === 'admin');
-          return admin || usersData.data[0];
-        });
+        const sessionEmail = session?.user?.email?.toLowerCase().trim();
+        const matched = sessionEmail
+          ? usersData.data.find((u: UserAccount) => u.email.toLowerCase().trim() === sessionEmail)
+          : null;
+        if (matched) {
+          setCurrentUser(matched);
+        } else if (session?.user) {
+          setCurrentUser({
+            id: 'user_sso',
+            name: session.user.name || 'Member',
+            email: session.user.email || '',
+            role: (session.user as any)?.role || 'member',
+            avatar: session.user.image || '✨',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
       }
     } catch (err) {
       console.error('Failed to load initial data:', err);
@@ -115,8 +130,10 @@ export default function JobHuntDashboard() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (authStatus === 'authenticated') {
+      fetchData();
+    }
+  }, [authStatus]);
 
   const handleNotionSync = async () => {
     setIsSyncing(true);
@@ -216,6 +233,31 @@ export default function JobHuntDashboard() {
     }
   };
 
+  // Extract unique Notion categories for quick smart filtering
+  const uniqueNotionStatuses = useMemo(() => {
+    const set = new Set<string>();
+    applications.forEach((a) => {
+      if (a.notion_status) set.add(a.notion_status);
+    });
+    return Array.from(set).sort();
+  }, [applications]);
+
+  const uniqueServices = useMemo(() => {
+    const set = new Set<string>();
+    applications.forEach((a) => {
+      if (a.service) set.add(a.service);
+    });
+    return Array.from(set).sort();
+  }, [applications]);
+
+  const uniquePositions = useMemo(() => {
+    const set = new Set<string>();
+    applications.forEach((a) => {
+      if (a.role_title) set.add(a.role_title);
+    });
+    return Array.from(set).sort();
+  }, [applications]);
+
   const filteredApplications = useMemo(() => {
     return applications
       .filter((app) => {
@@ -240,12 +282,35 @@ export default function JobHuntDashboard() {
           const matchCompany = app.company_name.toLowerCase().includes(q);
           const matchNotes = app.notes?.toLowerCase().includes(q);
           const matchLocation = app.location?.toLowerCase().includes(q);
-          if (!matchTitle && !matchCompany && !matchNotes && !matchLocation) {
+          const matchService = app.service?.toLowerCase().includes(q);
+          const matchInfo = app.information?.toLowerCase().includes(q);
+          const matchNotionStatus = app.notion_status?.toLowerCase().includes(q);
+          if (
+            !matchTitle &&
+            !matchCompany &&
+            !matchNotes &&
+            !matchLocation &&
+            !matchService &&
+            !matchInfo &&
+            !matchNotionStatus
+          ) {
             return false;
           }
         }
 
         if (statusFilter !== 'ALL' && app.status !== statusFilter) {
+          return false;
+        }
+
+        if (notionStatusFilter !== 'ALL' && app.notion_status !== notionStatusFilter) {
+          return false;
+        }
+
+        if (serviceFilter !== 'ALL' && app.service !== serviceFilter) {
+          return false;
+        }
+
+        if (positionFilter !== 'ALL' && app.role_title !== positionFilter) {
           return false;
         }
 
@@ -279,7 +344,39 @@ export default function JobHuntDashboard() {
         }
         return 0;
       });
-  }, [applications, searchQuery, ownerFilter, statusFilter, priorityFilter, sortBy, users]);
+  }, [
+    applications,
+    searchQuery,
+    ownerFilter,
+    statusFilter,
+    notionStatusFilter,
+    serviceFilter,
+    positionFilter,
+    priorityFilter,
+    sortBy,
+    users,
+  ]);
+
+  if (authStatus === 'loading') {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#FFF5F8] to-[#FAF7F9] flex flex-col items-center justify-center gap-3">
+        <div className="w-14 h-14 rounded-3xl bg-white border border-[#F1DDE9] p-1.5 shadow-xs flex items-center justify-center animate-pulse">
+          <Image
+            src="/job-hunt-whitebg.jpg"
+            alt="Job Hunt"
+            width={48}
+            height={48}
+            className="rounded-2xl object-contain"
+          />
+        </div>
+        <p className="text-xs text-[#736A6D] font-semibold animate-pulse">Loading workspace...</p>
+      </div>
+    );
+  }
+
+  if (authStatus === 'unauthenticated' || !session) {
+    return <SSOLandingView />;
+  }
 
   return (
     <div className="min-h-screen bg-[#FAF7F9] text-[#4A3E44] flex flex-col">
@@ -431,20 +528,56 @@ export default function JobHuntDashboard() {
                 ))}
               </select>
 
-              {/* Status Filter */}
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer"
-              >
-                <option value="ALL">All Statuses</option>
-                <option value="LEAD">Leads</option>
-                <option value="APPLIED">Applied</option>
-                <option value="SCREENING">Screening</option>
-                <option value="INTERVIEWING">Interviewing</option>
-                <option value="OFFER">Offers</option>
-                <option value="REJECTED">Rejected</option>
-              </select>
+              {/* Notion Exact Stage Filter */}
+              {uniqueNotionStatuses.length > 0 && (
+                <select
+                  value={notionStatusFilter}
+                  onChange={(e) => setNotionStatusFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[150px] truncate"
+                  title="Filter by exact Notion stage"
+                >
+                  <option value="ALL">Notion: All Stages</option>
+                  {uniqueNotionStatuses.map((st) => (
+                    <option key={st} value={st}>
+                      {st}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* Service / Industry Category Filter */}
+              {uniqueServices.length > 0 && (
+                <select
+                  value={serviceFilter}
+                  onChange={(e) => setServiceFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[150px] truncate"
+                  title="Filter by Industry / Service category"
+                >
+                  <option value="ALL">🏷️ All Services</option>
+                  {uniqueServices.map((svc) => (
+                    <option key={svc} value={svc}>
+                      {svc}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* Intern Position Filter */}
+              {uniquePositions.length > 0 && (
+                <select
+                  value={positionFilter}
+                  onChange={(e) => setPositionFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[140px] truncate"
+                  title="Filter by Position / Role"
+                >
+                  <option value="ALL">💼 All Roles</option>
+                  {uniquePositions.map((pos) => (
+                    <option key={pos} value={pos}>
+                      {pos}
+                    </option>
+                  ))}
+                </select>
+              )}
 
               {/* Priority Filter */}
               <select
@@ -474,12 +607,21 @@ export default function JobHuntDashboard() {
                 </select>
               </div>
 
-              {(searchQuery || ownerFilter !== 'ALL' || statusFilter !== 'ALL' || priorityFilter !== 'ALL') && (
+              {(searchQuery ||
+                ownerFilter !== 'ALL' ||
+                statusFilter !== 'ALL' ||
+                notionStatusFilter !== 'ALL' ||
+                serviceFilter !== 'ALL' ||
+                positionFilter !== 'ALL' ||
+                priorityFilter !== 'ALL') && (
                 <button
                   onClick={() => {
                     setSearchQuery('');
                     setOwnerFilter('ALL');
                     setStatusFilter('ALL');
+                    setNotionStatusFilter('ALL');
+                    setServiceFilter('ALL');
+                    setPositionFilter('ALL');
                     setPriorityFilter('ALL');
                   }}
                   className="text-xs text-[#9D3C5E] hover:underline font-semibold px-2 py-1 whitespace-nowrap"
