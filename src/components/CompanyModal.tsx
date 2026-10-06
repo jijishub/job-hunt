@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Company } from '@/types/job';
-import { X, Building2, Globe, Image as ImageIcon } from 'lucide-react';
+import { X, Building2, Globe, Image as ImageIcon, Upload } from 'lucide-react';
 
 interface CompanyModalProps {
   isOpen: boolean;
@@ -12,6 +12,42 @@ interface CompanyModalProps {
 }
 
 const PRESET_ICONS = ['🌸', '💼', '🚀', '🦄', '💻', '🏢', '✨', '🎯', '🎨', '💖'];
+
+function compressImage(file: File, callback: (base64: string) => void) {
+  if (!file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const maxDim = 128;
+      let width = img.width;
+      let height = img.height;
+      if (width > height) {
+        if (width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        }
+      } else {
+        if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        // Compress to WebP (<20KB)
+        const dataUrl = canvas.toDataURL('image/webp', 0.85);
+        callback(dataUrl);
+      }
+    };
+    img.src = e.target?.result as string;
+  };
+  reader.readAsDataURL(file);
+}
 
 export default function CompanyModal({
   isOpen,
@@ -159,6 +195,28 @@ export default function CompanyModal({
                   {emoji}
                 </button>
               ))}
+            </div>
+
+            <div className="flex items-center gap-2 mb-2">
+              <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#F1DDE9] bg-white hover:bg-[#FFF0F6] text-xs font-semibold text-[#9D3C5E] transition shadow-xs hover:border-[#FF7AB3]">
+                <Upload className="w-3.5 h-3.5 text-[#FF7AB3]" />
+                <span>Upload Logo / Photo</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      compressImage(file, (dataUrl) => {
+                        setLogoUrl(dataUrl);
+                        setSelectedEmoji(null);
+                      });
+                    }
+                  }}
+                />
+              </label>
+              <span className="text-[11px] text-[#736A6D]">Auto-compressed (&lt;20KB)</span>
             </div>
 
             <div className="relative">

@@ -14,30 +14,7 @@ interface LocalDatabase {
   users: UserAccount[];
 }
 
-export const INITIAL_USERS: UserAccount[] = [
-  {
-    id: 'user_ji',
-    name: 'Jizelle (Ji)',
-    email: 'jizellecasia@gmail.com',
-    role: 'admin',
-    industry: 'IT / AI & Forward-Deployed Software',
-    avatar: '🌸',
-    notion_enabled: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'user_denise',
-    name: 'Denise',
-    email: 'denise@hospitality.com',
-    role: 'member',
-    industry: 'Hospitality Management',
-    avatar: '✨',
-    notion_enabled: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+export const INITIAL_USERS: UserAccount[] = [];
 
 const INITIAL_COMPANIES: Company[] = [];
 
@@ -50,30 +27,26 @@ function getPostgresClient() {
 }
 
 function readLocalDb(): LocalDatabase {
-  if (!isServer) return { companies: [], applications: [], users: INITIAL_USERS };
+  if (!isServer) return { companies: [], applications: [], users: [] };
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     if (!fs.existsSync(DB_FILE)) {
       const initial: LocalDatabase = {
-        companies: INITIAL_COMPANIES,
-        applications: INITIAL_APPLICATIONS,
-        users: INITIAL_USERS,
+        companies: [],
+        applications: [],
+        users: [],
       };
       fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2), 'utf-8');
       return initial;
     }
     const content = fs.readFileSync(DB_FILE, 'utf-8');
     const parsed = JSON.parse(content) as LocalDatabase;
-    if (!parsed.users || parsed.users.length === 0) {
-      parsed.users = INITIAL_USERS;
-      writeLocalDb(parsed);
-    }
     return parsed;
   } catch (error) {
     console.error('Error reading local db file:', error);
-    return { companies: INITIAL_COMPANIES, applications: INITIAL_APPLICATIONS, users: INITIAL_USERS };
+    return { companies: [], applications: [], users: [] };
   }
 }
 
@@ -134,7 +107,7 @@ async function initPostgresSchema(sql: any) {
         salary_currency TEXT DEFAULT 'USD',
         job_url TEXT,
         source TEXT DEFAULT 'DIRECT',
-        owner TEXT DEFAULT 'user_ji',
+        owner TEXT DEFAULT 'admin',
         contact_name TEXT,
         contact_email TEXT,
         date_applied TIMESTAMPTZ,
@@ -350,7 +323,7 @@ export async function createApplication(
         ${newApp.role_title}, ${newApp.status}, ${newApp.priority}, ${newApp.job_type},
         ${newApp.work_model}, ${newApp.location || null}, ${newApp.salary_min || null},
         ${newApp.salary_max || null}, ${newApp.salary_currency}, ${newApp.job_url || null},
-        ${newApp.source || 'DIRECT'}, ${newApp.owner || 'user_ji'},
+        ${newApp.source || 'DIRECT'}, ${newApp.owner || 'admin'},
         ${newApp.contact_name || null}, ${newApp.contact_email || null},
         ${newApp.date_applied || null}, ${newApp.follow_up_date || null},
         ${newApp.notes || null}, ${newApp.notion_page_id || null},
@@ -395,7 +368,7 @@ export async function updateApplication(
         salary_currency = ${merged.salary_currency || 'USD'},
         job_url = ${merged.job_url || null},
         source = ${merged.source || 'DIRECT'},
-        owner = ${merged.owner || current.owner || 'user_ji'},
+        owner = ${merged.owner || current.owner || 'admin'},
         contact_name = ${merged.contact_name || null},
         contact_email = ${merged.contact_email || null},
         date_applied = ${merged.date_applied || null},
@@ -459,18 +432,48 @@ export async function getUsers(): Promise<UserAccount[]> {
   if (sql) {
     await initPostgresSchema(sql);
     const rows = await sql`SELECT * FROM users ORDER BY created_at ASC;`;
+
+    // Auto-clean any legacy "(Ji)" names in existing DB rows
+    for (const r of rows) {
+      if (r.name && r.name.includes('(Ji)')) {
+        const cleanName = r.name.replace(/\s*\(Ji\)/gi, '').trim() || 'Jizelle Casia';
+        await sql`UPDATE users SET name = ${cleanName} WHERE id = ${r.id};`;
+        r.name = cleanName;
+      }
+    }
+
     if (rows.length > 0) return rows as UserAccount[];
-    for (const u of INITIAL_USERS) {
+
+    // If database has 0 users, only auto-create the Admin account from ADMIN_EMAIL if configured
+    const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase();
+    if (adminEmail) {
+      const defaultAdmin: UserAccount = {
+        id: `user_${Date.now()}`,
+        name: adminEmail.split('@')[0],
+        email: adminEmail,
+        role: 'admin',
+        industry: 'IT / AI & Software',
+        avatar: '🌸',
+        notion_enabled: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
       await sql`
         INSERT INTO users (id, name, email, role, industry, avatar, notion_enabled, created_at, updated_at)
-        VALUES (${u.id}, ${u.name}, ${u.email}, ${u.role}, ${u.industry || null}, ${u.avatar || null}, ${u.notion_enabled}, NOW(), NOW())
+        VALUES (${defaultAdmin.id}, ${defaultAdmin.name}, ${defaultAdmin.email}, ${defaultAdmin.role}, ${defaultAdmin.industry}, ${defaultAdmin.avatar}, ${defaultAdmin.notion_enabled}, NOW(), NOW())
         ON CONFLICT (email) DO NOTHING;
       `;
+      return [defaultAdmin];
     }
-    const seeded = await sql`SELECT * FROM users ORDER BY created_at ASC;`;
-    return seeded as UserAccount[];
+    return [];
   }
   const db = readLocalDb();
+  db.users.forEach((u) => {
+    if (u.name && u.name.includes('(Ji)')) {
+      u.name = u.name.replace(/\s*\(Ji\)/gi, '').trim() || 'Jizelle Casia';
+    }
+  });
+  writeLocalDb(db);
   return db.users;
 }
 

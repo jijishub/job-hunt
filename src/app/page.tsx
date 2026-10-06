@@ -200,12 +200,15 @@ export default function JobHuntDashboard() {
       .filter((app) => {
         // Owner / Applicant filter
         if (ownerFilter !== 'ALL') {
-          const appOwner = app.owner || 'user_ji';
-          if (appOwner !== ownerFilter) {
-            // Also match if owner was saved as 'jizelle' or 'ji' and filter is 'user_ji'
+          const appOwner = (app.owner || '').trim().toLowerCase();
+          const targetFilter = ownerFilter.toLowerCase();
+          if (appOwner !== targetFilter) {
+            const matchedUser = users.find((u) => u.id === ownerFilter);
             const isMatch =
-              (ownerFilter === 'user_ji' && (appOwner === 'jizelle' || appOwner === 'ji')) ||
-              (ownerFilter === 'user_denise' && appOwner === 'denise');
+              matchedUser &&
+              (appOwner === matchedUser.name.toLowerCase() ||
+                appOwner === matchedUser.email.toLowerCase() ||
+                appOwner.includes(matchedUser.name.toLowerCase()));
             if (!isMatch) return false;
           }
         }
@@ -255,7 +258,7 @@ export default function JobHuntDashboard() {
         }
         return 0;
       });
-  }, [applications, searchQuery, ownerFilter, statusFilter, priorityFilter, sortBy]);
+  }, [applications, searchQuery, ownerFilter, statusFilter, priorityFilter, sortBy, users]);
 
   return (
     <div className="min-h-screen bg-[#FAF7F9] text-[#4A3E44] flex flex-col">
