@@ -88,9 +88,9 @@ export default function JobHuntDashboard() {
       if (compsData.success) setCompanies(compsData.data);
       setNotionStatus(notionData);
 
-      // Auto-recovery: if applications is empty on load but Notion is connected, auto-sync!
+      // Auto-recovery: if applications is empty or has fewer than 5 rows on load and Notion is connected, auto-sync!
       if (
-        (!appsData.data || appsData.data.length === 0) &&
+        (!appsData.data || appsData.data.length < 5) &&
         notionData.configured &&
         notionData.status?.success
       ) {
@@ -523,7 +523,7 @@ export default function JobHuntDashboard() {
                 <option value="ALL">👥 All Pipelines</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.avatar || '👤'} {u.name} ({u.role.toUpperCase()})
+                    {u.avatar?.startsWith('http') ? (u.role === 'admin' ? '🌸' : '👤') : (u.avatar || '👤')} {u.name} ({u.role.toUpperCase()})
                   </option>
                 ))}
               </select>

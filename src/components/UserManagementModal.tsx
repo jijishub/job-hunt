@@ -352,8 +352,13 @@ export default function UserManagementModal({
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-[#FAF7F9] border border-[#F1DDE9] flex items-center justify-center text-base shrink-0">
-                          {u.avatar || (isAdmin ? '🌸' : '✨')}
+                        <div className="w-9 h-9 rounded-xl bg-[#FAF7F9] border border-[#F1DDE9] flex items-center justify-center text-base shrink-0 overflow-hidden">
+                          {u.avatar?.startsWith('http') ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={u.avatar} alt="" className="w-full h-full object-cover rounded-xl" />
+                          ) : (
+                            <span>{u.avatar || (isAdmin ? '🌸' : '✨')}</span>
+                          )}
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
