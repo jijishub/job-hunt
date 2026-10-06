@@ -31,42 +31,31 @@ export default function SSOLandingView() {
       <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-gradient-to-br from-[#FFB8CA]/30 to-[#FF7AB3]/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2" />
       <div className="absolute bottom-0 right-10 w-[600px] h-[600px] bg-gradient-to-tr from-[#F1DDE9]/60 to-[#FFB8CA]/20 rounded-full blur-3xl pointer-events-none translate-y-1/3" />
 
-      {/* Top Navbar */}
-      <header className="relative z-10 w-full max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-white border border-[#F1DDE9] p-0.5 shadow-2xs overflow-hidden flex items-center justify-center">
-            <Image
-              src="/job-hunt-whitebg.jpg"
-              alt="Job Hunt & Leads"
-              width={40}
-              height={40}
-              priority
-              className="w-full h-full object-contain rounded-xl"
-            />
-          </div>
-          <div>
-            <h1 className="text-base font-extrabold text-[#4A3E44] tracking-tight">Job Hunt & Leads</h1>
-            <p className="text-[11px] text-[#736A6D]">Career Pipeline & AI Suite</p>
-          </div>
-        </div>
-
-        <div className="hidden sm:flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/80 border border-[#F1DDE9] text-[#9D3C5E] shadow-2xs backdrop-blur-sm">
-            <Lock className="w-3 h-3 text-[#FF7AB3]" />
-            <span>Google SSO (Invite Only)</span>
-          </span>
-        </div>
-      </header>
-
       {/* Main Split Hero Section */}
-      <main className="relative z-10 w-full max-w-7xl mx-auto px-6 py-8 sm:py-12 flex-1 flex items-center">
+      <main className="relative z-10 w-full max-w-7xl mx-auto px-6 py-8 sm:py-14 flex-1 flex items-center">
         <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
           
           {/* Left Column: Brand Story & Feature Showcase */}
-          <div className="lg:col-span-7 space-y-7 text-left">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#F1DDE9] text-[#9D3C5E] text-xs font-bold shadow-2xs backdrop-blur-sm">
-              <Sparkles className="w-3.5 h-3.5 text-[#FF7AB3]" />
-              <span>Aim High with Precision • Career Opportunity Platform</span>
+          <div className="lg:col-span-7 space-y-6 sm:space-y-7 text-left">
+            {/* Archer Logo Emblem with Glow (Moved to Left Column per request) */}
+            <div className="flex items-center gap-4">
+              <div className="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0">
+                <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-[#FFB8CA]/60 to-[#FF7AB3]/40 blur-md transform scale-105" />
+                <div className="w-full h-full rounded-3xl bg-white border border-[#F1DDE9] p-1.5 shadow-xs flex items-center justify-center overflow-hidden relative z-10">
+                  <Image
+                    src="/job-hunt-whitebg.jpg"
+                    alt="Job Hunt Logo"
+                    width={80}
+                    height={80}
+                    priority
+                    className="w-full h-full object-contain rounded-2xl"
+                  />
+                </div>
+              </div>
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#F1DDE9] text-[#9D3C5E] text-xs font-bold shadow-2xs backdrop-blur-sm">
+                <Sparkles className="w-3.5 h-3.5 text-[#FF7AB3]" />
+                <span>Aim High with Precision • Career Opportunity Platform</span>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -145,27 +134,28 @@ export default function SSOLandingView() {
           <div className="lg:col-span-5 flex justify-center lg:justify-end">
             <div className="w-full max-w-md bg-white/95 backdrop-blur-xl rounded-3xl border border-[#F1DDE9] shadow-[0_20px_60px_rgba(241,221,233,0.8)] p-8 sm:p-10 relative text-center animate-in fade-in zoom-in-95 duration-200">
               
-              {/* Archer Logo Emblem with Glow */}
-              <div className="relative mx-auto mb-6 w-24 h-24">
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-[#FFB8CA]/60 to-[#FF7AB3]/40 blur-md transform scale-110" />
-                <div className="w-full h-full rounded-3xl bg-white border border-[#F1DDE9] p-1.5 shadow-xs flex items-center justify-center overflow-hidden relative z-10">
-                  <Image
-                    src="/job-hunt-whitebg.jpg"
-                    alt="Job Hunt Logo"
-                    width={96}
-                    height={96}
-                    priority
-                    className="w-full h-full object-contain rounded-2xl"
-                  />
+              {/* Brand Title Header (Moved here per user request) */}
+              <div className="mb-6 space-y-1">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-[#4A3E44] tracking-tight">
+                  Job Hunt & Leads
+                </h1>
+                <p className="text-xs font-semibold text-[#9D3C5E]">
+                  Career Pipeline & AI Suite
+                </p>
+                <div className="pt-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#FFF0F6] border border-[#F1DDE9] text-[#9D3C5E]">
+                    <Lock className="w-3 h-3 text-[#FF7AB3]" />
+                    <span>Google SSO • Invite Only</span>
+                  </span>
                 </div>
               </div>
 
               {/* Title & Prompt */}
-              <div className="mb-6">
-                <h3 className="text-xl sm:text-2xl font-extrabold text-[#4A3E44] tracking-tight">
+              <div className="mb-5 text-left bg-[#FAF7F9] p-3.5 rounded-2xl border border-[#F1DDE9]/70">
+                <h3 className="text-xs font-bold text-[#4A3E44]">
                   Sign in to Continue
                 </h3>
-                <p className="text-xs text-[#736A6D] mt-1.5 leading-relaxed">
+                <p className="text-[11px] text-[#736A6D] mt-0.5 leading-relaxed">
                   Authenticate with your Google account to access your job applications and AI tools.
                 </p>
               </div>
