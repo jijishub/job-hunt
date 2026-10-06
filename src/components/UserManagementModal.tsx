@@ -67,15 +67,6 @@ export default function UserManagementModal({
   const [copiedRedirect, setCopiedRedirect] = useState(false);
   const [copiedOrigin, setCopiedOrigin] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      if (initialTab) setActiveTab(initialTab);
-      fetchGoogleSettings();
-      setErrorMessage(null);
-      setSuccessMessage(null);
-    }
-  }, [isOpen, initialTab]);
-
   const fetchGoogleSettings = async () => {
     try {
       const res = await fetch('/api/settings/google');
@@ -90,6 +81,17 @@ export default function UserManagementModal({
       console.error('Failed to load Google settings:', e);
     }
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialTab && initialTab !== activeTab) {
+        setActiveTab(initialTab);
+      }
+      fetchGoogleSettings();
+      setErrorMessage(null);
+      setSuccessMessage(null);
+    }
+  }, [isOpen, initialTab]);
 
   if (!isOpen) return null;
 
