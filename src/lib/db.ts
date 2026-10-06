@@ -1,4 +1,4 @@
-import { Company, JobApplication } from '@/types/job';
+import { Company, JobApplication, UserAccount, UserRole } from '@/types/job';
 import fs from 'fs';
 import path from 'path';
 import { neon } from '@neondatabase/serverless';
@@ -11,7 +11,33 @@ const DB_FILE = path.join(DATA_DIR, 'db.json');
 interface LocalDatabase {
   companies: Company[];
   applications: JobApplication[];
+  users: UserAccount[];
 }
+
+export const INITIAL_USERS: UserAccount[] = [
+  {
+    id: 'user_ji',
+    name: 'Jizelle (Ji)',
+    email: 'jizellecasia@gmail.com',
+    role: 'admin',
+    industry: 'IT / AI & Forward-Deployed Software',
+    avatar: '🌸',
+    notion_enabled: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'user_denise',
+    name: 'Denise',
+    email: 'denise@hospitality.com',
+    role: 'member',
+    industry: 'Hospitality Management',
+    avatar: '✨',
+    notion_enabled: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
 
 const INITIAL_COMPANIES: Company[] = [
   {
@@ -177,7 +203,7 @@ function getPostgresClient() {
 }
 
 function readLocalDb(): LocalDatabase {
-  if (!isServer) return { companies: [], applications: [] };
+  if (!isServer) return { companies: [], applications: [], users: INITIAL_USERS };
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -186,15 +212,21 @@ function readLocalDb(): LocalDatabase {
       const initial: LocalDatabase = {
         companies: INITIAL_COMPANIES,
         applications: INITIAL_APPLICATIONS,
+        users: INITIAL_USERS,
       };
       fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2), 'utf-8');
       return initial;
     }
     const content = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(content) as LocalDatabase;
+    const parsed = JSON.parse(content) as LocalDatabase;
+    if (!parsed.users || parsed.users.length === 0) {
+      parsed.users = INITIAL_USERS;
+      writeLocalDb(parsed);
+    }
+    return parsed;
   } catch (error) {
     console.error('Error reading local db file:', error);
-    return { companies: INITIAL_COMPANIES, applications: INITIAL_APPLICATIONS };
+    return { companies: INITIAL_COMPANIES, applications: INITIAL_APPLICATIONS, users: INITIAL_USERS };
   }
 }
 
@@ -214,6 +246,19 @@ let schemaInitialized = false;
 async function initPostgresSchema(sql: any) {
   if (schemaInitialized) return;
   try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        industry TEXT,
+        avatar TEXT,
+        notion_enabled BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `;
     await sql`
       CREATE TABLE IF NOT EXISTS companies (
         id TEXT PRIMARY KEY,
@@ -241,6 +286,8 @@ async function initPostgresSchema(sql: any) {
         salary_max NUMERIC,
         salary_currency TEXT DEFAULT 'USD',
         job_url TEXT,
+        source TEXT DEFAULT 'DIRECT',
+        owner TEXT DEFAULT 'user_ji',
         contact_name TEXT,
         contact_email TEXT,
         date_applied TIMESTAMPTZ,
@@ -449,13 +496,14 @@ export async function createApplication(
       INSERT INTO applications (
         id, company_id, company_name, company_logo, role_title, status, priority,
         job_type, work_model, location, salary_min, salary_max, salary_currency,
-        job_url, contact_name, contact_email, date_applied, follow_up_date, notes,
+        job_url, source, owner, contact_name, contact_email, date_applied, follow_up_date, notes,
         notion_page_id, last_synced_at, sync_status, created_at, updated_at
       ) VALUES (
         ${newApp.id}, ${newApp.company_id}, ${newApp.company_name}, ${newApp.company_logo || null},
         ${newApp.role_title}, ${newApp.status}, ${newApp.priority}, ${newApp.job_type},
         ${newApp.work_model}, ${newApp.location || null}, ${newApp.salary_min || null},
         ${newApp.salary_max || null}, ${newApp.salary_currency}, ${newApp.job_url || null},
+        ${newApp.source || 'DIRECT'}, ${newApp.owner || 'user_ji'},
         ${newApp.contact_name || null}, ${newApp.contact_email || null},
         ${newApp.date_applied || null}, ${newApp.follow_up_date || null},
         ${newApp.notes || null}, ${newApp.notion_page_id || null},
@@ -499,6 +547,8 @@ export async function updateApplication(
         salary_max = ${merged.salary_max || null},
         salary_currency = ${merged.salary_currency || 'USD'},
         job_url = ${merged.job_url || null},
+        source = ${merged.source || 'DIRECT'},
+        owner = ${merged.owner || current.owner || 'user_ji'},
         contact_name = ${merged.contact_name || null},
         contact_email = ${merged.contact_email || null},
         date_applied = ${merged.date_applied || null},
@@ -539,4 +589,198 @@ export async function deleteApplication(id: string): Promise<boolean> {
   writeLocalDb(db);
   return true;
 }
+
+// ==========================================
+// USER ACCOUNTS & RBAC MANAGEMENT
+// ==========================================
+
+export async function getUsers(): Promise<UserAccount[]> {
+  const sql = getPostgresClient();
+  if (sql) {
+    await initPostgresSchema(sql);
+    const rows = await sql`SELECT * FROM users ORDER BY created_at ASC;`;
+    if (rows.length > 0) return rows as UserAccount[];
+    for (const u of INITIAL_USERS) {
+      await sql`
+        INSERT INTO users (id, name, email, role, industry, avatar, notion_enabled, created_at, updated_at)
+        VALUES (${u.id}, ${u.name}, ${u.email}, ${u.role}, ${u.industry || null}, ${u.avatar || null}, ${u.notion_enabled}, NOW(), NOW())
+        ON CONFLICT (email) DO NOTHING;
+      `;
+    }
+    const seeded = await sql`SELECT * FROM users ORDER BY created_at ASC;`;
+    return seeded as UserAccount[];
+  }
+  const db = readLocalDb();
+  return db.users;
+}
+
+export async function getUserById(id: string): Promise<UserAccount | null> {
+  const users = await getUsers();
+  return users.find((u) => u.id === id) || null;
+}
+
+export async function getUserByEmail(email: string): Promise<UserAccount | null> {
+  const users = await getUsers();
+  const lower = email.trim().toLowerCase();
+  return users.find((u) => u.email.toLowerCase() === lower) || null;
+}
+
+export async function getOrCreateUser(data: {
+  name: string;
+  email: string;
+  avatar?: string;
+  role?: UserRole;
+  industry?: string;
+}): Promise<UserAccount> {
+  const existing = await getUserByEmail(data.email);
+  if (existing) {
+    if (data.name && data.name !== existing.name) {
+      await updateUser(existing.id, { name: data.name, avatar: data.avatar || existing.avatar });
+      return { ...existing, name: data.name, avatar: data.avatar || existing.avatar };
+    }
+    return existing;
+  }
+
+  const lowerEmail = data.email.toLowerCase();
+  const adminConfig = (process.env.ADMIN_EMAIL || '').toLowerCase();
+  const allUsers = await getUsers();
+  const hasAdmin = allUsers.some((u) => u.role === 'admin');
+
+  const isAdmin =
+    data.role === 'admin' ||
+    (adminConfig && lowerEmail === adminConfig) ||
+    lowerEmail.includes('jizelle') ||
+    lowerEmail.includes('cloudji') ||
+    !hasAdmin;
+
+  const newUser: UserAccount = {
+    id: `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    name: data.name || 'Job Hunt Member',
+    email: data.email.toLowerCase(),
+    role: isAdmin ? 'admin' : 'member',
+    industry: data.industry || (isAdmin ? 'IT / AI & Software' : 'General'),
+    avatar: data.avatar || (isAdmin ? '🌸' : '👤'),
+    notion_enabled: isAdmin,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  const sql = getPostgresClient();
+  if (sql) {
+    await initPostgresSchema(sql);
+    await sql`
+      INSERT INTO users (id, name, email, role, industry, avatar, notion_enabled, created_at, updated_at)
+      VALUES (
+        ${newUser.id}, ${newUser.name}, ${newUser.email}, ${newUser.role},
+        ${newUser.industry || null}, ${newUser.avatar || null}, ${newUser.notion_enabled}, NOW(), NOW()
+      )
+      ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, avatar = EXCLUDED.avatar
+      RETURNING *;
+    `;
+    return newUser;
+  }
+
+  const db = readLocalDb();
+  db.users.push(newUser);
+  writeLocalDb(db);
+  return newUser;
+}
+
+export async function createUser(data: Partial<UserAccount>): Promise<UserAccount> {
+  const email = (data.email || `user_${Date.now()}@jobhunt.internal`).toLowerCase();
+  const existing = await getUserByEmail(email);
+  if (existing) {
+    throw new Error('A user with this email already exists.');
+  }
+
+  const role = data.role || 'member';
+  const newUser: UserAccount = {
+    id: data.id || `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    name: data.name || 'New Member',
+    email,
+    role,
+    industry: data.industry || 'General',
+    avatar: data.avatar || (role === 'admin' ? '🌸' : '👤'),
+    notion_enabled: role === 'admin',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  const sql = getPostgresClient();
+  if (sql) {
+    await initPostgresSchema(sql);
+    await sql`
+      INSERT INTO users (id, name, email, role, industry, avatar, notion_enabled, created_at, updated_at)
+      VALUES (
+        ${newUser.id}, ${newUser.name}, ${newUser.email}, ${newUser.role},
+        ${newUser.industry || null}, ${newUser.avatar || null}, ${newUser.notion_enabled}, NOW(), NOW()
+      );
+    `;
+    return newUser;
+  }
+
+  const db = readLocalDb();
+  db.users.push(newUser);
+  writeLocalDb(db);
+  return newUser;
+}
+
+export async function updateUser(id: string, updates: Partial<UserAccount>): Promise<UserAccount | null> {
+  const sql = getPostgresClient();
+  if (sql) {
+    await initPostgresSchema(sql);
+    const existing = await sql`SELECT * FROM users WHERE id = ${id} LIMIT 1;`;
+    if (existing.length === 0) return null;
+    const current = existing[0];
+    const name = updates.name ?? current.name;
+    const email = updates.email ? updates.email.toLowerCase() : current.email;
+    const role = updates.role ?? current.role;
+    const industry = updates.industry ?? current.industry;
+    const avatar = updates.avatar ?? current.avatar;
+    const notion_enabled = updates.notion_enabled ?? (role === 'admin');
+
+    const updated = await sql`
+      UPDATE users SET
+        name = ${name},
+        email = ${email},
+        role = ${role},
+        industry = ${industry || null},
+        avatar = ${avatar || null},
+        notion_enabled = ${notion_enabled},
+        updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING *;
+    `;
+    return updated[0] as UserAccount;
+  }
+
+  const db = readLocalDb();
+  const index = db.users.findIndex((u) => u.id === id);
+  if (index === -1) return null;
+  const role = updates.role ?? db.users[index].role;
+  const updatedUser: UserAccount = {
+    ...db.users[index],
+    ...updates,
+    role,
+    notion_enabled: updates.notion_enabled ?? (role === 'admin'),
+    updated_at: new Date().toISOString(),
+  };
+  db.users[index] = updatedUser;
+  writeLocalDb(db);
+  return updatedUser;
+}
+
+export async function deleteUser(id: string): Promise<boolean> {
+  const sql = getPostgresClient();
+  if (sql) {
+    await initPostgresSchema(sql);
+    await sql`DELETE FROM users WHERE id = ${id};`;
+    return true;
+  }
+  const db = readLocalDb();
+  db.users = db.users.filter((u) => u.id !== id);
+  writeLocalDb(db);
+  return true;
+}
+
 

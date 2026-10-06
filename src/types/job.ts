@@ -41,6 +41,8 @@ export interface JobApplication {
   salary_max?: number;
   salary_currency: string;
   job_url?: string;
+  source?: 'LINKEDIN' | 'JOBSTREET' | 'INDEED' | 'GOOGLE' | 'DIRECT' | 'OTHER';
+  owner?: 'jizelle' | 'denise' | string;
   contact_name?: string;
   contact_email?: string;
   date_applied?: string;
@@ -58,4 +60,19 @@ export interface NotionConfig {
   databaseId?: string;
   autoSync?: boolean;
 }
+
+export type UserRole = 'admin' | 'member';
+
+export interface UserAccount {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  industry?: string;
+  avatar?: string;
+  notion_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 
