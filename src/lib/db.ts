@@ -98,6 +98,9 @@ async function initPostgresSchema(sql: any) {
         company_logo TEXT,
         role_title TEXT NOT NULL,
         status TEXT NOT NULL,
+        notion_status TEXT,
+        service TEXT,
+        information TEXT,
         priority TEXT NOT NULL,
         job_type TEXT NOT NULL,
         work_model TEXT NOT NULL,
@@ -120,6 +123,9 @@ async function initPostgresSchema(sql: any) {
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS notion_status TEXT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS service TEXT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS information TEXT;`;
     schemaInitialized = true;
   } catch (err) {
     console.error('Postgres schema init error:', err);
@@ -314,13 +320,14 @@ export async function createApplication(
     await initPostgresSchema(sql);
     const inserted = await sql`
       INSERT INTO applications (
-        id, company_id, company_name, company_logo, role_title, status, priority,
+        id, company_id, company_name, company_logo, role_title, status, notion_status, service, information, priority,
         job_type, work_model, location, salary_min, salary_max, salary_currency,
         job_url, source, owner, contact_name, contact_email, date_applied, follow_up_date, notes,
         notion_page_id, last_synced_at, sync_status, created_at, updated_at
       ) VALUES (
         ${newApp.id}, ${newApp.company_id}, ${newApp.company_name}, ${newApp.company_logo || null},
-        ${newApp.role_title}, ${newApp.status}, ${newApp.priority}, ${newApp.job_type},
+        ${newApp.role_title}, ${newApp.status}, ${newApp.notion_status || null}, ${newApp.service || null}, ${newApp.information || null},
+        ${newApp.priority}, ${newApp.job_type},
         ${newApp.work_model}, ${newApp.location || null}, ${newApp.salary_min || null},
         ${newApp.salary_max || null}, ${newApp.salary_currency}, ${newApp.job_url || null},
         ${newApp.source || 'DIRECT'}, ${newApp.owner || 'admin'},
@@ -359,6 +366,9 @@ export async function updateApplication(
         company_logo = ${merged.company_logo || null},
         role_title = ${merged.role_title},
         status = ${merged.status},
+        notion_status = ${merged.notion_status || null},
+        service = ${merged.service || null},
+        information = ${merged.information || null},
         priority = ${merged.priority},
         job_type = ${merged.job_type},
         work_model = ${merged.work_model},

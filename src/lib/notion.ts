@@ -113,7 +113,72 @@ async function queryNotionRows(notion: any, databaseId: string): Promise<any[]> 
   throw new Error('No query method supported on Notion client');
 }
 
+const knownCities = [
+  'makati', 'taguig', 'bgc', 'muntinlupa', 'quezon city', 'qc', 'manila', 'mnl',
+  'parqal', 'pq', 'lp', 'alabang', 'bicutan', 'shaw', 'mandaluyong', 'pasig',
+  'pasay', 'ortigas', 'metro manila', 'meto manila', 'naia'
+];
+
+export function parseServiceAndLocation(raw?: string): { service?: string; location?: string } {
+  if (!raw || !raw.trim()) return {};
+  const trimmed = raw.trim();
+
+  // Multi-line: usually "Service / Industry\n\nLocation"
+  if (trimmed.includes('\n')) {
+    const lines = trimmed.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+    if (lines.length >= 2) {
+      return { service: lines[0], location: lines.slice(1).join(', ') };
+    }
+    return { location: lines[0] };
+  }
+
+  // Dash separated: "Muntinlupa - IT", "Tech Solutions - Parqal, PQ"
+  if (trimmed.includes(' - ')) {
+    const parts = trimmed.split(' - ').map((p) => p.trim());
+    if (parts.length >= 2) {
+      const p0Lower = parts[0].toLowerCase();
+      const p1Lower = parts[parts.length - 1].toLowerCase();
+      const p0IsCity = knownCities.some((c) => p0Lower.includes(c));
+      const p1IsCity = knownCities.some((c) => p1Lower.includes(c));
+
+      if (p0IsCity && !p1IsCity) {
+        return { location: parts[0], service: parts.slice(1).join(' - ') };
+      } else if (p1IsCity && !p0IsCity) {
+        return { service: parts.slice(0, -1).join(' - '), location: parts[parts.length - 1] };
+      } else {
+        return { location: parts[0], service: parts.slice(1).join(' - ') };
+      }
+    }
+  }
+
+  const tLower = trimmed.toLowerCase();
+  if (knownCities.some((c) => tLower.includes(c))) {
+    return { location: trimmed };
+  }
+  return { service: trimmed, location: trimmed };
+}
+
 function buildNotionProperties(app: JobApplication) {
+  let statusSelectName = app.notion_status;
+  if (!statusSelectName) {
+    statusSelectName =
+      app.status === 'ACCEPTED'
+        ? 'Accepted'
+        : app.status === 'OFFER'
+        ? 'Accepted - Not Proceeding'
+        : app.status === 'INTERVIEWING'
+        ? 'Initial Interview'
+        : app.status === 'REJECTED'
+        ? 'Not Accepted'
+        : app.status === 'SCREENING'
+        ? 'Screening'
+        : app.status === 'WITHDRAWN'
+        ? 'Do not Proceed'
+        : app.status === 'LEAD'
+        ? 'Inquiry'
+        : 'Applied - No MOA';
+  }
+
   const properties: Record<string, any> = {
     'Company Name': {
       title: [
@@ -131,23 +196,18 @@ function buildNotionProperties(app: JobApplication) {
     },
     'Application Status': {
       select: {
-        name:
-          app.status === 'OFFER' || app.status === 'ACCEPTED'
-            ? 'Accepted'
-            : app.status === 'INTERVIEWING'
-            ? 'Initial Interview'
-            : app.status === 'REJECTED'
-            ? 'Not Accepted'
-            : app.status === 'SCREENING'
-            ? 'Screening'
-            : 'Inquiry',
+        name: statusSelectName,
       },
     },
   };
 
-  if (app.location) {
+  if (app.service || app.location) {
+    const content =
+      app.service && app.location
+        ? `${app.service}\n\n${app.location}`
+        : app.location || app.service || '';
     properties['Service & Location'] = {
-      rich_text: [{ text: { content: app.location } }],
+      rich_text: [{ text: { content } }],
     };
   }
 
@@ -168,6 +228,12 @@ function buildNotionProperties(app: JobApplication) {
       date: {
         start: app.date_applied.split('T')[0],
       },
+    };
+  }
+
+  if (app.information) {
+    properties['Information'] = {
+      rich_text: [{ text: { content: app.information } }],
     };
   }
 
@@ -269,26 +335,56 @@ export async function pullApplicationsFromNotion() {
         props.Title?.title?.[0]?.plain_text ||
         'IT Intern';
 
-      // 3. Status
-      const statusProp = props['Application Status'] || props.Status || props.Stage;
-      const statusRaw = (statusProp?.select?.name || statusProp?.status?.name || 'APPLIED').toUpperCase();
-      let status: ApplicationStatus = 'APPLIED';
-      if (statusRaw.includes('ACCEPT') || statusRaw.includes('OFFER')) status = 'OFFER';
-      else if (statusRaw.includes('INTERVIEW')) status = 'INTERVIEWING';
-      else if (statusRaw.includes('SCREEN') || statusRaw.includes('EXAM')) status = 'SCREENING';
-      else if (statusRaw.includes('REJECT') || statusRaw.includes('NOT ACCEPT')) status = 'REJECTED';
-      else if (statusRaw.includes('NOT START') || statusRaw.includes('WISHLIST') || statusRaw.includes('LEAD'))
-        status = 'LEAD';
-      else if (statusRaw.includes('WITHDRAW')) status = 'WITHDRAWN';
-      else if (statusRaw.includes('GHOST')) status = 'GHOSTED';
+      // 3. Exact Notion Status & Standard Status
+      const notion_status =
+        props['Application Status']?.select?.name ||
+        props['Application Status']?.status?.name ||
+        props.Status?.select?.name ||
+        props.Status?.status?.name ||
+        undefined;
 
-      // 4. Priority
-      const priorityProp = props.Priority || props.Rating;
-      const priorityRaw = (priorityProp?.select?.name || 'MEDIUM').toUpperCase();
+      const sLower = (notion_status || '').toLowerCase().trim();
+      let status: ApplicationStatus = 'APPLIED';
       let priority: Priority = 'MEDIUM';
-      if (status === 'OFFER' || priorityRaw.includes('DREAM') || priorityRaw.includes('⭐')) priority = 'DREAM';
+
+      if (sLower === 'accepted') {
+        status = 'ACCEPTED';
+        priority = 'HIGH';
+      } else if (sLower.includes('accepted - not proceeding')) {
+        status = 'OFFER';
+        priority = 'MEDIUM';
+      } else if (
+        sLower.includes('not accepted') ||
+        sLower.includes('not accepting') ||
+        sLower.includes('reject') ||
+        sLower === 'repeated'
+      ) {
+        status = 'REJECTED';
+        priority = 'LOW';
+      } else if (sLower.includes('interview')) {
+        status = 'INTERVIEWING';
+        priority = 'HIGH';
+      } else if (sLower.includes('screen') || sLower.includes('exam')) {
+        status = 'SCREENING';
+        priority = 'MEDIUM';
+      } else if (sLower === 'do not proceed' || sLower.includes('withdraw')) {
+        status = 'WITHDRAWN';
+        priority = 'LOW';
+      } else if (sLower === 'not started' || sLower === 'inquiry') {
+        status = 'LEAD';
+        priority = 'MEDIUM';
+      } else if (sLower.includes('applied')) {
+        status = 'APPLIED';
+        priority = 'MEDIUM';
+      }
+
+      // Explicit Priority from Notion
+      const priorityProp = props.Priority || props.Rating;
+      const priorityRaw = (priorityProp?.select?.name || '').toUpperCase();
+      if (priorityRaw.includes('DREAM') || priorityRaw.includes('⭐')) priority = 'DREAM';
       else if (priorityRaw.includes('HIGH')) priority = 'HIGH';
       else if (priorityRaw.includes('LOW')) priority = 'LOW';
+      else if (priorityRaw.includes('MED')) priority = 'MEDIUM';
 
       // 5. Work Model
       const workModelProp = props['Work Model'] || props.Workplace || props.Setup;
@@ -297,11 +393,12 @@ export async function pullApplicationsFromNotion() {
       if (workModelRaw.includes('REMOTE')) work_model = 'REMOTE';
       else if (workModelRaw.includes('ON-SITE') || workModelRaw.includes('ONSITE')) work_model = 'ON_SITE';
 
-      // 6. Location
-      const location =
+      // 6. Service & Location Categorization
+      const rawServiceLocation =
         props['Service & Location']?.rich_text?.[0]?.plain_text ||
         props.Location?.rich_text?.[0]?.plain_text ||
         undefined;
+      const { service, location } = parseServiceAndLocation(rawServiceLocation);
 
       // 7. Contact Email
       const contact_email =
@@ -323,15 +420,17 @@ export async function pullApplicationsFromNotion() {
         props['Date Applied']?.date?.start ||
         new Date().toISOString();
 
-      // 10. Notes
-      const notesParts = [
-        props['Post Notes']?.rich_text?.[0]?.plain_text,
-        props['Information']?.rich_text?.[0]?.plain_text,
-        props.Notes?.rich_text?.[0]?.plain_text,
-      ].filter(Boolean);
-      const notes = notesParts.length > 0 ? notesParts.join('\n\n') : undefined;
+      // 10. Information & Post Notes
+      const information = props['Information']?.rich_text?.[0]?.plain_text || undefined;
+      const notes =
+        props['Post Notes']?.rich_text?.[0]?.plain_text ||
+        props.Notes?.rich_text?.[0]?.plain_text ||
+        undefined;
 
       const company = await getOrCreateCompany(companyName);
+      if (service && !company.industry) {
+        await updateCompany(company.id, { industry: service });
+      }
 
       const existingApp = await getApplicationByNotionId(pageId);
 
@@ -342,6 +441,9 @@ export async function pullApplicationsFromNotion() {
           company_logo: company.logo_url,
           role_title: roleTitle,
           status,
+          notion_status,
+          service,
+          information,
           priority,
           work_model,
           location,
@@ -359,6 +461,9 @@ export async function pullApplicationsFromNotion() {
           company_logo: company.logo_url,
           role_title: roleTitle,
           status,
+          notion_status,
+          service,
+          information,
           priority,
           job_type: 'INTERNSHIP',
           work_model,

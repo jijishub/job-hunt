@@ -21,9 +21,9 @@
       "purpose": "any maskable"
     },
     {
-      "src": "/job-hunt-whitebg.jpg",
-      "sizes": "1536x1536",
-      "type": "image/jpeg",
+      "src": "/job-hunt-facvicon.png",
+      "sizes": "2000x2000",
+      "type": "image/png",
       "purpose": "any"
     }
   ]

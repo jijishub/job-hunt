@@ -33,6 +33,9 @@ export interface JobApplication {
   company_logo?: string;
   role_title: string;
   status: ApplicationStatus;
+  notion_status?: string;
+  service?: string;
+  information?: string;
   priority: Priority;
   job_type: JobType;
   work_model: WorkModel;
