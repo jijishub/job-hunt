@@ -144,6 +144,12 @@ function buildNotionProperties(app: JobApplication) {
 }
 
 export async function pushApplicationToNotion(app: JobApplication): Promise<string | null> {
+  // Only Admin (Ji) applications sync to Notion. Other members remain solely in the DB
+  const isJiApp = !app.owner || app.owner === 'user_ji' || app.owner === 'jizelle' || app.owner === 'ji';
+  if (!isJiApp) {
+    return null;
+  }
+
   const notion = getNotionClient();
   const databaseId = process.env.NOTION_DATABASE_ID;
 
@@ -290,6 +296,7 @@ export async function pullApplicationsFromNotion() {
           salary_currency: 'USD',
           job_url,
           date_applied,
+          owner: 'jizelle',
           notion_page_id: pageId,
           sync_status: 'SYNCED',
           last_synced_at: new Date().toISOString(),
@@ -322,6 +329,11 @@ export async function performTwoWaySync() {
   let pushedCount = 0;
 
   for (const app of allApps) {
+    // Only Admin (Ji) applications sync to Notion. All other members remain safely in the DB.
+    const isJiApp = !app.owner || app.owner === 'user_ji' || app.owner === 'jizelle' || app.owner === 'ji';
+    if (!isJiApp) {
+      continue;
+    }
     if (app.sync_status === 'PENDING' || !app.notion_page_id) {
       await pushApplicationToNotion(app);
       pushedCount++;
