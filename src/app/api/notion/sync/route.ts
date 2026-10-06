@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { getNotionConfig, testNotionConnection, performTwoWaySync } from '@/lib/notion';
 import { getApplications, getCompanies } from '@/lib/db';
 
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const config = getNotionConfig();
