@@ -1,7 +1,6 @@
 import NextAuth, { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import { getOrCreateUser, getUserByEmail, getUserById } from '@/lib/db';
+import { getOrCreateUser, getUserByEmail } from '@/lib/db';
 
 function getAuthOptions(): NextAuthOptions {
   if (!process.env.NEXTAUTH_URL) {
@@ -16,7 +15,7 @@ function getAuthOptions(): NextAuthOptions {
 
   return {
     providers: [
-      // 1. Google Single Sign-On Provider (Dynamic from process.env / .env.local)
+      // Google SSO is the exclusive authentication provider
       ...(googleClientId && googleClientSecret
         ? [
             GoogleProvider({
@@ -25,56 +24,37 @@ function getAuthOptions(): NextAuthOptions {
             }),
           ]
         : []),
-
-      // 2. Direct Account Access & Switcher Provider
-      CredentialsProvider({
-        id: 'credentials',
-        name: 'Account Access',
-        credentials: {
-          userId: { label: 'User ID', type: 'text' },
-          email: { label: 'Email', type: 'email' },
-          name: { label: 'Name', type: 'text' },
-        },
-        async authorize(credentials) {
-          if (!credentials?.email && !credentials?.userId) return null;
-
-          let dbUser = null;
-          if (credentials.userId) {
-            dbUser = await getUserById(credentials.userId);
-          }
-          if (!dbUser && credentials.email) {
-            dbUser = await getUserByEmail(credentials.email);
-          }
-
-          if (!dbUser && credentials.email) {
-            dbUser = await getOrCreateUser({
-              name: credentials.name || credentials.email.split('@')[0],
-              email: credentials.email,
-            });
-          }
-
-          if (!dbUser) return null;
-
-          return {
-            id: dbUser.id,
-            name: dbUser.name,
-            email: dbUser.email,
-            image: dbUser.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${dbUser.name}`,
-          };
-        },
-      }),
     ],
+    pages: {
+      signIn: '/login',
+      error: '/login',
+    },
     callbacks: {
-      async signIn({ user, account, profile }) {
-        if (user?.email) {
-          const name = user.name || profile?.name || user.email.split('@')[0];
-          const avatar = user.image || (profile as any)?.picture;
-          await getOrCreateUser({
-            name,
-            email: user.email,
-            avatar,
-          });
+      async signIn({ user, profile }) {
+        if (!user?.email) return false;
+
+        const email = user.email.toLowerCase().trim();
+        const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+        const isMasterAdmin = adminEmail && email === adminEmail;
+
+        // Strict Invite-Only RBAC check:
+        // Must either be the Master Admin OR an account pre-created/invited by the Admin
+        const existingUser = await getUserByEmail(email);
+
+        if (!existingUser && !isMasterAdmin) {
+          console.warn(`[SSO Whitelist] Denied uninvited Google login attempt: ${email}`);
+          return false; // Rejects uninvited Google accounts
         }
+
+        const name = user.name || profile?.name || email.split('@')[0];
+        const avatar = user.image || (profile as any)?.picture;
+
+        await getOrCreateUser({
+          name,
+          email,
+          avatar,
+        });
+
         return true;
       },
       async jwt({ token, user }) {
