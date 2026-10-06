@@ -39,162 +39,9 @@ export const INITIAL_USERS: UserAccount[] = [
   },
 ];
 
-const INITIAL_COMPANIES: Company[] = [
-  {
-    id: 'c1',
-    name: 'Notion',
-    logo_url: 'https://www.google.com/s2/favicons?domain=notion.so&sz=128',
-    website: 'https://notion.so',
-    industry: 'Productivity Software',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'c2',
-    name: 'Figma',
-    logo_url: 'https://www.google.com/s2/favicons?domain=figma.com&sz=128',
-    website: 'https://figma.com',
-    industry: 'Design Tools',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'c3',
-    name: 'Vercel',
-    logo_url: 'https://www.google.com/s2/favicons?domain=vercel.com&sz=128',
-    website: 'https://vercel.com',
-    industry: 'Cloud & Developer Platform',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'c4',
-    name: 'Linear',
-    logo_url: 'https://www.google.com/s2/favicons?domain=linear.app&sz=128',
-    website: 'https://linear.app',
-    industry: 'Issue Tracking',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'c5',
-    name: 'Stripe',
-    logo_url: 'https://www.google.com/s2/favicons?domain=stripe.com&sz=128',
-    website: 'https://stripe.com',
-    industry: 'Fintech',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+const INITIAL_COMPANIES: Company[] = [];
 
-const INITIAL_APPLICATIONS: JobApplication[] = [
-  {
-    id: 'app-1',
-    company_id: 'c1',
-    company_name: 'Notion',
-    company_logo: 'https://www.google.com/s2/favicons?domain=notion.so&sz=128',
-    role_title: 'Product Engineer, Frontend',
-    status: 'INTERVIEWING',
-    priority: 'DREAM',
-    job_type: 'FULL_TIME',
-    work_model: 'REMOTE',
-    location: 'Remote (Worldwide)',
-    salary_min: 150000,
-    salary_max: 180000,
-    salary_currency: 'USD',
-    job_url: 'https://notion.so/careers',
-    contact_name: 'Sarah Chen (Senior Recruiter)',
-    contact_email: 'sarah@notion.so',
-    date_applied: new Date(Date.now() - 5 * 86400000).toISOString(),
-    notes: 'Completed recruiter screening call! Next round is technical architecture discussion with the frontend team lead next Tuesday.',
-    sync_status: 'SYNCED',
-    created_at: new Date(Date.now() - 6 * 86400000).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'app-2',
-    company_id: 'c2',
-    company_name: 'Figma',
-    company_logo: 'https://www.google.com/s2/favicons?domain=figma.com&sz=128',
-    role_title: 'UI Design Systems Engineer',
-    status: 'SCREENING',
-    priority: 'HIGH',
-    job_type: 'FULL_TIME',
-    work_model: 'HYBRID',
-    location: 'San Francisco, CA / Remote',
-    salary_min: 160000,
-    salary_max: 195000,
-    salary_currency: 'USD',
-    job_url: 'https://figma.com/careers',
-    contact_name: 'Alex Rivera',
-    date_applied: new Date(Date.now() - 2 * 86400000).toISOString(),
-    notes: 'Submitted tailored portfolio and interactive component showcase. Recruiter reached out to schedule initial 30min intro.',
-    sync_status: 'SYNCED',
-    created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'app-3',
-    company_id: 'c3',
-    company_name: 'Vercel',
-    company_logo: 'https://www.google.com/s2/favicons?domain=vercel.com&sz=128',
-    role_title: 'Developer Experience Specialist',
-    status: 'OFFER',
-    priority: 'HIGH',
-    job_type: 'FULL_TIME',
-    work_model: 'REMOTE',
-    location: 'Remote',
-    salary_min: 170000,
-    salary_max: 200000,
-    salary_currency: 'USD',
-    job_url: 'https://vercel.com/careers',
-    contact_name: 'Elena Rostova',
-    date_applied: new Date(Date.now() - 14 * 86400000).toISOString(),
-    notes: 'Received official offer letter! Reviewing equity package and benefits package before Friday deadline.',
-    sync_status: 'SYNCED',
-    created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'app-4',
-    company_id: 'c4',
-    company_name: 'Linear',
-    company_logo: 'https://www.google.com/s2/favicons?domain=linear.app&sz=128',
-    role_title: 'Fullstack Web Engineer',
-    status: 'LEAD',
-    priority: 'DREAM',
-    job_type: 'FULL_TIME',
-    work_model: 'REMOTE',
-    location: 'Remote (Anywhere)',
-    salary_currency: 'USD',
-    job_url: 'https://linear.app/careers',
-    notes: 'Need to polish custom portfolio demo showcasing keyboard shortcuts and smooth micro-interactions before applying.',
-    sync_status: 'PENDING',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'app-5',
-    company_id: 'c5',
-    company_name: 'Stripe',
-    company_logo: 'https://www.google.com/s2/favicons?domain=stripe.com&sz=128',
-    role_title: 'Frontend Engineer - Dashboard',
-    status: 'APPLIED',
-    priority: 'MEDIUM',
-    job_type: 'FULL_TIME',
-    work_model: 'REMOTE',
-    location: 'Remote',
-    salary_min: 140000,
-    salary_max: 175000,
-    salary_currency: 'USD',
-    job_url: 'https://stripe.com/jobs',
-    date_applied: new Date(Date.now() - 1 * 86400000).toISOString(),
-    notes: 'Applied via employee referral from college alumni network.',
-    sync_status: 'SYNCED',
-    created_at: new Date(Date.now() - 1 * 86400000).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+const INITIAL_APPLICATIONS: JobApplication[] = [];
 
 function getPostgresClient() {
   const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
@@ -586,6 +433,19 @@ export async function deleteApplication(id: string): Promise<boolean> {
   }
   const db = readLocalDb();
   db.applications = db.applications.filter((a) => a.id !== id);
+  writeLocalDb(db);
+  return true;
+}
+
+export async function clearAllApplications(): Promise<boolean> {
+  const sql = getPostgresClient();
+  if (sql) {
+    await initPostgresSchema(sql);
+    await sql`DELETE FROM applications;`;
+    return true;
+  }
+  const db = readLocalDb();
+  db.applications = [];
   writeLocalDb(db);
   return true;
 }
