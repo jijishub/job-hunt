@@ -1,18 +1,16 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import {
   RefreshCw,
   Plus,
   Settings,
-  ShieldCheck,
-  User,
   Users,
   ChevronDown,
   LogOut,
   LogIn,
-  Check,
   Database,
   KeyRound,
 } from 'lucide-react';
@@ -25,9 +23,9 @@ interface HeaderProps {
   onSyncNotion: () => void;
   isSyncing: boolean;
   notionStatus: any;
-  users: UserAccount[];
+  users?: UserAccount[];
   currentUser: UserAccount | null;
-  onSelectUser: (user: UserAccount) => void;
+  onSelectUser?: (user: UserAccount) => void;
   onOpenUserManagement: (tab?: 'accounts' | 'google') => void;
 }
 
@@ -37,9 +35,7 @@ export default function Header({
   onSyncNotion,
   isSyncing,
   notionStatus,
-  users,
   currentUser,
-  onSelectUser,
   onOpenUserManagement,
 }: HeaderProps) {
   const sessionContext = useSession();
@@ -73,8 +69,15 @@ export default function Header({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         {/* Left: Brand & Status */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#FFB8CA] to-[#FF7AB3] text-white flex items-center justify-center text-xl shadow-xs shrink-0">
-            {activeAvatar}
+          <div className="w-10 h-10 rounded-2xl bg-white border border-[#F1DDE9] p-0.5 shadow-2xs shrink-0 overflow-hidden flex items-center justify-center">
+            <Image
+              src="/job-hunt-whitebg.jpg"
+              alt="Job Hunt & Leads"
+              width={40}
+              height={40}
+              priority
+              className="w-full h-full object-contain rounded-xl"
+            />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -207,40 +210,10 @@ export default function Header({
                   <p className="text-[10px] text-[#9D3C5E] font-medium mt-1">Focus: {activeIndustry}</p>
                 </div>
 
-                {/* Provisioned Accounts Switcher */}
-                <div className="px-2 py-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                    Switch Account / Persona
-                  </span>
-                </div>
-
-                <div className="space-y-1 my-1 max-h-48 overflow-y-auto">
-                  {users.map((u) => {
-                    const isSelected = (currentUser?.id || users[0]?.id) === u.id;
-                    return (
-                      <button
-                        key={u.id}
-                        onClick={() => {
-                          onSelectUser(u);
-                          setDropdownOpen(false);
-                        }}
-                        className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition ${
-                          isSelected
-                            ? 'bg-[#FFF0F6] text-[#9D3C5E] font-bold'
-                            : 'hover:bg-[#FAF7F9] text-[#4A3E44]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <span>{u.avatar || '👤'}</span>
-                          <span className="truncate">{u.name.replace(/\s*\(Ji\)/gi, '').trim()}</span>
-                          <span className="text-[10px] text-stone-400 font-normal">
-                            ({u.role})
-                          </span>
-                        </div>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-[#FF7AB3]" />}
-                      </button>
-                    );
-                  })}
+                {/* Workspace Access Note */}
+                <div className="px-3 py-2 bg-stone-50 rounded-xl text-[11px] text-[#736A6D] border border-stone-200/60 my-2">
+                  <span className="font-semibold text-[#4A3E44] block">🔒 Google SSO Invite-Only</span>
+                  <span>Only accounts invited by Admin can access this workspace.</span>
                 </div>
 
                 {/* Admin Accounts Management Link */}

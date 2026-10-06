@@ -182,7 +182,7 @@ export default function ApplicationModal({
         contact_email: contactEmail.trim() || undefined,
         date_applied: dateApplied ? new Date(dateApplied).toISOString() : undefined,
         notes: notes.trim() || undefined,
-        owner,
+        owner: currentUserId || owner || 'admin',
       });
       onClose();
     } catch (err) {
@@ -217,28 +217,6 @@ export default function ApplicationModal({
 
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 text-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Applicant Owner Selector */}
-            <div>
-              <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
-                Target Pipeline / Applicant
-              </label>
-              <select
-                value={owner}
-                onChange={(e) => setOwner(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer"
-              >
-                {users && users.length > 0 ? (
-                  users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.avatar || '👤'} {u.name.replace(/\s*\(Ji\)/gi, '').trim()} ({u.role.toUpperCase()} • {u.notion_enabled ? 'Notion Sync' : 'Cloud DB'})
-                    </option>
-                  ))
-                ) : (
-                  <option value="admin">👤 Active Profile</option>
-                )}
-              </select>
-            </div>
-
             <div>
               <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
                 Role / Job Title *

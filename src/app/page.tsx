@@ -19,6 +19,7 @@ import ApplicationModal from '@/components/ApplicationModal';
 import CompanyModal from '@/components/CompanyModal';
 import NotionSettingsModal from '@/components/NotionSettingsModal';
 import UserManagementModal from '@/components/UserManagementModal';
+import ResumeAnalyzerView from '@/components/ResumeAnalyzerView';
 import {
   Table as TableIcon,
   Columns,
@@ -27,6 +28,7 @@ import {
   ArrowUpDown,
   Compass,
   BarChart3,
+  Sparkles,
 } from 'lucide-react';
 
 export default function JobHuntDashboard() {
@@ -35,7 +37,8 @@ export default function JobHuntDashboard() {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
 
-  const [activeView, setActiveView] = useState<'table' | 'board' | 'companies' | 'leads' | 'analytics'>('table');
+  const [activeView, setActiveView] = useState<'table' | 'board' | 'companies' | 'leads' | 'analytics' | 'resume'>('table');
+  const [resumeTargetAppId, setResumeTargetAppId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [notionStatus, setNotionStatus] = useState<any>(null);
@@ -366,6 +369,21 @@ export default function JobHuntDashboard() {
               <BarChart3 className="w-4 h-4" />
               <span>📊 Analytics</span>
             </button>
+
+            <button
+              onClick={() => {
+                setResumeTargetAppId(null);
+                setActiveView('resume');
+              }}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
+                activeView === 'resume'
+                  ? 'bg-[#FF7AB3] text-white shadow-xs'
+                  : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-[#FF7AB3]" />
+              <span>📄 AI Resume & ATS</span>
+            </button>
           </div>
 
           <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-[#FAF7F9] rounded-xl text-xs text-[#736A6D] font-medium border border-[#F1DDE9] whitespace-nowrap">
@@ -525,6 +543,11 @@ export default function JobHuntDashboard() {
           />
         ) : activeView === 'analytics' ? (
           <AnalyticsView applications={filteredApplications} companies={companies} />
+        ) : activeView === 'resume' ? (
+          <ResumeAnalyzerView
+            applications={applications}
+            initialSelectedAppId={resumeTargetAppId}
+          />
         ) : null}
       </main>
 
@@ -542,6 +565,11 @@ export default function JobHuntDashboard() {
           setIsAppModalOpen(true);
         }}
         onDelete={handleDeleteApplication}
+        onAnalyzeResume={(appId) => {
+          setResumeTargetAppId(appId);
+          setActiveView('resume');
+          setIsDetailOpen(false);
+        }}
       />
 
       {/* Add / Edit Application Modal */}

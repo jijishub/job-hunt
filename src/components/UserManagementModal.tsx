@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { UserAccount, UserRole } from '@/types/job';
 import {
   X,
@@ -621,6 +622,33 @@ export default function UserManagementModal({
                     : 'Provide your Google Client ID and Secret below to activate 1-click Google Sign-In.'}
                 </p>
               </div>
+            </div>
+
+            {/* Custom Google SSO Login Page Preview */}
+            <div className="p-3 bg-[#FAF7F9] rounded-2xl border border-[#F1DDE9] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white border border-[#F1DDE9] p-0.5 shadow-2xs shrink-0 overflow-hidden flex items-center justify-center">
+                  <Image
+                    src="/job-hunt-whitebg.jpg"
+                    alt="Job Hunt Logo"
+                    width={36}
+                    height={36}
+                    className="w-full h-full object-contain rounded-lg"
+                  />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-[#4A3E44]">Branded Google SSO Page</p>
+                  <p className="text-[11px] text-[#736A6D]">Equipped with new logo, pink aesthetic, and whitelist rejection protection</p>
+                </div>
+              </div>
+              <a
+                href="/login"
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 rounded-xl bg-white border border-[#F1DDE9] text-xs font-semibold text-[#9D3C5E] hover:bg-[#FFF0F6] transition shadow-2xs"
+              >
+                View /login ↗
+              </a>
             </div>
 
             {googleSuccess && (

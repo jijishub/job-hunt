@@ -24,6 +24,7 @@ interface ApplicationDetailModalProps {
   onClose: () => void;
   onEdit: (app: JobApplication) => void;
   onDelete: (id: string) => Promise<void>;
+  onAnalyzeResume?: (appId: string) => void;
 }
 
 export default function ApplicationDetailModal({
@@ -32,6 +33,7 @@ export default function ApplicationDetailModal({
   onClose,
   onEdit,
   onDelete,
+  onAnalyzeResume,
 }: ApplicationDetailModalProps) {
   if (!isOpen || !app) return null;
 
@@ -97,6 +99,17 @@ export default function ApplicationDetailModal({
           </div>
 
           <div className="flex items-center gap-1.5 pb-1">
+            {onAnalyzeResume && (
+              <button
+                type="button"
+                onClick={() => onAnalyzeResume(app.id)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-[#FF7AB3] to-[#9D3C5E] hover:from-[#ff6aa8] hover:to-[#8c3553] shadow-xs rounded-xl transition cursor-pointer"
+                title="Evaluate your resume against this job using Gemini"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>AI Match</span>
+              </button>
+            )}
             <button
               onClick={() => onEdit(app)}
               className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#736A6D] hover:text-[#9D3C5E] bg-[#FAF7F9] hover:bg-[#FCE7F3] border border-[#F1DDE9] rounded-xl transition"
