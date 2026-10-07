@@ -202,6 +202,17 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = (searchParams.get('q') || '').toLowerCase().trim();
   const sourceFilter = searchParams.get('source');
+  const role = searchParams.get('role');
+
+  // For members: do NOT seed hardcoded IT leads, as members have diverse non-IT backgrounds
+  if (role === 'member') {
+    return NextResponse.json({
+      success: true,
+      data: [],
+      portfolioConnected: false,
+      message: 'Seeded IT leads removed for member accounts. Use AI Search or Direct Sourcing Launchpads.',
+    });
+  }
 
   let results = TARGETED_LEADS;
 
