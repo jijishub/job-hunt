@@ -35,43 +35,47 @@ export default function SSOLandingView() {
       <main className="relative z-10 w-full max-w-7xl mx-auto px-6 py-8 sm:py-14 flex-1 flex items-center">
         <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
           
-          {/* Left Column: Brand Story & Feature Showcase */}
-          <div className="lg:col-span-7 space-y-6 sm:space-y-7 text-left">
-            {/* Archer Logo Emblem with Glow (Moved to Left Column per request) */}
-            <div className="flex items-center gap-4">
-              <div className="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0">
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-[#FFB8CA]/60 to-[#FF7AB3]/40 blur-md transform scale-105" />
-                <div className="w-full h-full rounded-3xl bg-white border border-[#F1DDE9] p-1.5 shadow-xs flex items-center justify-center overflow-hidden relative z-10">
-                  <Image
-                    src="/job-hunt-whitebg.jpg"
-                    alt="Job Hunt Logo"
-                    width={80}
-                    height={80}
-                    priority
-                    className="w-full h-full object-contain rounded-2xl"
-                  />
-                </div>
-              </div>
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#F1DDE9] text-[#9D3C5E] text-xs font-bold shadow-2xs backdrop-blur-sm">
-                <Sparkles className="w-3.5 h-3.5 text-[#FF7AB3]" />
-                <span>Aim High with Precision • Career Opportunity Platform</span>
+          {/* Left Column: Big Pretty Favicon Highlight & Brand Showcase */}
+          <div className="lg:col-span-7 flex flex-col items-center text-center space-y-6 sm:space-y-7">
+            {/* Center Left Big Favicon Highlight */}
+            <div className="relative group flex items-center justify-center">
+              {/* Soft Ambient Glow Halo */}
+              <div className="absolute -inset-4 sm:-inset-6 rounded-full bg-gradient-to-tr from-[#FFB8CA]/70 via-[#FF7AB3]/50 to-[#FCEEF5] blur-2xl opacity-80 group-hover:opacity-100 transition duration-700 animate-pulse pointer-events-none" />
+              
+              {/* Big Favicon Container */}
+              <div className="relative w-36 h-36 sm:w-44 sm:h-44 lg:w-48 lg:h-48 rounded-3xl bg-white/95 border-2 border-[#F1DDE9] p-3 sm:p-4 shadow-[0_20px_50px_rgba(255,122,179,0.3)] flex items-center justify-center backdrop-blur-xl transition-transform duration-300 hover:scale-105">
+                <Image
+                  src="/job-hunt-facvicon.png"
+                  alt="Job Hunt"
+                  width={192}
+                  height={192}
+                  priority
+                  className="w-full h-full object-contain rounded-2xl drop-shadow-sm"
+                />
               </div>
             </div>
 
-            <div className="space-y-3">
+            {/* Sparkle Tag */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 border border-[#F1DDE9] text-[#9D3C5E] text-xs font-bold shadow-2xs backdrop-blur-sm">
+              <Sparkles className="w-3.5 h-3.5 text-[#FF7AB3]" />
+              <span>Aim High with Precision • Career Opportunity Platform</span>
+            </div>
+
+            {/* Headline and Narrative */}
+            <div className="space-y-3 max-w-xl">
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#4A3E44] tracking-tight leading-tight">
                 Track Applications.<br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF7AB3] to-[#9D3C5E]">
                   Supercharge with AI.
                 </span>
               </h2>
-              <p className="text-sm sm:text-base text-[#736A6D] max-w-xl leading-relaxed">
-                A private, high-precision career command center featuring two-way live Notion synchronization, Gemini AI ATS resume scanning, and smart lead discovery.
+              <p className="text-sm sm:text-base text-[#736A6D] leading-relaxed mx-auto">
+                A private, high-precision career command center featuring two-way live Notion synchronization, Luna 5.6 & Antigravity AI ATS resume scanning, and smart lead discovery.
               </p>
             </div>
 
             {/* Feature Highlights Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 max-w-xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1 w-full max-w-xl text-left">
               <div className="p-3.5 rounded-2xl bg-white/70 border border-[#F1DDE9] shadow-2xs backdrop-blur-sm flex items-start gap-3">
                 <div className="w-8 h-8 rounded-xl bg-[#FFF0F6] border border-[#F1DDE9] flex items-center justify-center shrink-0 text-[#9D3C5E]">
                   <Database className="w-4 h-4 text-[#FF7AB3]" />
@@ -89,7 +93,7 @@ export default function SSOLandingView() {
                   <Brain className="w-4 h-4 text-[#FF7AB3]" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-[#4A3E44]">Gemini ATS Optimizer</h4>
+                  <h4 className="text-xs font-bold text-[#4A3E44]">Luna 5.6 & Antigravity ATS</h4>
                   <p className="text-[11px] text-[#736A6D] mt-0.5 leading-snug">
                     Score resumes, detect missing keywords, and rewrite XYZ bullets.
                   </p>
@@ -101,9 +105,9 @@ export default function SSOLandingView() {
                   <Layers className="w-4 h-4 text-[#FF7AB3]" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-[#4A3E44]">Categorized Pipeline</h4>
+                  <h4 className="text-xs font-bold text-[#4A3E44]">Categorized Pipeline & Leads</h4>
                   <p className="text-[11px] text-[#736A6D] mt-0.5 leading-snug">
-                    Filter by exact Notion stages, industry categories, and roles.
+                    Dedicated Leads Hub with promote-to-applied pipeline workflows.
                   </p>
                 </div>
               </div>
@@ -121,7 +125,7 @@ export default function SSOLandingView() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 pt-2 text-xs text-[#736A6D]">
+            <div className="flex items-center justify-center gap-3 pt-1 text-xs text-[#736A6D]">
               <span className="flex items-center gap-1.5 text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Private Workspace Active</span>

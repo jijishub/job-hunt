@@ -413,7 +413,7 @@ export default function JobHuntDashboard() {
       <div className="min-h-screen bg-gradient-to-b from-[#FFF5F8] to-[#FAF7F9] flex flex-col items-center justify-center gap-3">
         <div className="w-14 h-14 rounded-3xl bg-white border border-[#F1DDE9] p-1.5 shadow-xs flex items-center justify-center animate-pulse">
           <Image
-            src="/job-hunt-whitebg.jpg"
+            src="/job-hunt-facvicon.png"
             alt="Job Hunt"
             width={48}
             height={48}
