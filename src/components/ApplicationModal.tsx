@@ -106,7 +106,7 @@ export default function ApplicationModal({
   const [contactEmail, setContactEmail] = useState('');
   const [dateApplied, setDateApplied] = useState('');
   const [notes, setNotes] = useState('');
-  const [owner, setOwner] = useState<string>(currentUserId || users[0]?.id || 'admin');
+  const [owner, setOwner] = useState<string>(currentUserId || users?.[0]?.id || 'admin');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [statusOptions, setStatusOptions] = useState<StatusOption[]>(SEEDED_STATUS_OPTIONS);
@@ -154,7 +154,7 @@ export default function ApplicationModal({
       setContactEmail(initialData.contact_email || '');
       setDateApplied(initialData.date_applied ? initialData.date_applied.split('T')[0] : '');
       setNotes(initialData.notes || '');
-      setOwner(initialData.owner || currentUserId || users[0]?.id || 'admin');
+      setOwner(initialData.owner || currentUserId || users?.[0]?.id || 'admin');
     } else {
       setRoleTitle('');
       setCompanyName('');
@@ -175,7 +175,7 @@ export default function ApplicationModal({
       setContactEmail('');
       setDateApplied('');
       setNotes('');
-      setOwner(currentUserId || users[0]?.id || 'admin');
+      setOwner(currentUserId || users?.[0]?.id || 'admin');
     }
   }, [initialData, isOpen, currentUserId, users]);
 
