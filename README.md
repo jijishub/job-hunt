@@ -15,7 +15,8 @@ Designed with an executive **Pink aesthetic** (`#FAF7F9`, `#FF7AB3`, `#F1DDE9`, 
   - **Antigravity 3.8 Flash (`gemini-3.8-flash`)**: Ultra-fast latency for instant resume scanning.
   - **Antigravity 3.1 Pro High (`gemini-3.1-pro-high`)**: Complex multi-step reasoning for executive-level resume critiques.
 - **Real-Time Streaming**: Streamed SSE analysis with resilient markdown/JSON extraction and automatic retry fallbacks.
-- **Strict PDF Acceptance**: Client & server PDF-only validation (`.pdf`) with automated text parsing.
+- **Strict PDF Acceptance & Multi-User Support**: Dedicated PDF resume upload (`.pdf` only) with automated text parsing and keyword extraction. Member accounts upload their individual PDF resumes directly, while Admin can toggle between PDF uploads and live portfolio synchronization.
+- **Client-Side Report Export (PDF & PNG)**: Download complete ATS match reports directly as a full unclipped single PDF or high-resolution 2x Retina PNG without writing to the database.
 - **Dynamic Job Matching**: Match any uploaded resume directly against existing saved job applications or ad-hoc job descriptions.
 
 ### 🎯 Dedicated Leads Hub & Pipeline Promotion

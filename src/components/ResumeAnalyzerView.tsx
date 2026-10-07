@@ -41,6 +41,8 @@ export default function ResumeAnalyzerView({
   initialSelectedAppId,
 }: ResumeAnalyzerViewProps) {
   const { data: session } = useSession();
+  const isAdmin = (session?.user as any)?.role === 'admin' || session?.user?.email === 'jizellecasia@gmail.com' || session?.user?.email === 'jizelle.casia@gmail.com';
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Model selection
   const [selectedModel, setSelectedModel] = useState<AIModelId>('luna');
@@ -108,13 +110,9 @@ export default function ResumeAnalyzerView({
     }
   }, [selectedAppId, applications]);
 
-  // Handle PDF Resume Upload (PDF Acceptance Only)
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // Process PDF File and extract text (PDF Acceptance Only)
+  const processPdfFile = async (file: File) => {
     if (!file) return;
-
-    // Reset input so re-uploading the same file works
-    e.target.value = '';
 
     // Strictly validate PDF
     const isPdfExt = file.name.toLowerCase().endsWith('.pdf');
@@ -153,6 +151,16 @@ export default function ResumeAnalyzerView({
     } finally {
       setIsPdfUploading(false);
     }
+  };
+
+  // Handle PDF Resume Upload from file input
+  const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processPdfFile(file);
+    }
+    // Reset input so re-uploading the same file works
+    e.target.value = '';
   };
 
   // Auto-import candidate portfolio/bio from jizellecasia.vercel.app
@@ -200,7 +208,11 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
 
   const handleAnalyze = async () => {
     if (!resumeText.trim()) {
-      setError('Please provide your resume or click "Auto-Import Portfolio" before analyzing.');
+      setError(
+        isAdmin
+          ? 'Please upload your resume PDF, paste text, or click "Auto-Import Portfolio" before analyzing.'
+          : 'Please upload your candidate resume PDF or paste resume text before analyzing.'
+      );
       return;
     }
     if (!jobDescription.trim() && !jobTitle.trim()) {
@@ -394,29 +406,118 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
         <div className="lg:col-span-5 space-y-5">
           {/* Resume Input Card */}
           <div className="bg-white rounded-2xl p-5 border border-[#F1DDE9] shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
+            {/* Hidden native PDF file input (Strictly .pdf acceptance only) */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={handlePdfUpload}
+              className="hidden"
+            />
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="text-xs font-bold text-[#4A3E44] uppercase tracking-wider flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-[#FF7AB3]" />
                 <span>Candidate Resume / Profile *</span>
               </label>
 
-              <button
-                type="button"
-                onClick={handleAutoImportPortfolio}
-                disabled={isPortfolioImporting}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-[#FFF0F6] text-[#9D3C5E] hover:bg-[#FCE7F3] border border-[#F1DDE9] transition disabled:opacity-50"
-                title="Fetch live bio, tech stack, and projects from jizellecasia.vercel.app"
-              >
-                <RefreshCw className={`w-3 h-3 ${isPortfolioImporting ? 'animate-spin' : ''}`} />
-                <span>{isPortfolioImporting ? 'Importing...' : '⚡ Auto-Import Portfolio'}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {/* PDF Resume Upload Button (Available to ALL: Members & Admin) */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isPdfUploading}
+                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition cursor-pointer disabled:opacity-50 ${
+                    !isAdmin
+                      ? 'bg-gradient-to-r from-[#FF7AB3] to-[#9D3C5E] text-white border-transparent shadow-xs hover:opacity-95'
+                      : 'bg-[#FFF0F6] text-[#9D3C5E] hover:bg-[#FCE7F3] border-[#F1DDE9]'
+                  }`}
+                  title="Upload candidate resume PDF (PDF acceptance only)"
+                >
+                  <Upload className={`w-3.5 h-3.5 ${isPdfUploading ? 'animate-bounce' : ''}`} />
+                  <span>{isPdfUploading ? 'Parsing PDF...' : '📄 Upload Resume (PDF)'}</span>
+                </button>
+
+                {/* Auto-Import Portfolio: ONLY shown for Admin (Jizelle Casia), never for members */}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={handleAutoImportPortfolio}
+                    disabled={isPortfolioImporting}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl bg-white text-[#4A3E44] hover:bg-[#FAF7F9] border border-[#F1DDE9] transition disabled:opacity-50"
+                    title="Fetch live bio, tech stack, and projects from jizellecasia.vercel.app (Admin only)"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isPortfolioImporting ? 'animate-spin' : ''}`} />
+                    <span>{isPortfolioImporting ? 'Syncing...' : '⚡ Auto-Import Portfolio'}</span>
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Uploaded PDF Info Badge */}
+            {uploadedPdfInfo && (
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 animate-in fade-in">
+                <div className="flex items-center gap-2 truncate">
+                  <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-semibold truncate">{uploadedPdfInfo.filename}</span>
+                  <span className="text-[10px] text-emerald-600 shrink-0">
+                    ({(uploadedPdfInfo.fileSize / 1024).toFixed(1)} KB • {uploadedPdfInfo.totalPages}{' '}
+                    {uploadedPdfInfo.totalPages === 1 ? 'page' : 'pages'})
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUploadedPdfInfo(null);
+                    setResumeText('');
+                  }}
+                  className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 ml-2 shrink-0 cursor-pointer"
+                  title="Remove uploaded resume"
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+
+            {/* Clickable Drag & Drop PDF banner when resume is empty */}
+            {!resumeText && !uploadedPdfInfo && (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) processPdfFile(file);
+                }}
+                className="p-4 rounded-xl border-2 border-dashed border-[#F1DDE9] hover:border-[#FF7AB3] bg-[#FAF7F9]/70 hover:bg-[#FFF0F6]/30 transition text-center cursor-pointer group space-y-1"
+              >
+                <div className="w-8 h-8 rounded-full bg-[#FFF0F6] border border-[#F1DDE9] mx-auto flex items-center justify-center text-[#9D3C5E] group-hover:scale-105 transition">
+                  <Upload className="w-4 h-4 text-[#FF7AB3]" />
+                </div>
+                <p className="text-xs font-bold text-[#4A3E44]">
+                  Upload Candidate Resume <span className="text-[#9D3C5E]">(PDF Only)</span>
+                </p>
+                <p className="text-[11px] text-[#736A6D]">
+                  Drag &amp; drop your resume PDF here or click to browse files
+                </p>
+              </div>
+            )}
 
             <textarea
               rows={8}
               value={resumeText}
               onChange={(e) => setResumeText(e.target.value)}
-              placeholder="Paste candidate resume, bio, project history, or tech stack here (or click Auto-Import Portfolio above)..."
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files?.[0];
+                if (file) processPdfFile(file);
+              }}
+              placeholder={
+                isAdmin
+                  ? "Upload resume PDF above, paste candidate credentials, or click 'Auto-Import Portfolio'..."
+                  : "Upload candidate resume PDF above, or paste candidate credentials, bio, and experience here..."
+              }
               className="w-full p-3 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] focus:ring-2 focus:ring-[#FF7AB3]/20 text-xs font-mono text-[#4A3E44] placeholder-stone-400 resize-y leading-relaxed"
             />
             <div className="flex items-center justify-between text-[11px] text-[#736A6D]">
@@ -424,7 +525,10 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
               {resumeText && (
                 <button
                   type="button"
-                  onClick={() => setResumeText('')}
+                  onClick={() => {
+                    setResumeText('');
+                    setUploadedPdfInfo(null);
+                  }}
                   className="hover:text-rose-600 transition"
                 >
                   Clear text
@@ -523,17 +627,37 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
               <div className="w-16 h-16 rounded-2xl bg-[#FFF0F6] flex items-center justify-center text-[#FF7AB3] mb-4">
                 <Sparkles className="w-8 h-8" />
               </div>
-              <h3 className="text-base font-bold text-[#4A3E44]">Ready for AI Analysis</h3>
+              <h3 className="text-base font-bold text-[#4A3E44]">Ready for AI Resume Analysis</h3>
               <p className="text-xs text-[#736A6D] max-w-md mt-1.5 leading-relaxed">
-                Click <strong>&quot;Auto-Import Portfolio&quot;</strong> on the left, pick any of your tracked job applications, and hit <strong>&quot;Run AI ATS Match&quot;</strong> to get an ATS compatibility score, missing keywords, and a custom cover pitch!
+                {isAdmin ? (
+                  <>
+                    Upload a <strong>PDF resume</strong> or click <strong>&quot;Auto-Import Portfolio&quot;</strong> on the left, select a target job opportunity, and hit <strong>&quot;Run AI ATS Match&quot;</strong> to get an ATS compatibility score, missing keywords, and tailored recruiter pitches!
+                  </>
+                ) : (
+                  <>
+                    Upload your <strong>resume PDF</strong> (or paste your credentials) on the left, pick a target job opportunity, and hit <strong>&quot;Run AI ATS Match&quot;</strong> to get an ATS compatibility score, missing keywords, and custom interview pitch!
+                  </>
+                )}
               </p>
-              <button
-                type="button"
-                onClick={handleAutoImportPortfolio}
-                className="mt-5 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#FAF7F9] hover:bg-[#FCE7F3] border border-[#F1DDE9] text-xs font-bold text-[#9D3C5E] transition"
-              >
-                <span>⚡ Auto-Import Candidate Profile Now</span>
-              </button>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#FF7AB3] to-[#9D3C5E] hover:from-[#ff6aa8] hover:to-[#8c3553] text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>📄 Upload Resume PDF</span>
+                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={handleAutoImportPortfolio}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#FAF7F9] hover:bg-[#FCE7F3] border border-[#F1DDE9] text-xs font-bold text-[#9D3C5E] transition cursor-pointer"
+                  >
+                    <span>⚡ Auto-Import Portfolio</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
