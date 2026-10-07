@@ -203,15 +203,15 @@ async function initPostgresSchema(sql: any) {
   }
 }
 
-export async function getCompanies(forUser?: string): Promise<Company[]> {
+export async function getCompanies(forUser?: string, isAdmin: boolean = false): Promise<Company[]> {
   const sql = getPostgresClient();
   if (sql) {
     await initPostgresSchema(sql);
-    if (forUser) {
+    if (!isAdmin && forUser) {
       const normUser = forUser.toLowerCase().trim();
       const rows = await sql`
         SELECT * FROM companies 
-        WHERE created_by IS NULL OR created_by = 'seed' OR LOWER(created_by) = ${normUser}
+        WHERE LOWER(created_by) = ${normUser}
         ORDER BY name ASC;
       `;
       return rows as Company[];
@@ -220,10 +220,10 @@ export async function getCompanies(forUser?: string): Promise<Company[]> {
     return rows as Company[];
   }
   const db = readLocalDb();
-  if (forUser) {
+  if (!isAdmin && forUser) {
     const normUser = forUser.toLowerCase().trim();
     return db.companies
-      .filter((c: any) => !c.created_by || c.created_by === 'seed' || (c.created_by && c.created_by.toLowerCase().trim() === normUser))
+      .filter((c: any) => c.created_by && c.created_by.toLowerCase().trim() === normUser)
       .sort((a, b) => a.name.localeCompare(b.name));
   }
   return db.companies.sort((a, b) => a.name.localeCompare(b.name));
