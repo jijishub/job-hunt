@@ -63,18 +63,15 @@ function getAuthOptions(req?: any): NextAuthOptions {
         const email = user.email.toLowerCase().trim();
         const configuredAdminEmail = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
 
-        // Check if user is the Master Admin
+        // Check if user is the Master Admin (Strictly Jizelle Casia only)
         const isMasterAdmin =
           email === configuredAdminEmail ||
           email === 'jizellecasia@gmail.com' ||
-          email.includes('jizelle') ||
-          email.includes('cloudji');
-
-        // Check if user is already registered / invited
-        const existingUser = await getUserByEmail(email);
+          email === 'jizelle.casia@gmail.com';
 
         // Strict Invite-Only RBAC check:
         // Must either be the Master Admin OR an account pre-created/invited by the Admin
+        const existingUser = await getUserByEmail(email);
         if (!existingUser && !isMasterAdmin) {
           console.warn(`[SSO Whitelist] Denied uninvited Google login attempt: ${email}`);
           return false; // Rejects uninvited Google accounts
@@ -89,7 +86,7 @@ function getAuthOptions(req?: any): NextAuthOptions {
           name,
           email,
           avatar,
-          role: isMasterAdmin ? 'admin' : undefined,
+          role: isMasterAdmin ? 'admin' : 'member',
         });
 
         return true;
@@ -102,21 +99,26 @@ function getAuthOptions(req?: any): NextAuthOptions {
           const isMasterAdmin =
             email === configuredAdminEmail ||
             email === 'jizellecasia@gmail.com' ||
-            email.includes('jizelle') ||
-            email.includes('cloudji');
+            email === 'jizelle.casia@gmail.com';
 
           if (dbUser) {
             token.id = dbUser.id;
-            token.role = isMasterAdmin ? 'admin' : dbUser.role;
+            token.role = isMasterAdmin ? 'admin' : 'member';
             token.name = isMasterAdmin ? (dbUser.name || 'Jizelle Casia') : dbUser.name;
-            token.industry = dbUser.industry;
-            token.notion_enabled = isMasterAdmin || dbUser.notion_enabled;
+            token.industry = dbUser.industry || (isMasterAdmin ? 'IT / AI & Forward-Deployed Software' : 'General');
+            token.notion_enabled = isMasterAdmin ? true : false;
           } else if (isMasterAdmin) {
             token.id = 'user_ji';
             token.role = 'admin';
             token.name = 'Jizelle Casia';
             token.industry = 'IT / AI & Forward-Deployed Software';
             token.notion_enabled = true;
+          } else {
+            token.id = `user_${Date.now()}`;
+            token.role = 'member';
+            token.name = user?.name || email.split('@')[0];
+            token.industry = 'General';
+            token.notion_enabled = false;
           }
         }
         return token;
