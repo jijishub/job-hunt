@@ -34,7 +34,7 @@ export default function ResumeAnalyzerView({
   initialSelectedAppId,
 }: ResumeAnalyzerViewProps) {
   // Model selection
-  const [selectedModel, setSelectedModel] = useState<AIModelId>('gemini-web-flash');
+  const [selectedModel, setSelectedModel] = useState<AIModelId>('luna');
 
   // Input states
   const [resumeText, setResumeText] = useState('');
@@ -251,7 +251,7 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-[#4A3E44]">AI Resume & ATS Matcher</h1>
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FFF0F6] text-[#9D3C5E] border border-[#F1DDE9]">
-                  Powered by Gemini
+                  AI Powered
                 </span>
               </div>
               <p className="text-xs text-[#736A6D] mt-1 max-w-2xl">
