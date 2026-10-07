@@ -13,6 +13,7 @@ import {
   Plus,
   Upload,
 } from 'lucide-react';
+import { SEEDED_STATUS_OPTIONS, getStatusCategory, StatusOption, getStatusStyle } from '@/lib/statuses';
 
 interface ApplicationModalProps {
   isOpen: boolean;
@@ -108,16 +109,38 @@ export default function ApplicationModal({
   const [owner, setOwner] = useState<string>(currentUserId || users[0]?.id || 'admin');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [statusOptions, setStatusOptions] = useState<StatusOption[]>(SEEDED_STATUS_OPTIONS);
+  const [isAddingCustomStatus, setIsAddingCustomStatus] = useState(false);
+  const [newStatusInput, setNewStatusInput] = useState('');
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
+
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/statuses')
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.success && Array.isArray(d.data)) {
+            setStatusOptions(d.data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (initialData) {
       setRoleTitle(initialData.role_title || '');
       setCompanyName(initialData.company_name || '');
       setCustomLogoUrl(initialData.company_logo || '');
-      setStatus(initialData.status || 'LEAD');
+      const resolvedNotionStatus =
+        initialData.notion_status ||
+        (initialData.status === 'LEAD' ? 'Inquiry' : initialData.status) ||
+        'Applied - With MOA';
+      setNotionStatus(resolvedNotionStatus);
+      setStatus(initialData.status || getStatusCategory(resolvedNotionStatus));
       setService(initialData.service || '');
-      setNotionStatus(initialData.notion_status || '');
       setInformation(initialData.information || '');
       setPriority(initialData.priority || 'MEDIUM');
       setJobType(initialData.job_type || 'FULL_TIME');
@@ -136,9 +159,9 @@ export default function ApplicationModal({
       setRoleTitle('');
       setCompanyName('');
       setCustomLogoUrl('');
-      setStatus('LEAD');
+      setNotionStatus('Applied - With MOA');
+      setStatus('APPLIED');
       setService('');
-      setNotionStatus('');
       setInformation('');
       setPriority('MEDIUM');
       setJobType('FULL_TIME');
@@ -335,20 +358,77 @@ export default function ApplicationModal({
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
-                Status
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as ApplicationStatus)}
-                className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
-              >
-                {STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider">
+                  Status
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingCustomStatus(!isAddingCustomStatus)}
+                  className="text-[11px] font-semibold text-[#FF7AB3] hover:text-[#9D3C5E] transition"
+                >
+                  {isAddingCustomStatus ? 'Cancel' : '+ Add Option'}
+                </button>
+              </div>
+
+              {!isAddingCustomStatus ? (
+                <select
+                  value={notionStatus || 'Applied - With MOA'}
+                  onChange={(e) => {
+                    const chosen = e.target.value;
+                    setNotionStatus(chosen);
+                    setStatus(getStatusCategory(chosen));
+                  }}
+                  className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
+                >
+                  {statusOptions.map((opt) => (
+                    <option key={opt.id || opt.name} value={opt.name}>
+                      {opt.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="New status..."
+                    value={newStatusInput}
+                    onChange={(e) => setNewStatusInput(e.target.value)}
+                    className="flex-1 px-2.5 py-1.5 rounded-xl border border-[#FF7AB3] text-xs text-[#4A3E44] focus:outline-none bg-white min-w-0"
+                  />
+                  <button
+                    type="button"
+                    disabled={isSavingStatus || !newStatusInput.trim()}
+                    onClick={async () => {
+                      if (!newStatusInput.trim()) return;
+                      setIsSavingStatus(true);
+                      try {
+                        const res = await fetch('/api/statuses', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ name: newStatusInput.trim() }),
+                        });
+                        const data = await res.json();
+                        if (data.success && data.data) {
+                          const newOpt = data.data;
+                          setStatusOptions((prev) => [...prev, newOpt]);
+                          setNotionStatus(newOpt.name);
+                          setStatus(getStatusCategory(newOpt.name));
+                          setNewStatusInput('');
+                          setIsAddingCustomStatus(false);
+                        }
+                      } catch (err) {
+                        console.error('Failed to save status:', err);
+                      } finally {
+                        setIsSavingStatus(false);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-[#FF7AB3] text-white text-xs font-bold hover:bg-[#F06292] transition disabled:opacity-50 shrink-0"
+                  >
+                    {isSavingStatus ? '...' : 'Add'}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div>
