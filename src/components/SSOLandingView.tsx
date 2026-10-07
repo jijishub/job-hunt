@@ -37,39 +37,43 @@ export default function SSOLandingView() {
           
           {/* Left Column: Brand Story & Clean Transparent Archer Hero (Zero overlap, no excess top padding, no white box) */}
           <div className="lg:col-span-7 space-y-5 sm:space-y-6 text-left">
-            {/* Top Brand Showcase: Prominent Transparent Archer Artwork */}
-            <div className="space-y-3.5">
-              <div className="relative w-28 h-28 sm:w-36 sm:h-36 lg:w-40 lg:h-40 shrink-0">
-                <Image
-                  src="/job-hunt-facvicon.png"
-                  alt="Job Hunt Archer"
-                  width={160}
-                  height={160}
-                  priority
-                  className="w-full h-full object-contain drop-shadow-sm"
-                />
+            {/* Top Row: Left (Sparkle badge + Headline + Narrative) and Right (Prominent Archer Hero Illustration side-by-side, zero text overlap) */}
+            <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 lg:gap-8">
+              {/* Text narrative */}
+              <div className="space-y-3.5 flex-1 max-w-lg">
+                {/* Sparkle Tag */}
+                <div>
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#F1DDE9] text-[#9D3C5E] text-xs font-bold shadow-2xs backdrop-blur-sm">
+                    <Sparkles className="w-3.5 h-3.5 text-[#FF7AB3]" />
+                    <span>Aim High with Precision • Career Opportunity Platform</span>
+                  </div>
+                </div>
+
+                {/* Headline and Narrative */}
+                <h2 className="text-3xl sm:text-4xl lg:text-[44px] font-extrabold text-[#4A3E44] tracking-tight leading-[1.15]">
+                  Track Applications.<br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF7AB3] to-[#9D3C5E]">
+                    Supercharge with AI.
+                  </span>
+                </h2>
+                <p className="text-sm sm:text-base text-[#736A6D] leading-relaxed">
+                  A private, high-precision career command center featuring two-way live Notion synchronization, Luna 5.6 & Antigravity AI ATS resume scanning, and smart lead discovery.
+                </p>
               </div>
 
-              {/* Sparkle Tag */}
-              <div>
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#F1DDE9] text-[#9D3C5E] text-xs font-bold shadow-2xs backdrop-blur-sm">
-                  <Sparkles className="w-3.5 h-3.5 text-[#FF7AB3]" />
-                  <span>Aim High with Precision • Career Opportunity Platform</span>
+              {/* Archer Hero Artwork (Right beside the headline in the highlighted hero area, zero overlap, pure transparent) */}
+              <div className="shrink-0 flex items-center justify-center self-center sm:self-start">
+                <div className="relative w-40 h-40 sm:w-48 sm:h-48 lg:w-56 lg:h-56">
+                  <Image
+                    src="/job-hunt-facvicon.png"
+                    alt="Job Hunt Archer"
+                    width={224}
+                    height={224}
+                    priority
+                    className="w-full h-full object-contain drop-shadow-md select-none pointer-events-none"
+                  />
                 </div>
               </div>
-            </div>
-
-            {/* Headline and Narrative */}
-            <div className="space-y-3 max-w-xl">
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#4A3E44] tracking-tight leading-tight">
-                Track Applications.<br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF7AB3] to-[#9D3C5E]">
-                  Supercharge with AI.
-                </span>
-              </h2>
-              <p className="text-sm sm:text-base text-[#736A6D] leading-relaxed">
-                A private, high-precision career command center featuring two-way live Notion synchronization, Luna 5.6 & Antigravity AI ATS resume scanning, and smart lead discovery.
-              </p>
             </div>
 
             {/* Feature Highlights Grid */}
