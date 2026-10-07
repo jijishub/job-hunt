@@ -82,8 +82,11 @@ Our app has built-in auto-migration for PostgreSQL (automatically creates `users
 | `ADMIN_EMAIL` | `jizellecasia@gmail.com` | Email automatically granted the 👑 Administrator role |
 | `NOTION_API_KEY` | `YOUR_NOTION_API_KEY` | Your Notion Integration API Secret |
 | `NOTION_DATABASE_ID` | `YOUR_NOTION_DATABASE_ID` | 32-character Notion Database ID |
-| `GOOGLE_CLIENT_ID` | `xxxx.apps.googleusercontent.com` | Google Cloud OAuth Client ID (optional now; can also set via UI) |
+| `GOOGLE_CLIENT_ID` | `xxxx.apps.googleusercontent.com` | Google Cloud OAuth Client ID |
 | `GOOGLE_CLIENT_SECRET` | `GOCSPX-xxxx` | Google Cloud OAuth Client Secret |
+| `AI_BASE_URL` | `https://api.jizellecasia.site/v1` | OpenAI-compatible AI Proxy base URL |
+| `AI_API_KEY` | `YOUR_AI_API_KEY` | AI Proxy API Key |
+| `AI_DEFAULT_MODEL` | `luna` | Default AI model (`luna`, `gemini-3.8-flash`, etc.) |
 
 > **Tip for `NEXTAUTH_SECRET`**: You can generate one via terminal with:
 > ```bash
@@ -155,19 +158,25 @@ Once deployed, run this quick 2-minute smoke test:
 
 1. **Sign-In Verification**:
    - Open your live site (`https://jobhunt.jizellecasia.site`).
-   - Click **Sign In with Google** &rarr; confirm that your Google name and picture populate your profile.
-   - Confirm you have the **👑 ADMIN** badge.
+   - Notice the prominent, cute favicon emblem centered on the left side of the login page.
+   - Click **Continue with Google** &rarr; authenticate with your authorized Google account.
+   - Confirm you have the **👑 ADMIN** badge in the header.
 2. **RBAC Isolation Verification**:
    - Open **Manage Accounts & RBAC**.
-   - Confirm **Denise** is listed as **👤 MEMBER** with `Hospitality Management` focus and `Cloud DB` badge.
-   - Click **Edit** next to Denise to verify you can update her name, industry, or avatar.
-   - Switch active persona to Denise: confirm Notion buttons disappear and her view shows the Cloud DB badge.
-3. **Notion Sync**:
-   - Switch back to Ji (Admin).
-   - Click **Sync Notion**: confirm existing Notion items pull into the tracker without affecting Denise's isolated records.
-4. **Lead Explorer**:
-   - Open **🎯 Find Leads** as Ji: verify live portfolio sync with `jizellecasia.vercel.app`.
-   - Switch to Denise: verify tailored Hospitality launchpads and manual lead intake.
+   - Confirm any other account (e.g. `Cloudji Test`, `cloudjimail@gmail.com`, `Denise`) is strictly assigned as **👤 MEMBER** with `Cloud DB` badge.
+   - Switch active persona or test logging in as a member: confirm Notion buttons and user management are completely hidden, and member records remain completely isolated.
+3. **Notion 2-Way Sync**:
+   - As Ji (Admin), click **Notion Live** / sync button: confirm your Notion job database pulls in all records without error across all 15 stages.
+4. **AI Resume & ATS Matcher**:
+   - Navigate to the **AI Resume & ATS** tab.
+   - Upload a test resume in PDF format (`.pdf`).
+   - Select an existing job or paste a job description.
+   - Select **ChatGPT 5.6 Luna** or **Antigravity 3.8 Flash** and click **Run Match Analysis**.
+   - Verify real-time streaming output, match score %, missing keywords, and XYZ optimized bullets.
+5. **Dedicated Leads Hub**:
+   - Open the **🎯 Leads** tab.
+   - Review incoming leads from portfolio or add a new lead.
+   - Click **Promote to Applied**: verify the lead converts seamlessly into an active tracked application.
 
 ---
 

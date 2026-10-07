@@ -1,38 +1,46 @@
 # 🌸 Job Hunt & Leads Hub
 
-> A high-performance Job Application Tracker, Inbound Portfolio Lead Pipeline, and Bi-directional Notion Sync engine built with **Next.js 16**, **React 19**, **Tailwind CSS v4**, and **Neon Serverless PostgreSQL**.
+> A high-performance Job Application Tracker, Inbound Lead Pipeline, AI Resume & ATS Matcher, and Bi-directional Notion 2-Way Sync engine built with **Next.js 16**, **React 19**, **Tailwind CSS v4**, and **Neon Serverless PostgreSQL**.
 
-Designed with a tailored **Light Pink aesthetic** (`#FAF7F9`, `#FF7AB3`, `#F1DDE9`, `#9D3C5E`) providing a delightful, focused, and executive job hunting and client lead management experience.
+Live Production: **[https://jobhunt.jizellecasia.site](https://jobhunt.jizellecasia.site)**  
+Designed with an executive **Pink aesthetic** (`#FAF7F9`, `#FF7AB3`, `#F1DDE9`, `#9D3C5E`) providing a delightful, focused, and high-precision career command center.
 
 ---
 
-## ✨ Features
+## ✨ Core Features
 
-### 📋 Dual-View Application Tracking
-- **Interactive Kanban Board**: Drag-free visual pipelines across stages: *Wishlist*, *Applied*, *Screening*, *Interviewing*, *Offer*, *Rejected*, and *Ghosted*.
-- **Comprehensive Table View**: Sort, search, and filter applications by company, role, stage, priority, work model (Remote/Hybrid/Onsite), and salary ranges.
-- **Detailed Modal Inspector**: Edit interview rounds, recruiter contact details, application dates, and direct job listing URLs.
+### 🤖 AI Resume & ATS Matcher (Luna 5.6 & Antigravity)
+- **Multi-Model AI Gateway**: Built on high-performance proxy (`https://api.jizellecasia.site/v1`).
+  - **ChatGPT 5.6 Luna (`luna`)**: Default flagship model for in-depth ATS match scoring, keyword gap extraction, and Google XYZ-style bullet rewriting.
+  - **Antigravity 3.8 Flash (`gemini-3.8-flash`)**: Ultra-fast latency for instant resume scanning.
+  - **Antigravity 3.1 Pro High (`gemini-3.1-pro-high`)**: Complex multi-step reasoning for executive-level resume critiques.
+- **Real-Time Streaming**: Streamed SSE analysis with resilient markdown/JSON extraction and automatic retry fallbacks.
+- **Strict PDF Acceptance**: Client & server PDF-only validation (`.pdf`) with automated text parsing.
+- **Dynamic Job Matching**: Match any uploaded resume directly against existing saved job applications or ad-hoc job descriptions.
 
-### 🏢 Companies Directory & Insights
-- Manage company profiles with automatic favicon fetching, industry categorizations, and website links.
-- Real-time aggregated pipeline analytics (Total Applications, Active Interviews, and Success Rates).
+### 🎯 Dedicated Leads Hub & Pipeline Promotion
+- **Separate Leads Tab**: Dedicated hub for capturing recruiter outreach, inbound portfolio inquiries (`jizellecasia.vercel.app`), and freelance opportunities.
+- **No Company Clutter**: Keeps unverified inbound leads isolated from verified company directories.
+- **1-Click "Promote to Applied"**: Convert any inbound lead into an active tracked job application with complete history preservation.
+
+### 📋 Dual-View Tracker & 15 Notion Statuses
+- **Interactive Kanban Board & Table**: Sort, search, and group applications by stage, priority, work model (Remote/Hybrid/Onsite), and salary ranges.
+- **15 Pre-Seeded Notion Stages**:
+  - `Lead`, `Wishlist`, `Applied`, `Recruiter Screen`, `Technical Interview`, `Hiring Manager`, `System Design`, `Behavioral`, `Take Home Assignment`, `Final Round`, `Offer Received`, `Accepted`, `Rejected`, `Withdrawn`, `Ghosted`.
+- **Dynamic Inline `+ Add Option`**: Create custom stages on the fly directly synced with Notion properties.
 
 ### 🔄 Bi-Directional Notion 2-Way Live Sync
-- Two-way synchronization with Notion databases using `@notionhq/client`.
-- Instant push and pull of job listings, application statuses, and timeline updates between Notion and your cloud dashboard.
+- Real-time synchronization with Notion databases via `@notionhq/client`.
+- Instant push & pull of job listings, application stages, notes, and timeline dates.
+- Admin webhook endpoint (`/api/notion/webhook`) for immediate external automation triggers.
 
-### 📥 Portfolio Leads Ingestion
-- Real-time lead capture dashboard for inbound recruiters and freelance clients coming from portfolio landing pages.
-- Actionable lead lifecycle: track review status, prioritize leads, convert qualified leads directly into active job pipelines, or mark outcomes.
+### 🛡️ Strict Single-Admin RBAC & Data Isolation
+- **👑 Master Administrator (`jizellecasia@gmail.com` / `ADMIN_EMAIL`)**: Full exclusive access to Notion 2-Way Live Sync, Inbound Portfolio Leads, User Account Management, and OAuth platform configuration.
+- **👤 Member Isolation**: Any other authenticated user (e.g., `Cloudji Test`, `cloudjimail@gmail.com`, `Denise`) is automatically restricted to a private Cloud DB workspace without access to the Admin's Notion database, sync triggers, or admin settings.
 
-### 👥 Role-Based Access Control (RBAC) & Multi-User Architecture
-- **👑 Administrator (Ji - `jizellecasia@gmail.com`)**: Full access to Notion 2-Way Live Sync, Inbound Portfolio Leads, User Account Management, and OAuth platform configuration.
-- **✨ Members (e.g., Denise - Hospitality Management)**: Independent workspace stored in Cloud PostgreSQL with dedicated applications and companies, completely isolated from administrative sync integrations.
-- **One-Click Account Switcher**: Test and navigate between user profiles seamlessly directly from the navigation bar.
-
-### 🔐 Google OAuth SSO & Dynamic In-App Settings
-- Google OAuth Single Sign-On powered by **NextAuth.js**.
-- Built-in credentials management UI (`/api/settings/google`) allowing dynamic configuration of Google Client ID and Client Secret directly in the application.
+### 🔐 Branded Google OAuth SSO & Cute Favicon Highlight
+- **Cute Favicon Showcase**: Large prominent favicon artwork featured on the center-left of the login page with soft ambient glowing halos.
+- **Whitelist-Protected SSO**: NextAuth.js Google Single Sign-On validating incoming emails against the authorized user directory.
 
 ---
 
@@ -41,8 +49,9 @@ Designed with a tailored **Light Pink aesthetic** (`#FAF7F9`, `#FF7AB3`, `#F1DDE
 - **Framework**: [Next.js 16 (App Router + Turbopack)](https://nextjs.org)
 - **Frontend**: [React 19](https://react.dev), [Lucide React](https://lucide.dev)
 - **Styling**: [Tailwind CSS v4](https://tailwindcss.com)
-- **Authentication**: [NextAuth.js v4](https://next-auth.js.org)
-- **Database**: [Neon Serverless PostgreSQL](https://neon.tech) (with local JSON store fallback)
+- **AI Gateway**: OpenAI-compatible Proxy (`https://api.jizellecasia.site/v1`) with Luna 5.6 & Antigravity
+- **Authentication**: [NextAuth.js v4](https://next-auth.js.org) with Google OAuth 2.0
+- **Database**: [Neon Serverless PostgreSQL](https://neon.tech) / Local JSON fallback
 - **Integration**: [Notion API SDK](https://developers.notion.com) (`@notionhq/client`)
 
 ---
@@ -59,25 +68,30 @@ npm install
 
 ### 2. Configure Environment Variables
 
-Create a `.env.local` file in the project root:
+Create `.env.local` (or copy `.env.example`):
 
 ```env
-# 1. Admin Email (Enables Notion Live Sync & Portfolio Leads for Admin)
+# 1. Administrator Email (Grants 👑 Admin role, Notion sync & Leads access)
 ADMIN_EMAIL=jizellecasia@gmail.com
 
 # 2. Notion 2-Way Live Sync
-NOTION_API_KEY=your_notion_api_key_here
-NOTION_DATABASE_ID=your_notion_database_id_here
+NOTION_API_KEY=YOUR_NOTION_API_KEY
+NOTION_DATABASE_ID=your_32_character_notion_database_id
 
 # 3. NextAuth Authentication
-NEXTAUTH_SECRET=your_nextauth_secret_here
+NEXTAUTH_SECRET=your_32_character_secret_here
 NEXTAUTH_URL=http://localhost:3000
 
 # 4. Google OAuth SSO
-GOOGLE_CLIENT_ID=your_google_client_id_here
-GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=YOUR_GOOGLE_CLIENT_SECRET
 
-# 5. Database (Optional for local development; required for Vercel/Production)
+# 5. AI Resume & ATS Analyzer
+AI_BASE_URL=https://api.jizellecasia.site/v1
+AI_API_KEY=YOUR_AI_API_KEY
+AI_DEFAULT_MODEL=luna
+
+# 6. Database (Optional for local dev; required for Neon/Postgres production)
 POSTGRES_URL=postgres://user:password@ep-xyz.region.aws.neon.tech/neondb?sslmode=require
 ```
 
@@ -91,16 +105,11 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## ☁️ Deployment
+## ☁️ Deployment Reference
 
-For a complete step-by-step walkthrough covering Vercel, Neon Postgres, Google Cloud Console OAuth setup, and custom domains (`jizellecasia.site`), refer to the deployment guide:
+For detailed deployment instructions covering Vercel, Cloudflare DNS (`jobhunt.jizellecasia.site`), Google Cloud Console OAuth whitelist URIs, and live verification, refer to:
 
 👉 **[DEPLOYMENT.md](DEPLOYMENT.md)**
-
-### Deploy to Vercel in 3 Steps:
-1. Push your repository to GitHub (`main` branch).
-2. Import the repository into **Vercel** and connect the **Neon Serverless Postgres** storage integration.
-3. Add your environment variables in Vercel (**Settings &rarr; Environment Variables**) and hit **Deploy**.
 
 ---
 

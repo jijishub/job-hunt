@@ -634,7 +634,7 @@ export default function UserManagementModal({
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-white border border-[#F1DDE9] p-0.5 shadow-2xs shrink-0 overflow-hidden flex items-center justify-center">
                   <Image
-                    src="/job-hunt-whitebg.jpg"
+                    src="/job-hunt-facvicon.png"
                     alt="Job Hunt Logo"
                     width={36}
                     height={36}
