@@ -1,7 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import { useSession } from 'next-auth/react';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import ATSExportReport from './ATSExportReport';
 import { JobApplication } from '@/types/job';
 import { AIModelId, AVAILABLE_AI_MODELS, ResumeAnalysisResult } from '@/lib/ai';
 import {
@@ -22,6 +26,9 @@ import {
   HelpCircle,
   Upload,
   FileCheck,
+  Download,
+  ChevronDown,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 interface ResumeAnalyzerViewProps {
@@ -33,6 +40,8 @@ export default function ResumeAnalyzerView({
   applications,
   initialSelectedAppId,
 }: ResumeAnalyzerViewProps) {
+  const { data: session } = useSession();
+
   // Model selection
   const [selectedModel, setSelectedModel] = useState<AIModelId>('luna');
 
@@ -55,12 +64,30 @@ export default function ResumeAnalyzerView({
   const [result, setResult] = useState<ResumeAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Client-side export states (Zero DB writes!)
+  const reportRef = useRef<HTMLDivElement>(null);
+  const exportDropdownRef = useRef<HTMLDivElement>(null);
+  const [isExporting, setIsExporting] = useState<'pdf' | 'png' | null>(null);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
+
   // Copy feedback states
   const [copiedPitch, setCopiedPitch] = useState(false);
   const [copiedBulletIdx, setCopiedBulletIdx] = useState<number | null>(null);
 
   // Active sub-tab in results
   const [activeResultTab, setActiveResultTab] = useState<'overview' | 'keywords' | 'bullets' | 'pitch'>('overview');
+
+  // Close export dropdown on outside click
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target as Node)) {
+        setExportDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
 
   // Pre-load from selected app if provided
   useEffect(() => {
@@ -221,6 +248,60 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
     if (bulletIdx !== undefined) {
       setCopiedBulletIdx(bulletIdx);
       setTimeout(() => setCopiedBulletIdx(null), 2000);
+    }
+  };
+
+  // Client-Side 1-Click Export (Zero DB writes to prevent DB population)
+  const handleExport = async (format: 'pdf' | 'png') => {
+    if (!reportRef.current || !result) return;
+    setIsExporting(format);
+    setError(null);
+    setExportSuccessMsg(null);
+
+    try {
+      // Small pause to ensure layout stabilization
+      await new Promise((r) => setTimeout(r, 150));
+
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2, // 2x high retina resolution
+        useCORS: true,
+        backgroundColor: '#FAF7F9',
+        logging: false,
+      });
+
+      const cleanCompany = (companyName || 'Job').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const cleanRole = (jobTitle || 'Role').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const baseFilename = `ATS_Report_${cleanCompany}_${cleanRole}_${result.matchScore}pct`;
+
+      if (format === 'png') {
+        const imgData = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = imgData;
+        link.download = `${baseFilename}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setExportSuccessMsg('PNG report downloaded successfully!');
+      } else {
+        // Continuous single-page PDF with exact aspect ratio (no text truncation or split)
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'px',
+          format: [canvas.width, canvas.height],
+          hotfixes: ['px_scaling'],
+        });
+        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+        pdf.save(`${baseFilename}.pdf`);
+        setExportSuccessMsg('PDF report downloaded successfully!');
+      }
+      setTimeout(() => setExportSuccessMsg(null), 3000);
+    } catch (err: any) {
+      console.error('Export failed:', err);
+      setError(`Export failed: ${err.message || 'Please try again'}`);
+    } finally {
+      setIsExporting(null);
+      setExportDropdownOpen(false);
     }
   };
 
@@ -494,7 +575,70 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
                       <p className="text-xs text-[#736A6D] mt-1 leading-relaxed">{result.summary}</p>
                     </div>
                   </div>
+
+                  {/* Export Report Action Dropdown (Client-Side, Zero DB writes) */}
+                  <div className="relative shrink-0 self-start sm:self-center" ref={exportDropdownRef}>
+                    <div className="inline-flex rounded-xl shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+                        disabled={isExporting !== null}
+                        className="px-3.5 py-2 rounded-xl text-xs font-bold text-[#4A3E44] bg-[#FFF0F6] hover:bg-[#FCE7F3] border border-[#F1DDE9] transition flex items-center gap-2 cursor-pointer shadow-2xs hover:border-[#FF7AB3]"
+                        title="Download analysis as 1 single PDF or PNG (Zero DB writes)"
+                      >
+                        {isExporting ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#FF7AB3]" />
+                            <span>Exporting {isExporting.toUpperCase()}...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-3.5 h-3.5 text-[#FF7AB3]" />
+                            <span>Export Analysis</span>
+                            <ChevronDown className="w-3 h-3 text-stone-400" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {exportDropdownOpen && !isExporting && (
+                      <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-[#F1DDE9] py-1.5 z-20 animate-in fade-in zoom-in-95">
+                        <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#736A6D] border-b border-[#F1DDE9]/60">
+                          Choose Format (Download)
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleExport('pdf')}
+                          className="w-full px-3.5 py-2.5 text-left text-xs font-semibold text-[#4A3E44] hover:bg-[#FFF0F6] hover:text-[#9D3C5E] flex items-center gap-2.5 transition cursor-pointer"
+                        >
+                          <FileText className="w-4 h-4 text-[#FF7AB3] shrink-0" />
+                          <div>
+                            <div className="font-bold">Download as PDF</div>
+                            <div className="text-[10px] text-stone-400">1 continuous full-page PDF</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleExport('png')}
+                          className="w-full px-3.5 py-2.5 text-left text-xs font-semibold text-[#4A3E44] hover:bg-[#FFF0F6] hover:text-[#9D3C5E] flex items-center gap-2.5 transition cursor-pointer"
+                        >
+                          <ImageIcon className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <div>
+                            <div className="font-bold">Download as PNG</div>
+                            <div className="text-[10px] text-stone-400">High-resolution image</div>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {exportSuccessMsg && (
+                  <div className="mt-3 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-semibold flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>{exportSuccessMsg}</span>
+                  </div>
+                )}
 
                 {/* Sub-nav Tabs */}
                 <div className="flex items-center gap-1.5 pt-4 overflow-x-auto">
@@ -748,6 +892,17 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
           )}
         </div>
       </div>
+
+      {/* Hidden high-res export layout rendered for client-side PDF/PNG capture (Zero DB writes!) */}
+      {result && (
+        <ATSExportReport
+          result={result}
+          jobTitle={jobTitle}
+          companyName={companyName}
+          candidateName={session?.user?.name || 'Candidate Profile'}
+          reportRef={reportRef}
+        />
+      )}
     </div>
   );
 }

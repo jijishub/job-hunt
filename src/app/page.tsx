@@ -130,6 +130,7 @@ export default function JobHuntDashboard() {
             email: session.user.email || '',
             role: isMemberRole ? 'member' : 'admin',
             avatar: session.user.image || '✨',
+            notion_enabled: !isMemberRole,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
@@ -455,240 +456,243 @@ export default function JobHuntDashboard() {
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full flex-1 space-y-4">
-        {/* Navigation Tabs Bar (Clean, Dedicated Single-Row) */}
-        <div className="bg-white p-2 rounded-2xl border border-[#F1DDE9] shadow-2xs flex items-center justify-between gap-3 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-1.5 flex-nowrap whitespace-nowrap min-w-max">
-            <button
-              onClick={() => setActiveView('table')}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
-                activeView === 'table'
-                  ? 'bg-[#FF7AB3] text-white shadow-xs'
-                  : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
-              }`}
-            >
-              <TableIcon className="w-4 h-4" />
-              <span>Table View</span>
-            </button>
+        {/* Unified Control Deck: Navigation Tabs + Filters in ONE Cohesive Card */}
+        <div className="bg-white rounded-2xl border border-[#F1DDE9] shadow-2xs overflow-hidden">
+          {/* Top Bar: Primary Navigation Tabs & Pipeline Metric */}
+          <div className="p-2 sm:p-2.5 flex items-center justify-between gap-2 flex-wrap border-b border-[#F1DDE9]/60">
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
+              <button
+                onClick={() => setActiveView('table')}
+                className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
+                  activeView === 'table'
+                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
+                }`}
+              >
+                <TableIcon className="w-4 h-4" />
+                <span>Table View</span>
+              </button>
 
-            <button
-              onClick={() => setActiveView('board')}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
-                activeView === 'board'
-                  ? 'bg-[#FF7AB3] text-white shadow-xs'
-                  : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
-              }`}
-            >
-              <Columns className="w-4 h-4" />
-              <span>Board View</span>
-            </button>
+              <button
+                onClick={() => setActiveView('board')}
+                className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
+                  activeView === 'board'
+                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
+                }`}
+              >
+                <Columns className="w-4 h-4" />
+                <span>Board View</span>
+              </button>
 
-            <button
-              onClick={() => setActiveView('companies')}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
-                activeView === 'companies'
-                  ? 'bg-[#FF7AB3] text-white shadow-xs'
-                  : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
-              }`}
-            >
-              <Building2 className="w-4 h-4" />
-              <span>Companies ({companies.length})</span>
-            </button>
+              <button
+                onClick={() => setActiveView('companies')}
+                className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
+                  activeView === 'companies'
+                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
+                }`}
+              >
+                <Building2 className="w-4 h-4" />
+                <span>Companies ({companies.length})</span>
+              </button>
 
-            <button
-              onClick={() => setActiveView('leads')}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
-                activeView === 'leads'
-                  ? 'bg-[#FF7AB3] text-white shadow-xs'
-                  : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
-              }`}
-            >
-              <Compass className="w-4 h-4 text-emerald-500" />
-              <span>🎯 Leads ({leads.length})</span>
-            </button>
+              <button
+                onClick={() => setActiveView('leads')}
+                className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
+                  activeView === 'leads'
+                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
+                }`}
+              >
+                <Compass className="w-4 h-4 text-emerald-500" />
+                <span>🎯 Leads ({leads.length})</span>
+              </button>
 
-            <button
-              onClick={() => setActiveView('analytics')}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
-                activeView === 'analytics'
-                  ? 'bg-[#FF7AB3] text-white shadow-xs'
-                  : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>📊 Analytics</span>
-            </button>
+              <button
+                onClick={() => setActiveView('analytics')}
+                className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
+                  activeView === 'analytics'
+                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>📊 Analytics</span>
+              </button>
 
-            <button
-              onClick={() => {
-                setResumeTargetAppId(null);
-                setActiveView('resume');
-              }}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
-                activeView === 'resume'
-                  ? 'bg-[#FF7AB3] text-white shadow-xs'
-                  : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
-              }`}
-            >
-              <Sparkles className="w-4 h-4 text-[#FF7AB3]" />
-              <span>📄 AI Resume & ATS</span>
-            </button>
-          </div>
-
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-[#FAF7F9] rounded-xl text-xs text-[#736A6D] font-medium border border-[#F1DDE9] whitespace-nowrap">
-            <span>Pipeline: <strong className="text-[#9D3C5E] font-bold">{applications.length}</strong> jobs</span>
-          </div>
-        </div>
-
-        {/* Dedicated Search & Filters Toolbar (Active on Table & Board Views) */}
-        {(activeView === 'table' || activeView === 'board') && (
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-[#F1DDE9] shadow-2xs">
-            {/* Search Input */}
-            <div className="relative flex-1 min-w-[240px]">
-              <input
-                type="text"
-                placeholder="Search role, company, location, or notes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 rounded-xl border border-[#F1DDE9] text-xs sm:text-sm text-[#4A3E44] placeholder-stone-400 focus:outline-none focus:border-[#FF7AB3] transition bg-[#FAF7F9]/60"
-              />
-              <Search className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-2 text-stone-400 hover:text-stone-600 text-sm font-bold"
-                  title="Clear search"
-                >
-                  ✕
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  setResumeTargetAppId(null);
+                  setActiveView('resume');
+                }}
+                className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
+                  activeView === 'resume'
+                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-[#FF7AB3]" />
+                <span>📄 AI Resume & ATS</span>
+              </button>
             </div>
 
-            {/* Filter Dropdowns */}
-            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              {/* Dynamic Applicant / Account Filter */}
-              {currentUser?.role === 'admin' ? (
-                <select
-                  value={ownerFilter}
-                  onChange={(e) => setOwnerFilter(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer"
-                >
-                  <option value="ALL">👥 All Pipelines</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.avatar?.startsWith('http') ? (u.role === 'admin' ? '🌸' : '👤') : (u.avatar || '👤')} {u.name} ({u.role.toUpperCase()})
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] bg-[#FAF7F9] flex items-center gap-1.5 whitespace-nowrap">
-                  <span>👤 My Pipeline ({currentUser?.name || 'Member'})</span>
-                </div>
-              )}
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-[#FAF7F9] rounded-xl text-xs text-[#736A6D] font-medium border border-[#F1DDE9] whitespace-nowrap ml-auto">
+              <span>Pipeline: <strong className="text-[#9D3C5E] font-bold">{applications.length}</strong> jobs</span>
+            </div>
+          </div>
 
-              {/* Notion Exact Stage Filter */}
-              {uniqueNotionStatuses.length > 0 && (
-                <select
-                  value={notionStatusFilter}
-                  onChange={(e) => setNotionStatusFilter(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[150px] truncate"
-                  title="Filter by exact Notion stage"
-                >
-                  <option value="ALL">Notion: All Stages</option>
-                  {uniqueNotionStatuses.map((st) => (
-                    <option key={st} value={st}>
-                      {st}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {/* Service / Industry Category Filter */}
-              {uniqueServices.length > 0 && (
-                <select
-                  value={serviceFilter}
-                  onChange={(e) => setServiceFilter(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[150px] truncate"
-                  title="Filter by Industry / Service category"
-                >
-                  <option value="ALL">🏷️ All Services</option>
-                  {uniqueServices.map((svc) => (
-                    <option key={svc} value={svc}>
-                      {svc}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {/* Intern Position Filter */}
-              {uniquePositions.length > 0 && (
-                <select
-                  value={positionFilter}
-                  onChange={(e) => setPositionFilter(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[140px] truncate"
-                  title="Filter by Position / Role"
-                >
-                  <option value="ALL">💼 All Roles</option>
-                  {uniquePositions.map((pos) => (
-                    <option key={pos} value={pos}>
-                      {pos}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {/* Priority Filter */}
-              <select
-                value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer"
-              >
-                <option value="ALL">All Priorities</option>
-                <option value="DREAM">⭐ Dream</option>
-                <option value="HIGH">🔥 High</option>
-                <option value="MEDIUM">⚡ Medium</option>
-                <option value="LOW">☕ Low</option>
-              </select>
-
-              {/* Sort By */}
-              <div className="flex items-center gap-1.5 border border-[#F1DDE9] rounded-xl px-3 py-2 bg-white text-xs text-[#736A6D]">
-                <ArrowUpDown className="w-3.5 h-3.5 text-stone-400" />
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="bg-transparent focus:outline-none text-xs font-semibold text-[#736A6D] cursor-pointer"
-                >
-                  <option value="updated">Recent Activity</option>
-                  <option value="date_applied">Applied Date</option>
-                  <option value="priority">Priority</option>
-                  <option value="company">Company Name</option>
-                </select>
+          {/* Integrated Search & Filters Toolbar (Active on Table & Board Views) */}
+          {(activeView === 'table' || activeView === 'board') && (
+            <div className="bg-[#FAF7F9]/40 p-3 sm:p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              {/* Search Input */}
+              <div className="relative flex-1 min-w-[220px]">
+                <input
+                  type="text"
+                  placeholder="Search role, company, location, or notes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 rounded-xl border border-[#F1DDE9] text-xs sm:text-sm text-[#4A3E44] placeholder-stone-400 focus:outline-none focus:border-[#FF7AB3] transition bg-white"
+                />
+                <Search className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-2 text-stone-400 hover:text-stone-600 text-sm font-bold"
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
 
-              {(searchQuery ||
-                ownerFilter !== 'ALL' ||
-                statusFilter !== 'ALL' ||
-                notionStatusFilter !== 'ALL' ||
-                serviceFilter !== 'ALL' ||
-                positionFilter !== 'ALL' ||
-                priorityFilter !== 'ALL') && (
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setOwnerFilter('ALL');
-                    setStatusFilter('ALL');
-                    setNotionStatusFilter('ALL');
-                    setServiceFilter('ALL');
-                    setPositionFilter('ALL');
-                    setPriorityFilter('ALL');
-                  }}
-                  className="text-xs text-[#9D3C5E] hover:underline font-semibold px-2 py-1 whitespace-nowrap"
+              {/* Filter Dropdowns with graceful wrapping */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Dynamic Applicant / Account Filter */}
+                {currentUser?.role === 'admin' ? (
+                  <select
+                    value={ownerFilter}
+                    onChange={(e) => setOwnerFilter(e.target.value)}
+                    className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer"
+                  >
+                    <option value="ALL">👥 All Pipelines</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.avatar?.startsWith('http') ? (u.role === 'admin' ? '🌸' : '👤') : (u.avatar || '👤')} {u.name} ({u.role.toUpperCase()})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] bg-white flex items-center gap-1.5 whitespace-nowrap">
+                    <span>👤 My Pipeline ({currentUser?.name || 'Member'})</span>
+                  </div>
+                )}
+
+                {/* Notion Exact Stage Filter */}
+                {uniqueNotionStatuses.length > 0 && (
+                  <select
+                    value={notionStatusFilter}
+                    onChange={(e) => setNotionStatusFilter(e.target.value)}
+                    className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[150px] truncate"
+                    title="Filter by exact Notion stage"
+                  >
+                    <option value="ALL">Notion: All Stages</option>
+                    {uniqueNotionStatuses.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Service / Industry Category Filter */}
+                {uniqueServices.length > 0 && (
+                  <select
+                    value={serviceFilter}
+                    onChange={(e) => setServiceFilter(e.target.value)}
+                    className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[150px] truncate"
+                    title="Filter by Industry / Service category"
+                  >
+                    <option value="ALL">🏷️ All Services</option>
+                    {uniqueServices.map((svc) => (
+                      <option key={svc} value={svc}>
+                        {svc}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Intern Position Filter */}
+                {uniquePositions.length > 0 && (
+                  <select
+                    value={positionFilter}
+                    onChange={(e) => setPositionFilter(e.target.value)}
+                    className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[140px] truncate"
+                    title="Filter by Position / Role"
+                  >
+                    <option value="ALL">💼 All Roles</option>
+                    {uniquePositions.map((pos) => (
+                      <option key={pos} value={pos}>
+                        {pos}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Priority Filter */}
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer"
                 >
-                  Reset
-                </button>
-              )}
+                  <option value="ALL">All Priorities</option>
+                  <option value="DREAM">⭐ Dream</option>
+                  <option value="HIGH">🔥 High</option>
+                  <option value="MEDIUM">⚡ Medium</option>
+                  <option value="LOW">☕ Low</option>
+                </select>
+
+                {/* Sort By */}
+                <div className="flex items-center gap-1.5 border border-[#F1DDE9] rounded-xl px-3 py-2 bg-white text-xs text-[#736A6D]">
+                  <ArrowUpDown className="w-3.5 h-3.5 text-stone-400" />
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="bg-transparent focus:outline-none text-xs font-semibold text-[#736A6D] cursor-pointer"
+                  >
+                    <option value="updated">Recent Activity</option>
+                    <option value="date_applied">Applied Date</option>
+                    <option value="priority">Priority</option>
+                    <option value="company">Company Name</option>
+                  </select>
+                </div>
+
+                {(searchQuery ||
+                  ownerFilter !== 'ALL' ||
+                  statusFilter !== 'ALL' ||
+                  notionStatusFilter !== 'ALL' ||
+                  serviceFilter !== 'ALL' ||
+                  positionFilter !== 'ALL' ||
+                  priorityFilter !== 'ALL') && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setOwnerFilter('ALL');
+                      setStatusFilter('ALL');
+                      setNotionStatusFilter('ALL');
+                      setServiceFilter('ALL');
+                      setPositionFilter('ALL');
+                      setPriorityFilter('ALL');
+                    }}
+                    className="text-xs text-[#9D3C5E] hover:underline font-semibold px-2 py-1 whitespace-nowrap"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {isLoading ? (
           <div className="py-24 text-center">
