@@ -197,15 +197,30 @@ export default function JobHuntDashboard() {
     }
   };
 
-  const handleUpdateStatus = async (id: string, newStatus: ApplicationStatus) => {
+  const handleUpdateStatus = async (
+    id: string,
+    newStatus: ApplicationStatus,
+    notionStatusName?: string
+  ) => {
     setApplications((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              status: newStatus,
+              notion_status: notionStatusName || a.notion_status,
+            }
+          : a
+      )
     );
     try {
       await fetch(`/api/applications/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({
+          status: newStatus,
+          notion_status: notionStatusName,
+        }),
       });
     } catch (e) {
       console.error('Failed to update status:', e);
@@ -256,6 +271,10 @@ export default function JobHuntDashboard() {
       if (a.role_title) set.add(a.role_title);
     });
     return Array.from(set).sort();
+  }, [applications]);
+
+  const leads = useMemo(() => {
+    return applications.filter((app) => app.status === 'LEAD');
   }, [applications]);
 
   const filteredApplications = useMemo(() => {
@@ -452,7 +471,7 @@ export default function JobHuntDashboard() {
               }`}
             >
               <Compass className="w-4 h-4 text-emerald-500" />
-              <span>🎯 Find Leads</span>
+              <span>🎯 Leads ({leads.length})</span>
             </button>
 
             <button
@@ -682,6 +701,16 @@ export default function JobHuntDashboard() {
             onAddToTracker={handleSaveApplication}
             existingApplications={applications}
             currentUser={currentUser}
+            onUpdateStatus={handleUpdateStatus}
+            onDeleteApplication={handleDeleteApplication}
+            onSelectLead={(app) => {
+              setSelectedApp(app);
+              setIsDetailOpen(true);
+            }}
+            onNavigateToResume={(appId) => {
+              setResumeTargetAppId(appId);
+              setActiveView('resume');
+            }}
           />
         ) : activeView === 'analytics' ? (
           <AnalyticsView applications={filteredApplications} companies={companies} />

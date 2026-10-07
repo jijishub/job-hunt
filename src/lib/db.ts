@@ -12,6 +12,7 @@ interface LocalDatabase {
   companies: Company[];
   applications: JobApplication[];
   users: UserAccount[];
+  statuses?: any[];
 }
 
 export const INITIAL_USERS: UserAccount[] = [
@@ -153,6 +154,16 @@ async function initPostgresSchema(sql: any) {
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS notion_status TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS service TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS information TEXT;`;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS custom_statuses (
+        id TEXT PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        color TEXT NOT NULL DEFAULT 'default',
+        category TEXT NOT NULL DEFAULT 'APPLIED',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `;
 
     // Always seed the Master Admin user (Jizelle)
     const adminEmail = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
@@ -391,7 +402,7 @@ export async function createApplication(
         job_url, source, owner, contact_name, contact_email, date_applied, follow_up_date, notes,
         notion_page_id, last_synced_at, sync_status, created_at, updated_at
       ) VALUES (
-        ${newApp.id}, ${newApp.company_id}, ${newApp.company_name}, ${newApp.company_logo || null},
+        ${newApp.id}, ${newApp.company_id || null}, ${newApp.company_name}, ${newApp.company_logo || null},
         ${newApp.role_title}, ${newApp.status}, ${newApp.notion_status || null}, ${newApp.service || null}, ${newApp.information || null},
         ${newApp.priority}, ${newApp.job_type},
         ${newApp.work_model}, ${newApp.location || null}, ${newApp.salary_min || null},
@@ -723,5 +734,72 @@ export async function deleteUser(id: string): Promise<boolean> {
   writeLocalDb(db);
   return true;
 }
+
+// ==========================================
+// CUSTOM STATUSES
+// ==========================================
+
+export async function getCustomStatuses(): Promise<any[]> {
+  const sql = getPostgresClient();
+  if (sql) {
+    await initPostgresSchema(sql);
+    const rows = await sql`SELECT * FROM custom_statuses ORDER BY created_at ASC;`;
+    return rows;
+  }
+  const db = readLocalDb();
+  return db.statuses || [];
+}
+
+export async function createCustomStatus(data: {
+  name: string;
+  color?: string;
+  category?: string;
+}): Promise<any> {
+  const trimmed = data.name.trim();
+  const id = `status_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const color = data.color || 'default';
+  const category = data.category || 'APPLIED';
+
+  const sql = getPostgresClient();
+  if (sql) {
+    await initPostgresSchema(sql);
+    const inserted = await sql`
+      INSERT INTO custom_statuses (id, name, color, category, created_at)
+      VALUES (${id}, ${trimmed}, ${color}, ${category}, NOW())
+      ON CONFLICT (name) DO UPDATE SET color = EXCLUDED.color, category = EXCLUDED.category
+      RETURNING *;
+    `;
+    return inserted[0];
+  }
+
+  const db = readLocalDb();
+  if (!db.statuses) db.statuses = [];
+  const existingIndex = db.statuses.findIndex(
+    (s: any) => s.name.toLowerCase() === trimmed.toLowerCase()
+  );
+  const statusObj = { id, name: trimmed, color, category, created_at: new Date().toISOString() };
+  if (existingIndex >= 0) {
+    db.statuses[existingIndex] = { ...db.statuses[existingIndex], ...statusObj };
+  } else {
+    db.statuses.push(statusObj);
+  }
+  writeLocalDb(db);
+  return statusObj;
+}
+
+export async function deleteCustomStatus(id: string): Promise<boolean> {
+  const sql = getPostgresClient();
+  if (sql) {
+    await initPostgresSchema(sql);
+    await sql`DELETE FROM custom_statuses WHERE id = ${id};`;
+    return true;
+  }
+  const db = readLocalDb();
+  if (!db.statuses) return true;
+  db.statuses = db.statuses.filter((s: any) => s.id !== id);
+  writeLocalDb(db);
+  return true;
+}
+
 
 

@@ -10,6 +10,7 @@ import {
   getOrCreateCompany,
   getUsers,
 } from './db';
+import { getStatusCategory } from './statuses';
 
 async function isAppEligibleForNotionSync(app: JobApplication): Promise<boolean> {
   const users = await getUsers();
@@ -404,39 +405,13 @@ export async function pullApplicationsFromNotion() {
           props.Status?.status?.name ||
           undefined;
 
-        const sLower = (notion_status || '').toLowerCase().trim();
-        let status: ApplicationStatus = 'APPLIED';
+        const status: ApplicationStatus = notion_status ? getStatusCategory(notion_status) : 'APPLIED';
         let priority: Priority = 'MEDIUM';
 
-        if (sLower === 'accepted') {
-          status = 'ACCEPTED';
+        if (status === 'ACCEPTED' || status === 'INTERVIEWING') {
           priority = 'HIGH';
-        } else if (sLower.includes('accepted - not proceeding')) {
-          status = 'OFFER';
-          priority = 'MEDIUM';
-        } else if (
-          sLower.includes('not accepted') ||
-          sLower.includes('not accepting') ||
-          sLower.includes('reject') ||
-          sLower === 'repeated'
-        ) {
-          status = 'REJECTED';
+        } else if (status === 'REJECTED' || status === 'WITHDRAWN') {
           priority = 'LOW';
-        } else if (sLower.includes('interview')) {
-          status = 'INTERVIEWING';
-          priority = 'HIGH';
-        } else if (sLower.includes('screen') || sLower.includes('exam')) {
-          status = 'SCREENING';
-          priority = 'MEDIUM';
-        } else if (sLower === 'do not proceed' || sLower.includes('withdraw')) {
-          status = 'WITHDRAWN';
-          priority = 'LOW';
-        } else if (sLower === 'not started' || sLower === 'inquiry') {
-          status = 'LEAD';
-          priority = 'MEDIUM';
-        } else if (sLower.includes('applied')) {
-          status = 'APPLIED';
-          priority = 'MEDIUM';
         }
 
         // Explicit Priority from Notion

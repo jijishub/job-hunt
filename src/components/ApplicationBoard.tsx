@@ -1,8 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { JobApplication, ApplicationStatus } from '@/types/job';
 import PriorityBadge from './PriorityBadge';
+import StatusBadge from './StatusBadge';
+import { SEEDED_STATUS_OPTIONS, getStatusCategory, StatusOption } from '@/lib/statuses';
 import {
   Building2,
   MapPin,
@@ -14,7 +16,7 @@ interface ApplicationBoardProps {
   applications: JobApplication[];
   onSelectApp: (app: JobApplication) => void;
   onNewAppWithStatus: (status: ApplicationStatus) => void;
-  onUpdateStatus: (id: string, newStatus: ApplicationStatus) => Promise<void>;
+  onUpdateStatus: (id: string, newStatus: ApplicationStatus, notionStatus?: string) => Promise<void>;
 }
 
 const COLUMNS: { status: ApplicationStatus; title: string; color: string; badgeDot: string }[] = [
@@ -32,6 +34,18 @@ export default function ApplicationBoard({
   onNewAppWithStatus,
   onUpdateStatus,
 }: ApplicationBoardProps) {
+  const [statusOptions, setStatusOptions] = useState<StatusOption[]>(SEEDED_STATUS_OPTIONS);
+
+  useEffect(() => {
+    fetch('/api/statuses')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && Array.isArray(d.data)) {
+          setStatusOptions(d.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
   return (
     <div className="flex gap-4 overflow-x-auto pb-6 pt-1 items-start min-h-[600px]">
       {COLUMNS.map((col) => {
@@ -111,20 +125,14 @@ export default function ApplicationBoard({
                   </div>
 
                   {/* Notion Stage & Service Categorization Badges */}
-                  {(app.notion_status || app.service) && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {app.notion_status && (
-                        <span className="inline-block px-2 py-0.5 rounded-md text-[9px] font-bold bg-[#FFF0F6] text-[#9D3C5E] border border-[#F1DDE9] truncate max-w-[140px]" title={app.notion_status}>
-                          {app.notion_status}
-                        </span>
-                      )}
-                      {app.service && (
-                        <span className="inline-block px-2 py-0.5 rounded-md text-[9px] font-semibold bg-stone-100 text-[#736A6D] border border-stone-200/60 truncate max-w-[120px]" title={app.service}>
-                          🏷️ {app.service}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <StatusBadge status={app.notion_status || app.status} size="sm" />
+                    {app.service && (
+                      <span className="inline-block px-2 py-0.5 rounded-md text-[9px] font-semibold bg-stone-100 text-[#736A6D] border border-stone-200/60 truncate max-w-[120px]" title={app.service}>
+                        🏷️ {app.service}
+                      </span>
+                    )}
+                  </div>
 
                   <div className="text-[11px] text-[#736A6D] space-y-1">
                     {app.salary_min || app.salary_max ? (
@@ -152,18 +160,18 @@ export default function ApplicationBoard({
                   >
                     <span className="text-stone-400 text-[10px]">Move to:</span>
                     <select
-                      value={app.status}
-                      onChange={(e) =>
-                        onUpdateStatus(app.id, e.target.value as ApplicationStatus)
-                      }
-                      className="text-[11px] font-medium text-[#736A6D] bg-stone-50 hover:bg-[#FCE7F3] border border-[#F1DDE9] rounded-lg px-2 py-0.5 focus:outline-none transition"
+                      value={app.notion_status || app.status}
+                      onChange={(e) => {
+                        const chosen = e.target.value;
+                        onUpdateStatus(app.id, getStatusCategory(chosen), chosen);
+                      }}
+                      className="text-[11px] font-medium text-[#736A6D] bg-stone-50 hover:bg-[#FCE7F3] border border-[#F1DDE9] rounded-lg px-2 py-0.5 focus:outline-none transition max-w-[155px] truncate"
                     >
-                      <option value="LEAD">Lead</option>
-                      <option value="APPLIED">Applied</option>
-                      <option value="SCREENING">Screening</option>
-                      <option value="INTERVIEWING">Interviewing</option>
-                      <option value="OFFER">Offer</option>
-                      <option value="REJECTED">Rejected</option>
+                      {statusOptions.map((st) => (
+                        <option key={st.id || st.name} value={st.name}>
+                          {st.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>

@@ -27,14 +27,18 @@ export async function PUT(
     const body = await request.json();
 
     if (body.company_name) {
-      const company = await getOrCreateCompany(
-        body.company_name,
-        body.company_logo,
-        body.company_website
-      );
-      body.company_id = company.id;
-      body.company_name = company.name;
-      if (company.logo_url) body.company_logo = company.logo_url;
+      const existingApp = await getApplicationById(id);
+      const isLead = (body.status || existingApp?.status) === 'LEAD' || body.is_lead === true;
+      if (!isLead) {
+        const company = await getOrCreateCompany(
+          body.company_name,
+          body.company_logo,
+          body.company_website
+        );
+        body.company_id = company.id;
+        body.company_name = company.name;
+        if (company.logo_url) body.company_logo = company.logo_url;
+      }
     }
 
     const updated = await updateApplication(id, {

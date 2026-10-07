@@ -31,7 +31,8 @@ export async function GET() {
   try {
     const res = await fetch('https://jizellecasia.vercel.app/api/content', {
       headers: { 'User-Agent': 'JobHuntTracker/1.0' },
-      next: { revalidate: 3600 },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!res.ok) {
@@ -48,7 +49,22 @@ export async function GET() {
     const skillsText = about.skillsText || '';
     const rawSkills = Array.from(skillsText.matchAll(/<code>([^<]+)<\/code>/g)).map((m: any) => m[1]);
     
-    const skills = rawSkills.length > 0 ? rawSkills : [
+    // Also pull skills from skillCategories if available
+    const categorySkills: string[] = [];
+    if (Array.isArray(about.skillCategories)) {
+      about.skillCategories.forEach((cat: any) => {
+        if (Array.isArray(cat.skills)) {
+          cat.skills.forEach((s: any) => {
+            if (typeof s === 'string') categorySkills.push(s);
+            else if (s?.name) categorySkills.push(s.name);
+          });
+        }
+      });
+    }
+
+    const combinedSkills = Array.from(new Set([...rawSkills, ...categorySkills])).filter(Boolean);
+
+    const skills = combinedSkills.length > 0 ? combinedSkills : [
       'TypeScript', 'JavaScript', 'Python', 'C#', 'SQL',
       'React', 'Next.js', 'Docker', 'Linux', 'Git', 'Tailwind CSS',
       'LLM Orchestration', 'OpenClaw', 'RAG', 'Playwright', 'PostgreSQL'
@@ -101,9 +117,9 @@ export async function GET() {
       portfolioUrl: 'https://jizellecasia.vercel.app',
     };
 
-    return NextResponse.json({ success: true, data: profile });
+    return NextResponse.json({ success: true, data: profile, profile });
   } catch (error: any) {
-    console.error('Error fetching portfolio content:', error);
+    console.warn('Portfolio remote fetch fallback active:', error?.message);
 
     const fallbackProfile: PortfolioProfile = {
       name: 'Jizelle Casia',
@@ -139,6 +155,6 @@ export async function GET() {
       portfolioUrl: 'https://jizellecasia.vercel.app',
     };
 
-    return NextResponse.json({ success: true, data: fallbackProfile });
+    return NextResponse.json({ success: true, data: fallbackProfile, profile: fallbackProfile });
   }
 }

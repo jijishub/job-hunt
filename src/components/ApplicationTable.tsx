@@ -130,13 +130,7 @@ export default function ApplicationTable({
                   </td>
 
                   <td className="py-3.5 px-4">
-                    <StatusBadge status={app.status} size="sm" />
-                    {app.notion_status &&
-                      app.notion_status.toLowerCase().trim() !== app.status.toLowerCase().trim() && (
-                        <span className="block text-[10px] text-[#736A6D] font-medium mt-1 truncate max-w-[140px]" title={app.notion_status}>
-                          {app.notion_status}
-                        </span>
-                      )}
+                    <StatusBadge status={app.notion_status || app.status} size="sm" />
                   </td>
 
                   <td className="py-3.5 px-4">

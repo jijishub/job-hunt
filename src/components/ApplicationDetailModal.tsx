@@ -158,12 +158,7 @@ export default function ApplicationDetailModal({
                   Status & Stage
                 </span>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <StatusBadge status={app.status} />
-                  {app.notion_status && (
-                    <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#FFF0F6] text-[#9D3C5E] border border-[#F1DDE9]">
-                      Notion: {app.notion_status}
-                    </span>
-                  )}
+                  <StatusBadge status={app.notion_status || app.status} />
                 </div>
               </div>
               <div>

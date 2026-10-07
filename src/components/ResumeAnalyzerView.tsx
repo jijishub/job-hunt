@@ -20,6 +20,8 @@ import {
   Tag,
   MessageSquare,
   HelpCircle,
+  Upload,
+  FileCheck,
 } from 'lucide-react';
 
 interface ResumeAnalyzerViewProps {
@@ -44,6 +46,12 @@ export default function ResumeAnalyzerView({
   // Loading & Result states
   const [isLoading, setIsLoading] = useState(false);
   const [isPortfolioImporting, setIsPortfolioImporting] = useState(false);
+  const [isPdfUploading, setIsPdfUploading] = useState(false);
+  const [uploadedPdfInfo, setUploadedPdfInfo] = useState<{
+    filename: string;
+    fileSize: number;
+    totalPages: number;
+  } | null>(null);
   const [result, setResult] = useState<ResumeAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,6 +81,53 @@ export default function ResumeAnalyzerView({
     }
   }, [selectedAppId, applications]);
 
+  // Handle PDF Resume Upload (PDF Acceptance Only)
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input so re-uploading the same file works
+    e.target.value = '';
+
+    // Strictly validate PDF
+    const isPdfExt = file.name.toLowerCase().endsWith('.pdf');
+    const isPdfMime = file.type === 'application/pdf' || file.type === 'application/x-pdf';
+    if (!isPdfExt && !isPdfMime) {
+      setError('Only PDF files (.pdf) are accepted. Please upload a PDF resume.');
+      return;
+    }
+
+    setIsPdfUploading(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/resume/parse-pdf', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to extract text from PDF');
+      }
+
+      setResumeText(data.text);
+      setUploadedPdfInfo({
+        filename: data.filename || file.name,
+        fileSize: data.fileSize || file.size,
+        totalPages: data.totalPages || 1,
+      });
+    } catch (err: any) {
+      console.error('PDF upload error:', err);
+      setError(`PDF Import failed: ${err.message}. You can manually paste resume text below.`);
+    } finally {
+      setIsPdfUploading(false);
+    }
+  };
+
   // Auto-import candidate portfolio/bio from jizellecasia.vercel.app
   const handleAutoImportPortfolio = async () => {
     setIsPortfolioImporting(true);
@@ -80,35 +135,37 @@ export default function ResumeAnalyzerView({
     try {
       const res = await fetch('/api/portfolio');
       const data = await res.json();
-      if (data.success && data.profile) {
-        const p = data.profile;
-        const formatted = `Candidate Name: ${p.name}
-Headline: ${p.headline}
-Portfolio: ${p.portfolioUrl}
+      const p = data.profile || data.data;
+
+      if (data.success && p) {
+        const formatted = `Candidate Name: ${p.name || 'Jizelle Casia'}
+Headline: ${p.headline || 'Forward-Deployed Engineer'}
+Portfolio: ${p.portfolioUrl || 'https://jizellecasia.vercel.app'}
 
 Bio:
-${p.bio}
+${p.bio || ''}
 
 Technical Skills:
-${p.skills?.join(', ') || 'React, TypeScript, Next.js, PostgreSQL'}
+${p.skills?.join(', ') || 'React, TypeScript, Next.js, PostgreSQL, Docker, Python'}
 
 Education:
-${p.education?.school || 'University'} - ${p.education?.major || 'Information Technology'} (${p.education?.honors || 'Honors'})
-GPA: ${p.education?.gpa || 'N/A'}
+${p.education?.school || 'Polytechnic University of the Philippines'} - ${p.education?.major || 'BS Information Technology'} (${p.education?.honors || 'Cum Laude'})
+GPA: ${p.education?.gpa || '1.35'}
 ${p.education?.description || ''}
 
 Projects:
-${p.projects?.map((proj: any) => `• ${proj.title} (${proj.role}): Tech Stack: ${proj.techStack}`).join('\n') || 'Full-Stack Portfolio and Web Apps'}
+${p.projects?.map((proj: any) => `• ${proj.title} (${proj.role}): Tech Stack: ${proj.techStack}`).join('\n') || 'Full-Stack Portfolio and AI Web Apps'}
 
 Experience Highlights:
-${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (${exp.location})`).join('\n') || 'Software Engineering Intern'}`;
+${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (${exp.location})`).join('\n') || 'Forward-Deployed Engineer at GDS Capital'}`;
 
         setResumeText(formatted);
+        setUploadedPdfInfo(null);
       } else {
         throw new Error('Failed to retrieve portfolio profile data');
       }
     } catch (err: any) {
-      setError(`Could not auto-import portfolio: ${err.message}. You can manually paste your resume text below.`);
+      setError(`Could not auto-import portfolio: ${err.message}. You can manually paste your resume text or import a PDF.`);
     } finally {
       setIsPortfolioImporting(false);
     }

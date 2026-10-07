@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getApplications, createApplication, getOrCreateCompany } from '@/lib/db';
+import { getApplications, createApplication, getOrCreateCompany, getCompanies } from '@/lib/db';
 import { pushApplicationToNotion, pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
 
 export async function GET() {
@@ -54,16 +54,28 @@ export async function POST(request: Request) {
       );
     }
 
-    const company = await getOrCreateCompany(
-      company_name,
-      company_logo,
-      company_website
-    );
+    const isLead = status === 'LEAD' || body.is_lead === true;
+    let company: any = null;
+
+    if (!isLead) {
+      company = await getOrCreateCompany(
+        company_name,
+        company_logo,
+        company_website
+      );
+    } else {
+      // For leads: reuse existing company if it already exists, but DO NOT create a new company row
+      const existingCompanies = await getCompanies();
+      company =
+        existingCompanies.find(
+          (c) => c.name.toLowerCase().trim() === company_name.toLowerCase().trim()
+        ) || null;
+    }
 
     const newApp = await createApplication({
-      company_id: company.id,
-      company_name: company.name,
-      company_logo: company.logo_url || company_logo,
+      company_id: company?.id || undefined,
+      company_name: company?.name || company_name.trim(),
+      company_logo: company?.logo_url || company_logo,
       role_title,
       status,
       priority,
@@ -82,10 +94,12 @@ export async function POST(request: Request) {
       sync_status: 'PENDING',
     });
 
-    try {
-      await pushApplicationToNotion(newApp);
-    } catch (notionErr) {
-      console.warn('Notion push background warning:', notionErr);
+    if (!isLead) {
+      try {
+        await pushApplicationToNotion(newApp);
+      } catch (notionErr) {
+        console.warn('Notion push background warning:', notionErr);
+      }
     }
 
     return NextResponse.json({ success: true, data: newApp }, { status: 201 });
