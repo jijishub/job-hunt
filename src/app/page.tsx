@@ -89,7 +89,16 @@ export default function JobHuntDashboard() {
       setNotionStatus(notionData);
 
       // Auto-recovery: if applications is empty or has fewer than 5 rows on load and Notion is connected, auto-sync!
+      // Strictly restricted to Master Admin!
+      const sessionUserRole = (session?.user as any)?.role;
+      const sessionUserEmail = session?.user?.email?.toLowerCase().trim();
+      const isAdminUser =
+        sessionUserRole === 'admin' ||
+        sessionUserEmail === 'jizellecasia@gmail.com' ||
+        sessionUserEmail === 'jizelle.casia@gmail.com';
+
       if (
+        isAdminUser &&
         (!appsData.data || appsData.data.length < 5) &&
         notionData.configured &&
         notionData.status?.success
@@ -110,16 +119,24 @@ export default function JobHuntDashboard() {
           : null;
         if (matched) {
           setCurrentUser(matched);
+          if (matched.role === 'member') {
+            setOwnerFilter(matched.id);
+          }
         } else if (session?.user) {
-          setCurrentUser({
-            id: 'user_sso',
+          const isMemberRole = !isAdminUser;
+          const userObj: UserAccount = {
+            id: (session.user as any)?.id || 'user_sso',
             name: session.user.name || 'Member',
             email: session.user.email || '',
-            role: (session.user as any)?.role || 'member',
+            role: isMemberRole ? 'member' : 'admin',
             avatar: session.user.image || '✨',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          });
+          };
+          setCurrentUser(userObj);
+          if (isMemberRole) {
+            setOwnerFilter(userObj.id);
+          }
         }
       }
     } catch (err) {
@@ -273,15 +290,25 @@ export default function JobHuntDashboard() {
     return Array.from(set).sort();
   }, [applications]);
 
-  const leads = useMemo(() => {
-    return applications.filter((app) => app.status === 'LEAD');
-  }, [applications]);
-
   const filteredApplications = useMemo(() => {
     return applications
       .filter((app) => {
-        // Owner / Applicant filter
-        if (ownerFilter !== 'ALL') {
+        // STRICT RBAC PIPELINE ISOLATION:
+        // Members can ONLY see their own applications!
+        const isMember = currentUser?.role === 'member';
+        if (isMember) {
+          const appOwner = (app.owner || '').trim().toLowerCase();
+          const memberId = (currentUser?.id || '').toLowerCase();
+          const memberEmail = (currentUser?.email || '').toLowerCase();
+          const memberName = (currentUser?.name || '').toLowerCase();
+
+          const isOwnerMatch =
+            (memberId && appOwner === memberId) ||
+            (memberEmail && appOwner === memberEmail) ||
+            (memberName && appOwner === memberName);
+
+          if (!isOwnerMatch) return false;
+        } else if (ownerFilter !== 'ALL') {
           const appOwner = (app.owner || '').trim().toLowerCase();
           const targetFilter = ownerFilter.toLowerCase();
           if (appOwner !== targetFilter) {
@@ -374,7 +401,12 @@ export default function JobHuntDashboard() {
     priorityFilter,
     sortBy,
     users,
+    currentUser,
   ]);
+
+  const leads = useMemo(() => {
+    return filteredApplications.filter((app) => app.status === 'LEAD');
+  }, [filteredApplications]);
 
   if (authStatus === 'loading') {
     return (
@@ -534,18 +566,24 @@ export default function JobHuntDashboard() {
             {/* Filter Dropdowns */}
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               {/* Dynamic Applicant / Account Filter */}
-              <select
-                value={ownerFilter}
-                onChange={(e) => setOwnerFilter(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer"
-              >
-                <option value="ALL">👥 All Pipelines</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.avatar?.startsWith('http') ? (u.role === 'admin' ? '🌸' : '👤') : (u.avatar || '👤')} {u.name} ({u.role.toUpperCase()})
-                  </option>
-                ))}
-              </select>
+              {currentUser?.role === 'admin' ? (
+                <select
+                  value={ownerFilter}
+                  onChange={(e) => setOwnerFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer"
+                >
+                  <option value="ALL">👥 All Pipelines</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.avatar?.startsWith('http') ? (u.role === 'admin' ? '🌸' : '👤') : (u.avatar || '👤')} {u.name} ({u.role.toUpperCase()})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] bg-[#FAF7F9] flex items-center gap-1.5 whitespace-nowrap">
+                  <span>👤 My Pipeline ({currentUser?.name || 'Member'})</span>
+                </div>
+              )}
 
               {/* Notion Exact Stage Filter */}
               {uniqueNotionStatuses.length > 0 && (
@@ -699,7 +737,7 @@ export default function JobHuntDashboard() {
         ) : activeView === 'leads' ? (
           <JobLeadsView
             onAddToTracker={handleSaveApplication}
-            existingApplications={applications}
+            existingApplications={filteredApplications}
             currentUser={currentUser}
             onUpdateStatus={handleUpdateStatus}
             onDeleteApplication={handleDeleteApplication}
@@ -716,7 +754,7 @@ export default function JobHuntDashboard() {
           <AnalyticsView applications={filteredApplications} companies={companies} />
         ) : activeView === 'resume' ? (
           <ResumeAnalyzerView
-            applications={applications}
+            applications={filteredApplications}
             initialSelectedAppId={resumeTargetAppId}
           />
         ) : null}

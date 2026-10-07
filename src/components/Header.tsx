@@ -48,7 +48,7 @@ export default function Header({
   // Active user details
   const activeName = (session?.user?.name || currentUser?.name || 'Admin').replace(/\s*\(Ji\)/gi, '').trim();
   const activeEmail = session?.user?.email || currentUser?.email || '';
-  const activeRole = (session?.user as any)?.role || currentUser?.role || 'admin';
+  const activeRole = (session?.user as any)?.role || currentUser?.role || 'member';
   const isAdmin = activeRole === 'admin';
   const activeIndustry = (session?.user as any)?.industry || currentUser?.industry || (isAdmin ? 'IT / Software' : 'General');
   const activeAvatar = session?.user?.image || currentUser?.avatar || (isAdmin ? '🌸' : '✨');

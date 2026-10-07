@@ -185,6 +185,13 @@ async function initPostgresSchema(sql: any) {
         notion_enabled = TRUE;
     `;
 
+    // Ensure all non-master accounts in DB are strictly 'member' and notion_enabled = FALSE
+    await sql`
+      UPDATE users
+      SET role = 'member', notion_enabled = FALSE
+      WHERE LOWER(email) NOT IN (${adminEmail}, 'jizellecasia@gmail.com', 'jizelle.casia@gmail.com');
+    `;
+
     // Pre-seed demo invited member (Denise) so member role testing works out of the box
     await sql`
       INSERT INTO users (id, name, email, role, industry, avatar, notion_enabled, created_at, updated_at)
@@ -583,8 +590,21 @@ export async function getOrCreateUser(data: {
   role?: UserRole;
   industry?: string;
 }): Promise<UserAccount> {
+  const lowerEmail = data.email.toLowerCase().trim();
+  const adminConfig = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
+  const isMasterAdmin =
+    lowerEmail === adminConfig ||
+    lowerEmail === 'jizellecasia@gmail.com' ||
+    lowerEmail === 'jizelle.casia@gmail.com';
+
   const existing = await getUserByEmail(data.email);
   if (existing) {
+    // If a non-master user was mistakenly created as admin, forcefully demote to 'member' and disable Notion
+    if (!isMasterAdmin && (existing.role === 'admin' || existing.notion_enabled)) {
+      await updateUser(existing.id, { role: 'member', notion_enabled: false });
+      existing.role = 'member';
+      existing.notion_enabled = false;
+    }
     if (data.name && data.name !== existing.name) {
       await updateUser(existing.id, { name: data.name, avatar: data.avatar || existing.avatar });
       return { ...existing, name: data.name, avatar: data.avatar || existing.avatar };
@@ -592,18 +612,7 @@ export async function getOrCreateUser(data: {
     return existing;
   }
 
-  const lowerEmail = data.email.toLowerCase().trim();
-  const adminConfig = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
-  const allUsers = await getUsers();
-  const hasAdmin = allUsers.some((u) => u.role === 'admin');
-
-  const isAdmin =
-    data.role === 'admin' ||
-    lowerEmail === adminConfig ||
-    lowerEmail === 'jizellecasia@gmail.com' ||
-    lowerEmail.includes('jizelle') ||
-    lowerEmail.includes('cloudji') ||
-    !hasAdmin;
+  const isAdmin = isMasterAdmin;
 
   const newUser: UserAccount = {
     id: `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
