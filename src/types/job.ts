@@ -22,6 +22,7 @@ export interface Company {
   logo_url?: string;
   website?: string;
   industry?: string;
+  created_by?: string;
   created_at: string;
   updated_at: string;
 }

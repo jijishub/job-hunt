@@ -152,6 +152,7 @@ async function initPostgresSchema(sql: any) {
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS notion_status TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS service TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS information TEXT;`;
+    await sql`ALTER TABLE companies ADD COLUMN IF NOT EXISTS created_by TEXT;`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS custom_statuses (
@@ -202,21 +203,37 @@ async function initPostgresSchema(sql: any) {
   }
 }
 
-export async function getCompanies(): Promise<Company[]> {
+export async function getCompanies(forUser?: string): Promise<Company[]> {
   const sql = getPostgresClient();
   if (sql) {
     await initPostgresSchema(sql);
+    if (forUser) {
+      const normUser = forUser.toLowerCase().trim();
+      const rows = await sql`
+        SELECT * FROM companies 
+        WHERE created_by IS NULL OR created_by = 'seed' OR LOWER(created_by) = ${normUser}
+        ORDER BY name ASC;
+      `;
+      return rows as Company[];
+    }
     const rows = await sql`SELECT * FROM companies ORDER BY name ASC;`;
     return rows as Company[];
   }
   const db = readLocalDb();
+  if (forUser) {
+    const normUser = forUser.toLowerCase().trim();
+    return db.companies
+      .filter((c: any) => !c.created_by || c.created_by === 'seed' || (c.created_by && c.created_by.toLowerCase().trim() === normUser))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
   return db.companies.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function getOrCreateCompany(
   name: string,
   logo_url?: string,
-  website?: string
+  website?: string,
+  created_by?: string
 ): Promise<Company> {
   const trimmedName = name.trim();
   const sql = getPostgresClient();
@@ -238,8 +255,8 @@ export async function getOrCreateCompany(
         ? `https://www.google.com/s2/favicons?domain=${website.replace(/^https?:\/\//, '')}&sz=128`
         : undefined);
     const inserted = await sql`
-      INSERT INTO companies (id, name, logo_url, website, created_at, updated_at)
-      VALUES (${newId}, ${trimmedName}, ${resolvedLogo || null}, ${website || null}, ${now}, ${now})
+      INSERT INTO companies (id, name, logo_url, website, created_by, created_at, updated_at)
+      VALUES (${newId}, ${trimmedName}, ${resolvedLogo || null}, ${website || null}, ${created_by || null}, ${now}, ${now})
       ON CONFLICT (name) DO UPDATE SET updated_at = NOW()
       RETURNING *;
     `;
@@ -270,6 +287,7 @@ export async function getOrCreateCompany(
     name: trimmedName,
     logo_url: resolvedLogo,
     website,
+    created_by: created_by || undefined,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };

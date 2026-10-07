@@ -2,16 +2,19 @@ import { NextResponse } from 'next/server';
 import { getCompanies, getOrCreateCompany, getApplications, updateCompany, deleteCompany } from '@/lib/db';
 import { pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    let companies = await getCompanies();
+    const { searchParams } = new URL(request.url);
+    const userParam = searchParams.get('user') || undefined;
+
+    let companies = await getCompanies(userParam);
     let applications = await getApplications();
 
     if (companies.length === 0 && applications.length === 0) {
       const config = getNotionConfig();
       if (config.isConfigured) {
         await pullApplicationsFromNotion();
-        companies = await getCompanies();
+        companies = await getCompanies(userParam);
         applications = await getApplications();
       }
     }
@@ -34,12 +37,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { name, logo_url, website, industry } = await request.json();
+    const { name, logo_url, website, industry, created_by } = await request.json();
     if (!name || !name.trim()) {
       return NextResponse.json({ success: false, error: 'Company name is required' }, { status: 400 });
     }
 
-    const company = await getOrCreateCompany(name, logo_url, website);
+    const company = await getOrCreateCompany(name, logo_url, website, created_by);
     if (industry) {
       await updateCompany(company.id, { industry });
     }
