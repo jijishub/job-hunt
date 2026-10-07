@@ -1,4 +1,10 @@
-export type AIModelId = 'gemini-web-flash' | 'gemini-web-thinking' | 'gemini-web-pro';
+export type AIModelId =
+  | 'luna'
+  | 'gemini-3.8-flash'
+  | 'gemini-3.1-pro-high'
+  | 'gemini-web-pro'
+  | 'gemini-web-thinking'
+  | 'gemini-web-flash';
 
 export interface AIModelOption {
   id: AIModelId;
@@ -9,21 +15,33 @@ export interface AIModelOption {
 
 export const AVAILABLE_AI_MODELS: AIModelOption[] = [
   {
-    id: 'gemini-web-flash',
-    name: 'Gemini Flash',
-    badge: '⚡ Ultra Fast (~2s)',
-    description: 'Fastest turnaround with high accuracy for rapid ATS scanning & fit checks',
+    id: 'luna',
+    name: 'ChatGPT 5.6 Luna',
+    badge: '🌙 Fast & Smart (~2s)',
+    description: 'Fast, balanced intelligence for rapid resume scanning and job lead matching',
+  },
+  {
+    id: 'gemini-3.8-flash',
+    name: 'Antigravity 3.8 Flash',
+    badge: '⚡ Blazing Fast (~1.5s)',
+    description: 'Ultra-fast Antigravity speed with high accuracy for rapid ATS scanning & fit checks',
+  },
+  {
+    id: 'gemini-3.1-pro-high',
+    name: 'Antigravity 3.1 Pro High',
+    badge: '👑 Executive Reasoning',
+    description: 'Deep technical reasoning, comprehensive ATS gap analysis & tailored pitches',
   },
   {
     id: 'gemini-web-thinking',
     name: 'Gemini Thinking',
-    badge: '🧠 Deep Reasoning',
+    badge: '🧠 Chain-of-Thought',
     description: 'Extended chain-of-thought analysis for complex qualification gap detection',
   },
   {
     id: 'gemini-web-pro',
-    name: 'Gemini Pro',
-    badge: '👑 High Fidelity',
+    name: 'Gemini Web Pro',
+    badge: '💎 High Fidelity',
     description: 'Recruiter-grade evaluation, comprehensive ATS optimization & executive pitch',
   },
 ];
@@ -76,12 +94,12 @@ export interface GeneratedLead {
 }
 
 export function getAIConfig() {
-  const baseUrl = (process.env.AI_BASE_URL || 'https://token-pool-ljhg.onrender.com/v1').replace(/\/+$/, '');
+  const baseUrl = (process.env.AI_BASE_URL || 'https://api.jizellecasia.site/v1').replace(/\/+$/, '');
   const apiKey =
     process.env.AI_API_KEY ||
     process.env.TOKEN_POOL ||
-    'gds_live_lF79vBpzm-vdqFhLlJwHWpzuDNco2dV_';
-  const defaultModel = (process.env.AI_DEFAULT_MODEL || 'gemini-web-flash') as AIModelId;
+    'gds_live_Xd4MjLWy7-truOmzQm5KcnFVnpSTTn5A';
+  const defaultModel = (process.env.AI_DEFAULT_MODEL || 'luna') as AIModelId;
 
   return {
     baseUrl,
