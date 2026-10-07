@@ -284,15 +284,26 @@ Evaluate each lead and return the JSON matches array.`;
 }
 
 export async function generateTailoredLeads(params: {
-  profileText: string;
+  profileText?: string;
   targetRole?: string;
+  industry?: string;
   locationPreference?: string;
   count?: number;
   model?: AIModelId;
 }): Promise<GeneratedLead[]> {
-  const count = params.count || 5;
-  const systemPrompt = `You are an AI Executive Talent Scout. Based on the candidate's specific background, tech stack, and portfolio, discover and curate ${count} realistic, high-fit job opportunities in the tech & software industry (Metro Manila / Philippines / Global Remote).
-Include well-known modern tech companies (e.g. Canva, Maya, Thinking Machines, GCash, Supabase, Vercel, Sprout Solutions, Coins.ph, etc.).
+  const count = params.count || 6;
+  const targetDomain = params.industry || params.targetRole || 'Professional Roles';
+  const location = params.locationPreference || 'Metro Manila / Philippines';
+
+  const systemPrompt = `You are an AI Executive Talent Scout & Web Job Market Researcher.
+Your task is to search current real-world hiring trends and discover ${count} realistic, high-fit job postings for a candidate based on their target role, industry/domain, and location.
+
+CRITICAL INSTRUCTIONS:
+1. DOMAIN SPECIFICITY: Respect the candidate's target domain/role strictly. Do NOT force software/IT roles unless specifically requested. For Hospitality/Tourism (e.g., Marriott Manila, Shangri-La, Seda Hotels, Okada, The Peninsula, airlines, travel agencies, front desk, reservations, concierge), curate genuine hospitality employers and roles. For Marketing, Finance, Healthcare, Design, or IT, curate employers and positions fitting that domain.
+2. REAL-WORLD EMPLOYERS: Use real, established companies, hotel groups, or organizations operating in ${location} or offering remote positions.
+3. SEARCH URL: Provide a functional Google Jobs search query link for "search_url":
+   Format: "https://www.google.com/search?q=" + encodeURIComponent(Company Name + " " + Role Title + " jobs hiring") + "&ibp=htl;jobs"
+4. PRACTICAL DETAILS: Include realistic local salary estimates (e.g. ₱ PHP for Philippines, $ for global remote), key skill/qualification tags, match score (80-98), and a 1-sentence verdict on why this role fits.
 
 Respond strictly with valid JSON:
 {
@@ -301,34 +312,35 @@ Respond strictly with valid JSON:
       "id": "ai-lead-[unique-short-slug]",
       "title": "Exact Role Title",
       "company_name": "Company Name",
-      "location": "BGC, Taguig / Remote / Makati",
+      "location": "Location (e.g. Pasay, Makati, BGC, or Remote)",
       "remote": boolean,
-      "tags": ["React", "TypeScript", "Next.js", etc.],
-      "matched_skills": ["skills candidate possesses"],
-      "match_score": number (80 to 99),
-      "salary_range": "₱60,000 - ₱90,000 / mo" (or USD if global),
-      "job_types": ["Full-Time", "Internship", or "Associate"],
-      "description": "2 sentences describing responsibilities and core project scope",
-      "search_url": "https://www.google.com/search?q=careers+at+company+role",
-      "ai_verdict": "Why this specific role is an exceptional match for the candidate's projects"
+      "tags": ["Skill 1", "Tool / System", "Requirement"],
+      "matched_skills": ["Key Strength 1", "Key Strength 2"],
+      "match_score": number (80 to 98),
+      "salary_range": "₱30,000 - ₱45,000 / mo" (or relevant currency),
+      "job_types": ["Full-Time"],
+      "description": "2 sentences describing core responsibilities and team scope",
+      "search_url": "https://www.google.com/search?q=Company+Name+Role+Title+jobs+hiring&ibp=htl;jobs",
+      "ai_verdict": "Why this role aligns with the candidate's background"
     }
   ]
 }`;
 
-  const userContent = `### CANDIDATE PROFILE & PORTFOLIO:
-${params.profileText.trim()}
-
-Target Role Focus: ${params.targetRole || 'Full-Stack / Frontend / AI Automation'}
-Location Preference: ${params.locationPreference || 'Philippines / Hybrid / Remote'}
+  const userContent = `### TARGET CRITERIA:
+Target Role / Keywords: ${params.targetRole || 'Open Opportunities'}
+Industry / Domain Focus: ${targetDomain}
+Location Preference: ${location}
+${params.profileText ? `\n### CANDIDATE RESUME / PROFILE CONTEXT:\n${params.profileText.trim()}` : ''}
 Desired Count: ${count}
 
-Generate the targeted leads JSON.`;
+Search and return the ${count} realistic job leads as JSON.`;
 
   const result = await callGeminiJSON<{ leads: GeneratedLead[] }>(systemPrompt, userContent, params.model);
   const leads = Array.isArray(result.leads) ? result.leads : [];
   return leads.map((lead) => ({
     ...lead,
-    company_logo: `https://www.google.com/s2/favicons?domain=${lead.company_name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com&sz=128`,
+    search_url: lead.search_url || `https://www.google.com/search?q=${encodeURIComponent(`${lead.company_name} ${lead.title} hiring jobs`)}&ibp=htl;jobs`,
+    company_logo: lead.company_logo || `https://www.google.com/s2/favicons?domain=${lead.company_name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com&sz=128`,
   }));
 }
 

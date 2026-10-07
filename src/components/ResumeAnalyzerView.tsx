@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
-import html2canvas from 'html2canvas';
+import { toCanvas, toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
 import ATSExportReport from './ATSExportReport';
 import { JobApplication } from '@/types/job';
@@ -145,6 +145,10 @@ export default function ResumeAnalyzerView({
         fileSize: data.fileSize || file.size,
         totalPages: data.totalPages || 1,
       });
+      if (typeof window !== 'undefined' && data.text) {
+        localStorage.setItem('candidate_resume_text', data.text);
+        localStorage.setItem('candidate_resume_name', data.filename || file.name);
+      }
     } catch (err: any) {
       console.error('PDF upload error:', err);
       setError(`PDF Import failed: ${err.message}. You can manually paste resume text below.`);
@@ -274,19 +278,40 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
       // Small pause to ensure layout stabilization
       await new Promise((r) => setTimeout(r, 150));
 
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2, // 2x high retina resolution
-        useCORS: true,
-        backgroundColor: '#FAF7F9',
-        logging: false,
-      });
+      let imgData: string;
+      let width = 840;
+      let height = reportRef.current.scrollHeight || 1200;
+
+      try {
+        const canvas = await toCanvas(reportRef.current, {
+          pixelRatio: 2, // 2x high retina resolution
+          backgroundColor: '#FAF7F9',
+          cacheBust: true,
+        });
+        imgData = canvas.toDataURL('image/png');
+        width = canvas.width;
+        height = canvas.height;
+      } catch (canvasErr) {
+        console.warn('toCanvas fallback to toPng:', canvasErr);
+        imgData = await toPng(reportRef.current, {
+          pixelRatio: 2,
+          backgroundColor: '#FAF7F9',
+          cacheBust: true,
+        });
+        const img = new window.Image();
+        img.src = imgData;
+        await new Promise((res) => {
+          img.onload = res;
+        });
+        width = img.naturalWidth || width * 2;
+        height = img.naturalHeight || height * 2;
+      }
 
       const cleanCompany = (companyName || 'Job').replace(/[^a-zA-Z0-9_-]/g, '_');
       const cleanRole = (jobTitle || 'Role').replace(/[^a-zA-Z0-9_-]/g, '_');
       const baseFilename = `ATS_Report_${cleanCompany}_${cleanRole}_${result.matchScore}pct`;
 
       if (format === 'png') {
-        const imgData = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = imgData;
         link.download = `${baseFilename}.png`;
@@ -296,14 +321,13 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
         setExportSuccessMsg('PNG report downloaded successfully!');
       } else {
         // Continuous single-page PDF with exact aspect ratio (no text truncation or split)
-        const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF({
-          orientation: 'portrait',
+          orientation: width > height ? 'landscape' : 'portrait',
           unit: 'px',
-          format: [canvas.width, canvas.height],
+          format: [width, height],
           hotfixes: ['px_scaling'],
         });
-        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+        pdf.addImage(imgData, 'PNG', 0, 0, width, height);
         pdf.save(`${baseFilename}.pdf`);
         setExportSuccessMsg('PDF report downloaded successfully!');
       }

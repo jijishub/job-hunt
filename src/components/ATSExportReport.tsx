@@ -31,9 +31,9 @@ export default function ATSExportReport({
   reportRef,
 }: ATSExportReportProps) {
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-emerald-700 bg-emerald-50 border-emerald-300';
+    if (score >= 80) return 'text-[#047857] bg-[#ECFDF5] border-[#A7F3D0]';
     if (score >= 65) return 'text-[#9D3C5E] bg-[#FFF0F6] border-[#F1DDE9]';
-    return 'text-amber-700 bg-amber-50 border-amber-300';
+    return 'text-[#B45309] bg-[#FFFBEB] border-[#FDE68A]';
   };
 
   const formattedDate = new Date().toLocaleDateString('en-US', {
@@ -70,6 +70,7 @@ export default function ATSExportReport({
                 alt="Job Hunt"
                 width={40}
                 height={40}
+                unoptimized
                 className="rounded-xl object-contain"
               />
             </div>
@@ -124,15 +125,15 @@ export default function ATSExportReport({
         <div className="grid grid-cols-2 gap-4">
           {/* Key Strengths */}
           <div className="bg-white rounded-2xl p-5 border border-[#F1DDE9] shadow-xs space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-emerald-700">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <div className="flex items-center gap-2 text-xs font-bold text-[#047857]">
+              <CheckCircle2 className="w-4 h-4 text-[#059669] shrink-0" />
               <span>KEY COMPETITIVE STRENGTHS</span>
             </div>
             <ul className="space-y-2 text-xs text-[#736A6D]">
               {result.strengths?.length > 0 ? (
                 result.strengths.map((str, i) => (
-                  <li key={i} className="flex items-start gap-2 bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-100">
-                    <span className="text-emerald-500 font-bold">•</span>
+                  <li key={i} className="flex items-start gap-2 bg-[#ECFDF5] p-2.5 rounded-xl border border-[#A7F3D0]">
+                    <span className="text-[#059669] font-bold">•</span>
                     <span className="leading-relaxed">{str}</span>
                   </li>
                 ))
@@ -144,15 +145,15 @@ export default function ATSExportReport({
 
           {/* Qualification Gaps */}
           <div className="bg-white rounded-2xl p-5 border border-[#F1DDE9] shadow-xs space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-amber-700">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <div className="flex items-center gap-2 text-xs font-bold text-[#B45309]">
+              <AlertCircle className="w-4 h-4 text-[#D97706] shrink-0" />
               <span>QUALIFICATION GAPS TO ADDRESS</span>
             </div>
             <ul className="space-y-2 text-xs text-[#736A6D]">
               {result.gaps?.length > 0 ? (
                 result.gaps.map((gap, i) => (
-                  <li key={i} className="flex items-start gap-2 bg-amber-50/50 p-2.5 rounded-xl border border-amber-100">
-                    <span className="text-amber-500 font-bold">•</span>
+                  <li key={i} className="flex items-start gap-2 bg-[#FFFBEB] p-2.5 rounded-xl border border-[#FDE68A]">
+                    <span className="text-[#D97706] font-bold">•</span>
                     <span className="leading-relaxed">{gap}</span>
                   </li>
                 ))
@@ -173,15 +174,15 @@ export default function ATSExportReport({
           <div className="space-y-3">
             {/* Matched Keywords */}
             <div>
-              <p className="text-[11px] font-bold text-emerald-700 mb-1.5 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <p className="text-[11px] font-bold text-[#047857] mb-1.5 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#059669]" />
                 <span>Found in Resume ({result.matchingSkills?.length || 0}):</span>
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {result.matchingSkills?.map((skill, i) => (
                   <span
                     key={i}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#ECFDF5] text-[#047857] border border-[#A7F3D0]"
                   >
                     ✓ {skill}
                   </span>
@@ -191,15 +192,15 @@ export default function ATSExportReport({
 
             {/* Missing Keywords */}
             <div>
-              <p className="text-[11px] font-bold text-rose-700 mb-1.5 flex items-center gap-1.5">
-                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+              <p className="text-[11px] font-bold text-[#BE123C] mb-1.5 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-[#E11D48]" />
                 <span>Missing ATS Keywords & Gaps ({result.missingKeywords?.length || 0}):</span>
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {result.missingKeywords?.map((keyword, i) => (
                   <span
                     key={i}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200"
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#FFF1F2] text-[#BE123C] border border-[#FECDD3]"
                   >
                     + {keyword}
                   </span>
