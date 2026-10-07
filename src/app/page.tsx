@@ -73,9 +73,18 @@ export default function JobHuntDashboard() {
   const fetchData = async () => {
     try {
       const sessionEmail = session?.user?.email?.toLowerCase().trim();
+      const sessionRole = (session?.user as any)?.role;
+      const isAdmin =
+        sessionRole === 'admin' ||
+        sessionEmail === 'jizellecasia@gmail.com' ||
+        sessionEmail === 'jizelle.casia@gmail.com';
+      const compsQuery = sessionEmail
+        ? `?user=${encodeURIComponent(sessionEmail)}&role=${isAdmin ? 'admin' : 'member'}`
+        : '';
+
       const [appsRes, compsRes, notionRes, usersRes] = await Promise.all([
         fetch('/api/applications'),
-        fetch(`/api/companies${sessionEmail ? `?user=${encodeURIComponent(sessionEmail)}` : ''}`),
+        fetch(`/api/companies${compsQuery}`),
         fetch('/api/notion/sync'),
         fetch('/api/users'),
       ]);
@@ -415,28 +424,41 @@ export default function JobHuntDashboard() {
     return filteredApplications.filter((app) => app.status === 'LEAD');
   }, [filteredApplications]);
 
-  // COMPANY ISOLATION:
-  // 1. All 38+ pre-seeded companies from Notion are shared & visible to everyone.
-  // 2. Custom companies created on an account are strictly private to that user!
+  // STRICT COMPANY ISOLATION:
+  // 1. Admin sees all companies in her Notion workspace.
+  // 2. Members NEVER see Admin's Notion companies! Members only see companies they created or use in their applications.
   const filteredCompanies = useMemo(() => {
     const sessionEmail = session?.user?.email?.toLowerCase().trim();
     const currentEmail = currentUser?.email?.toLowerCase().trim();
     const currentId = currentUser?.id?.toLowerCase().trim();
+    const sessionRole = (session?.user as any)?.role;
+    const isAdmin =
+      currentUser?.role === 'admin' ||
+      sessionRole === 'admin' ||
+      sessionEmail === 'jizellecasia@gmail.com' ||
+      sessionEmail === 'jizelle.casia@gmail.com';
 
+    if (isAdmin) {
+      return companies;
+    }
+
+    // Member Isolation:
     return companies.filter((c: any) => {
-      // Seed / default companies have no created_by or created_by === 'seed'
-      const isSeed = !c.created_by || c.created_by === 'seed';
-      if (isSeed) return true;
-
-      // Custom company: only visible if created by the current logged-in user!
       const creator = (c.created_by || '').toLowerCase().trim();
-      return (
+      const isCreatorMatch =
         (sessionEmail && creator === sessionEmail) ||
         (currentEmail && creator === currentEmail) ||
-        (currentId && creator === currentId)
+        (currentId && creator === currentId);
+
+      const isUsedInMemberApp = filteredApplications.some(
+        (app) =>
+          app.company_id === c.id ||
+          (app.company_name && c.name && app.company_name.toLowerCase().trim() === c.name.toLowerCase().trim())
       );
+
+      return isCreatorMatch || isUsedInMemberApp;
     });
-  }, [companies, session, currentUser]);
+  }, [companies, session, currentUser, filteredApplications]);
 
   if (authStatus === 'loading') {
     return (
@@ -567,7 +589,7 @@ export default function JobHuntDashboard() {
             </div>
 
             <div className="flex items-center gap-2 px-3 py-1.5 bg-[#FAF7F9] rounded-xl text-xs text-[#736A6D] font-medium border border-[#F1DDE9] whitespace-nowrap ml-auto">
-              <span>Pipeline: <strong className="text-[#9D3C5E] font-bold">{applications.length}</strong> jobs</span>
+              <span>Pipeline: <strong className="text-[#9D3C5E] font-bold">{filteredApplications.length}</strong> jobs</span>
             </div>
           </div>
 

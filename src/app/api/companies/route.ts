@@ -6,15 +6,22 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const userParam = searchParams.get('user') || undefined;
+    const roleParam = searchParams.get('role');
+    const adminEmail = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
+    const isAdmin =
+      roleParam === 'admin' ||
+      userParam === 'jizellecasia@gmail.com' ||
+      userParam === 'jizelle.casia@gmail.com' ||
+      userParam === adminEmail;
 
-    let companies = await getCompanies(userParam);
+    let companies = await getCompanies(userParam, isAdmin);
     let applications = await getApplications();
 
-    if (companies.length === 0 && applications.length === 0) {
+    if (companies.length === 0 && applications.length === 0 && isAdmin) {
       const config = getNotionConfig();
       if (config.isConfigured) {
         await pullApplicationsFromNotion();
-        companies = await getCompanies(userParam);
+        companies = await getCompanies(userParam, isAdmin);
         applications = await getApplications();
       }
     }
