@@ -5,6 +5,8 @@ import {
   createApplication,
   updateApplication,
   getApplicationByNotionId,
+  getCompanies,
+  updateCompany,
   getOrCreateCompany,
   getUsers,
 } from './db';
@@ -95,27 +97,63 @@ async function queryNotionRows(notion: any, databaseId: string): Promise<any[]> 
       if (db.data_sources && db.data_sources.length > 0) {
         targetDataSourceId = db.data_sources[0].id;
       }
-    } catch {
-      // use databaseId directly
+    } catch (e: any) {
+      console.warn('databases.retrieve failed, will try search/query:', e?.message);
     }
 
-    const response = await notion.dataSources.query({
-      data_source_id: targetDataSourceId,
-      page_size: 100,
-    });
-    return response.results || [];
+    try {
+      const response = await notion.dataSources.query({
+        data_source_id: targetDataSourceId,
+        page_size: 100,
+      });
+      if (response?.results) return response.results;
+    } catch (queryErr: any) {
+      console.warn('dataSources.query failed with targetDataSourceId:', queryErr?.message);
+    }
   }
 
-  // 2. Fallback to older databases.query if present
+  // 2. Search fallback for data_source
+  try {
+    const search = await notion.search({
+      filter: { property: 'object', value: 'data_source' },
+      page_size: 10,
+    });
+    if (search.results && search.results.length > 0 && notion.dataSources?.query) {
+      const dsId = search.results[0].id;
+      const response = await notion.dataSources.query({
+        data_source_id: dsId,
+        page_size: 100,
+      });
+      if (response?.results) return response.results;
+    }
+  } catch (searchErr: any) {
+    console.warn('data_source search fallback failed:', searchErr?.message);
+  }
+
+  // 3. Fallback to older databases.query if present
   if (notion.databases && typeof (notion.databases as any).query === 'function') {
-    const response = await (notion.databases as any).query({
-      database_id: databaseId,
-      page_size: 100,
-    });
-    return response.results || [];
+    try {
+      const response = await (notion.databases as any).query({
+        database_id: databaseId,
+        page_size: 100,
+      });
+      if (response?.results) return response.results;
+    } catch (dbQueryErr: any) {
+      console.warn('databases.query fallback failed:', dbQueryErr?.message);
+    }
   }
 
-  throw new Error('No query method supported on Notion client');
+  // 4. Fallback to general page search
+  try {
+    const search = await notion.search({ page_size: 100 });
+    if (search?.results) {
+      return search.results.filter((r: any) => r.object === 'page');
+    }
+  } catch (finalErr: any) {
+    console.error('All Notion query methods failed:', finalErr?.message);
+  }
+
+  throw new Error('Could not query Notion database rows. Please check integration permissions.');
 }
 
 const knownCities = [
@@ -320,12 +358,17 @@ export async function pullApplicationsFromNotion() {
     // 1. Preload existing companies and applications in memory to avoid hundreds of roundtrips
     const existingCompanies = await getCompanies();
     const companyMap = new Map<string, any>();
-    existingCompanies.forEach((c) => companyMap.set(c.name.trim().toLowerCase(), c));
+    existingCompanies.forEach((c) => {
+      if (c && c.name) companyMap.set(c.name.trim().toLowerCase(), c);
+    });
 
     const existingApps = await getApplications();
     const appMap = new Map<string, any>();
     existingApps.forEach((a) => {
-      if (a.notion_page_id) appMap.set(a.notion_page_id, a);
+      if (a.notion_page_id) {
+        appMap.set(a.notion_page_id, a);
+        appMap.set(a.notion_page_id.replace(/-/g, ''), a);
+      }
     });
 
     for (const page of pages) {
@@ -463,7 +506,7 @@ export async function pullApplicationsFromNotion() {
           company.industry = service;
         }
 
-        const existingApp = appMap.get(pageId);
+        const existingApp = appMap.get(pageId) || appMap.get(pageId.replace(/-/g, ''));
 
         if (existingApp) {
           await updateApplication(existingApp.id, {
@@ -536,6 +579,15 @@ export async function performTwoWaySync() {
   }
 
   const pullResult = await pullApplicationsFromNotion();
+  if (!pullResult.success) {
+    return {
+      success: false,
+      message: `Failed to pull from Notion: ${pullResult.error || 'Unknown error'}`,
+      pulled: 0,
+      pushed: 0,
+      timestamp: new Date().toISOString(),
+    };
+  }
 
   const allApps = await getApplications();
   let pushedCount = 0;
