@@ -1,6 +1,6 @@
 # 🚀 Complete Deployment Guide: Job Hunt & Leads Hub
 
-This guide walks you through deploying the **Job Hunt & Leads** application to **Vercel** with your custom domain **`jizellecasia.site`** (or **`jobs.jizellecasia.site`**), connecting **Neon PostgreSQL**, configuring **Google OAuth SSO**, and enabling **Notion 2-Way Live Sync**.
+This guide walks you through deploying the **Job Hunt & Leads** application to **Vercel** with your custom domain **`jobhunt.jizellecasia.site`**, connecting **Neon PostgreSQL**, configuring **Google OAuth SSO**, and enabling **Notion 2-Way Live Sync**.
 
 ---
 
@@ -9,7 +9,7 @@ This guide walks you through deploying the **Job Hunt & Leads** application to *
 2. [Step 1: Push Latest Code to GitHub](#step-1-push-latest-code-to-github)
 3. [Step 2: Database Setup (Free Serverless Postgres)](#step-2-database-setup-free-serverless-postgres)
 4. [Step 3: Deploy to Vercel](#step-3-deploy-to-vercel)
-5. [Step 4: Connect Custom Domain (`jizellecasia.site`)](#step-4-connect-custom-domain-jizellecasiasite)
+5. [Step 4: Connect Custom Domain (`jobhunt.jizellecasia.site` on Cloudflare)](#step-4-connect-custom-domain-jobhuntjizellecasiasite-on-cloudflare)
 6. [Step 5: Configure Google Cloud OAuth SSO](#step-5-configure-google-cloud-oauth-sso)
 7. [Step 6: Notion 2-Way Live Sync Verification](#step-6-notion-2-way-live-sync-verification)
 8. [Step 7: Post-Deployment Smoke Test](#step-7-post-deployment-smoke-test)
@@ -77,7 +77,7 @@ Our app has built-in auto-migration for PostgreSQL (automatically creates `users
 | Key | Example Value | Description |
 |---|---|---|
 | `POSTGRES_URL` | `postgres://user:pass@ep-xyz.neon.tech/neondb?sslmode=require` | Neon or Vercel Postgres connection string |
-| `NEXTAUTH_URL` | `https://jobs.jizellecasia.site` (or `https://jizellecasia.site`) | Full URL of your live production app |
+| `NEXTAUTH_URL` | `https://jobhunt.jizellecasia.site` | Full URL of your live production app |
 | `NEXTAUTH_SECRET` | `generate-a-random-32-char-string` | Secret key for JWT signing |
 | `ADMIN_EMAIL` | `jizellecasia@gmail.com` | Email automatically granted the 👑 Administrator role |
 | `NOTION_API_KEY` | `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` | Your Notion Integration API Secret |
@@ -94,54 +94,43 @@ Our app has built-in auto-migration for PostgreSQL (automatically creates `users
 
 ---
 
-## Step 4: Connect Custom Domain (`jizellecasia.site`)
+## Step 4: Connect Custom Domain (`jobhunt.jizellecasia.site` on Cloudflare)
 
-### Recommendation: Use `jobs.jizellecasia.site`
-> [!TIP]
-> Setting up **`jobs.jizellecasia.site`** leaves your root `jizellecasia.site` free for your personal portfolio, resume, or blog in the future. If you prefer the root domain, use `jizellecasia.site` directly.
+### 1. In Cloudflare DNS (`jizellecasia.site`):
+Add a single CNAME record with **DNS only (Grey Cloud)**:
 
-### On Vercel:
+| Type | Name | Target / Content | Proxy status | TTL |
+|---|---|---|---|---|
+| **CNAME** | `jobhunt` | `cname.vercel-dns.com` | **DNS only (Grey Cloud ⚪)** | Auto |
+
+> [!WARNING]
+> **Cloudflare Proxy must be OFF (Grey Cloud)**:
+> In Cloudflare, make sure the orange cloud is switched to **DNS only (Grey Cloud)**. If Cloudflare Proxy is enabled during setup, Vercel will fail to issue the SSL certificate or trigger an infinite redirect loop.
+
+### 2. In Vercel Project Settings:
 1. In your project on Vercel, go to **Settings** &rarr; **Domains**.
-2. Enter your chosen domain:
-   - For subdomain: enter `jobs.jizellecasia.site` &rarr; click **Add**.
-   - For root domain: enter `jizellecasia.site` &rarr; click **Add** (Vercel will also suggest redirecting `www.jizellecasia.site`).
-
-### In Your DNS Registrar (Namecheap, GoDaddy, Cloudflare, etc.):
-Add the corresponding DNS record:
-
-#### For Subdomain (`jobs.jizellecasia.site`):
-| Type | Name / Host | Target / Value | TTL |
-|---|---|---|---|
-| **CNAME** | `jobs` | `cname.vercel-dns.com` | Automatic / 300 |
-
-#### For Apex Root (`jizellecasia.site`):
-| Type | Name / Host | Target / Value | TTL |
-|---|---|---|---|
-| **A** | `@` | `76.76.21.21` | Automatic / 300 |
-| **CNAME** | `www` | `cname.vercel-dns.com` | Automatic / 300 |
-
-Vercel will automatically verify the records and issue an **SSL Certificate** within 1–2 minutes!
+2. Type **`jobhunt.jizellecasia.site`** and click **Add**.
+3. Vercel will immediately see the CNAME pointing to `cname.vercel-dns.com` and automatically generate your free **SSL Certificate**!
 
 ---
 
 ## Step 5: Configure Google Cloud OAuth SSO
 
+Because your domain is `jobhunt.jizellecasia.site`, Google OAuth requires this domain in its whitelist:
+
 1. Go to [Google Cloud Console Credentials](https://console.cloud.google.com/apis/credentials).
-2. Select your project (or create one named `Job Hunt`).
-3. Click **+ Create Credentials** &rarr; **OAuth client ID**.
-4. **Application type**: Select `Web application`.
-5. **Name**: `Job Hunt Web Client`.
-6. **Authorized JavaScript origins**:
-   - Add: `https://jobs.jizellecasia.site` (or `https://jizellecasia.site`)
-   - Add: `http://localhost:3000` (for local development)
-7. **Authorized redirect URIs**:
-   - Add: `https://jobs.jizellecasia.site/api/auth/callback/google` (or `https://jizellecasia.site/api/auth/callback/google`)
-   - Add: `http://localhost:3000/api/auth/callback/google` (for local development)
-8. Click **Create** and copy your **Client ID** and **Client Secret**.
-9. In your live app:
-   - Click your profile badge &rarr; **Google SSO Credentials** tab.
-   - Paste the Client ID and Client Secret, then click **Save Google SSO Credentials**.
-   - *Or* add them directly to your Vercel Environment Variables.
+2. Click your OAuth 2.0 Web Client ID.
+3. Under **Authorized JavaScript origins**, ensure you have:
+   - `https://jobhunt.jizellecasia.site`
+   - `http://localhost:3000` (for local dev)
+4. Under **Authorized redirect URIs**, add:
+   - `https://jobhunt.jizellecasia.site/api/auth/callback/google`
+   - `http://localhost:3000/api/auth/callback/google` (for local dev)
+5. Click **Save**.
+6. In Vercel **Settings** &rarr; **Environment Variables**:
+   - Set `NEXTAUTH_URL` to `https://jobhunt.jizellecasia.site`
+   - Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (if not already set)
+   - Redeploy or click **Redeploy** on the latest deployment so the new `NEXTAUTH_URL` takes effect.
 
 ---
 
@@ -154,7 +143,7 @@ Vercel will automatically verify the records and issue an **SSL Certificate** wi
    - In your app, open **Notion Settings** (`⚙️` icon next to Notion Live badge).
    - Copy the Webhook endpoint:
      ```
-     https://jobs.jizellecasia.site/api/notion/webhook
+     https://jobhunt.jizellecasia.site/api/notion/webhook
      ```
    - Connect this in your Notion automation or Zapier/Make webhook trigger.
 
@@ -165,7 +154,7 @@ Vercel will automatically verify the records and issue an **SSL Certificate** wi
 Once deployed, run this quick 2-minute smoke test:
 
 1. **Sign-In Verification**:
-   - Open your live site (`https://jobs.jizellecasia.site`).
+   - Open your live site (`https://jobhunt.jizellecasia.site`).
    - Click **Sign In with Google** &rarr; confirm that your Google name and picture populate your profile.
    - Confirm you have the **👑 ADMIN** badge.
 2. **RBAC Isolation Verification**:
