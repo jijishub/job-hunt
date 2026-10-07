@@ -2,6 +2,23 @@ import NextAuth, { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { getOrCreateUser, getUserByEmail } from '@/lib/db';
 
+function sanitizeUrl(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  let val = raw.trim();
+  if (val.includes('=')) {
+    val = val.substring(val.indexOf('=') + 1).trim();
+  }
+  val = val.replace(/^["']|["']$/g, '').trim();
+  if (!val.startsWith('http://') && !val.startsWith('https://')) {
+    val = `https://${val}`;
+  }
+  return val.replace(/\/+$/, '');
+}
+
+if (process.env.NEXTAUTH_URL) {
+  process.env.NEXTAUTH_URL = sanitizeUrl(process.env.NEXTAUTH_URL);
+}
+
 function getAuthOptions(req?: any): NextAuthOptions {
   if (req) {
     const host = req?.headers?.get ? req.headers.get('host') : req?.headers?.host;
@@ -11,7 +28,9 @@ function getAuthOptions(req?: any): NextAuthOptions {
     }
   }
 
-  if (!process.env.NEXTAUTH_URL) {
+  if (process.env.NEXTAUTH_URL) {
+    process.env.NEXTAUTH_URL = sanitizeUrl(process.env.NEXTAUTH_URL);
+  } else {
     const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
     if (vercelHost) {
       process.env.NEXTAUTH_URL = `https://${vercelHost.replace(/^https?:\/\//, '')}`;
