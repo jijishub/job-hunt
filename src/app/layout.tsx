@@ -43,6 +43,7 @@ export const metadata: Metadata = {
 };
 
 import AuthProvider from "@/components/AuthProvider";
+import { Analytics } from '@vercel/analytics/next';
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <AuthProvider>{children}</AuthProvider>
+        <Analytics />
       </body>
     </html>
   );
