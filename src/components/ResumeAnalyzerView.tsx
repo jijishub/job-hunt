@@ -330,19 +330,9 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-gradient-to-br from-[#FFF0F6] via-[#FCE7F3] to-transparent rounded-full opacity-60 pointer-events-none" />
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div className="flex items-start gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-white border border-[#F1DDE9] p-0.5 shadow-xs shrink-0 overflow-hidden flex items-center justify-center">
-              <Image
-                src="/job-hunt-facvicon.png"
-                alt="Job Hunt Logo"
-                width={48}
-                height={48}
-                className="w-full h-full object-contain rounded-xl"
-              />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-[#4A3E44]">AI Resume & ATS Matcher</h1>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-[#4A3E44]">AI Resume & ATS Matcher</h1>
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FFF0F6] text-[#9D3C5E] border border-[#F1DDE9]">
                   AI Powered
                 </span>
@@ -351,9 +341,8 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
                 Scan your candidate credentials against job requirements. Discover missing ATS keywords, optimize bullet points with high-impact metrics, and generate tailored application pitches in seconds.
               </p>
             </div>
-          </div>
 
-          {/* Model Selector Pill */}
+            {/* Model Selector Pill */}
           <div className="flex items-center gap-2 bg-[#FAF7F9] p-1.5 rounded-xl border border-[#F1DDE9]">
             <span className="text-[11px] font-semibold text-[#736A6D] pl-2 flex items-center gap-1">
               Model:
@@ -421,37 +410,19 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
                 <span>Candidate Resume / Profile *</span>
               </label>
 
-              <div className="flex items-center gap-2">
-                {/* PDF Resume Upload Button (Available to ALL: Members & Admin) */}
+              {/* Auto-Import Portfolio: ONLY shown for Admin (Jizelle Casia) */}
+              {isAdmin && (
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isPdfUploading}
-                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition cursor-pointer disabled:opacity-50 ${
-                    !isAdmin
-                      ? 'bg-gradient-to-r from-[#FF7AB3] to-[#9D3C5E] text-white border-transparent shadow-xs hover:opacity-95'
-                      : 'bg-[#FFF0F6] text-[#9D3C5E] hover:bg-[#FCE7F3] border-[#F1DDE9]'
-                  }`}
-                  title="Upload candidate resume PDF (PDF acceptance only)"
+                  onClick={handleAutoImportPortfolio}
+                  disabled={isPortfolioImporting}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl bg-white text-[#4A3E44] hover:bg-[#FAF7F9] border border-[#F1DDE9] transition disabled:opacity-50"
+                  title="Fetch live bio, tech stack, and projects from jizellecasia.vercel.app (Admin only)"
                 >
-                  <Upload className={`w-3.5 h-3.5 ${isPdfUploading ? 'animate-bounce' : ''}`} />
-                  <span>{isPdfUploading ? 'Parsing PDF...' : '📄 Upload Resume (PDF)'}</span>
+                  <RefreshCw className={`w-3 h-3 ${isPortfolioImporting ? 'animate-spin' : ''}`} />
+                  <span>{isPortfolioImporting ? 'Syncing...' : '⚡ Auto-Import Portfolio'}</span>
                 </button>
-
-                {/* Auto-Import Portfolio: ONLY shown for Admin (Jizelle Casia), never for members */}
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={handleAutoImportPortfolio}
-                    disabled={isPortfolioImporting}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl bg-white text-[#4A3E44] hover:bg-[#FAF7F9] border border-[#F1DDE9] transition disabled:opacity-50"
-                    title="Fetch live bio, tech stack, and projects from jizellecasia.vercel.app (Admin only)"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${isPortfolioImporting ? 'animate-spin' : ''}`} />
-                    <span>{isPortfolioImporting ? 'Syncing...' : '⚡ Auto-Import Portfolio'}</span>
-                  </button>
-                )}
-              </div>
+              )}
             </div>
 
             {/* Uploaded PDF Info Badge */}
@@ -479,30 +450,6 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
               </div>
             )}
 
-            {/* Clickable Drag & Drop PDF banner when resume is empty */}
-            {!resumeText && !uploadedPdfInfo && (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const file = e.dataTransfer.files?.[0];
-                  if (file) processPdfFile(file);
-                }}
-                className="p-4 rounded-xl border-2 border-dashed border-[#F1DDE9] hover:border-[#FF7AB3] bg-[#FAF7F9]/70 hover:bg-[#FFF0F6]/30 transition text-center cursor-pointer group space-y-1"
-              >
-                <div className="w-8 h-8 rounded-full bg-[#FFF0F6] border border-[#F1DDE9] mx-auto flex items-center justify-center text-[#9D3C5E] group-hover:scale-105 transition">
-                  <Upload className="w-4 h-4 text-[#FF7AB3]" />
-                </div>
-                <p className="text-xs font-bold text-[#4A3E44]">
-                  Upload Candidate Resume <span className="text-[#9D3C5E]">(PDF Only)</span>
-                </p>
-                <p className="text-[11px] text-[#736A6D]">
-                  Drag &amp; drop your resume PDF here or click to browse files
-                </p>
-              </div>
-            )}
-
             <textarea
               rows={8}
               value={resumeText}
@@ -515,8 +462,8 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
               }}
               placeholder={
                 isAdmin
-                  ? "Upload resume PDF above, paste candidate credentials, or click 'Auto-Import Portfolio'..."
-                  : "Upload candidate resume PDF above, or paste candidate credentials, bio, and experience here..."
+                  ? "Paste candidate credentials, or click 'Auto-Import Portfolio' (or 'Upload Resume PDF' on the right)..."
+                  : "Paste candidate credentials, or click 'Upload Resume PDF' on the right (drag & drop PDF also supported)..."
               }
               className="w-full p-3 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] focus:ring-2 focus:ring-[#FF7AB3]/20 text-xs font-mono text-[#4A3E44] placeholder-stone-400 resize-y leading-relaxed"
             />

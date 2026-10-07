@@ -72,9 +72,10 @@ export default function JobHuntDashboard() {
 
   const fetchData = async () => {
     try {
+      const sessionEmail = session?.user?.email?.toLowerCase().trim();
       const [appsRes, compsRes, notionRes, usersRes] = await Promise.all([
         fetch('/api/applications'),
-        fetch('/api/companies'),
+        fetch(`/api/companies${sessionEmail ? `?user=${encodeURIComponent(sessionEmail)}` : ''}`),
         fetch('/api/notion/sync'),
         fetch('/api/users'),
       ]);
@@ -247,10 +248,15 @@ export default function JobHuntDashboard() {
   };
 
   const handleSaveCompany = async (data: Partial<Company>) => {
+    const sessionEmail = session?.user?.email?.toLowerCase().trim();
+    const payload = {
+      ...data,
+      created_by: data.created_by || sessionEmail || currentUser?.id,
+    };
     const res = await fetch('/api/companies', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     const result = await res.json();
     if (result.success) {
@@ -409,6 +415,29 @@ export default function JobHuntDashboard() {
     return filteredApplications.filter((app) => app.status === 'LEAD');
   }, [filteredApplications]);
 
+  // COMPANY ISOLATION:
+  // 1. All 38+ pre-seeded companies from Notion are shared & visible to everyone.
+  // 2. Custom companies created on an account are strictly private to that user!
+  const filteredCompanies = useMemo(() => {
+    const sessionEmail = session?.user?.email?.toLowerCase().trim();
+    const currentEmail = currentUser?.email?.toLowerCase().trim();
+    const currentId = currentUser?.id?.toLowerCase().trim();
+
+    return companies.filter((c: any) => {
+      // Seed / default companies have no created_by or created_by === 'seed'
+      const isSeed = !c.created_by || c.created_by === 'seed';
+      if (isSeed) return true;
+
+      // Custom company: only visible if created by the current logged-in user!
+      const creator = (c.created_by || '').toLowerCase().trim();
+      return (
+        (sessionEmail && creator === sessionEmail) ||
+        (currentEmail && creator === currentEmail) ||
+        (currentId && creator === currentId)
+      );
+    });
+  }, [companies, session, currentUser]);
+
   if (authStatus === 'loading') {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#FFF5F8] to-[#FAF7F9] flex flex-col items-center justify-center gap-3">
@@ -494,7 +523,7 @@ export default function JobHuntDashboard() {
                 }`}
               >
                 <Building2 className="w-4 h-4" />
-                <span>Companies ({companies.length})</span>
+                <span>Companies ({filteredCompanies.length})</span>
               </button>
 
               <button
@@ -727,7 +756,7 @@ export default function JobHuntDashboard() {
           />
         ) : activeView === 'companies' ? (
           <CompaniesView
-            companies={companies}
+            companies={filteredCompanies}
             onAddCompany={() => {
               setEditingCompany(null);
               setIsCompanyModalOpen(true);
@@ -755,7 +784,7 @@ export default function JobHuntDashboard() {
             }}
           />
         ) : activeView === 'analytics' ? (
-          <AnalyticsView applications={filteredApplications} companies={companies} />
+          <AnalyticsView applications={filteredApplications} companies={filteredCompanies} />
         ) : activeView === 'resume' ? (
           <ResumeAnalyzerView
             applications={filteredApplications}
@@ -793,7 +822,7 @@ export default function JobHuntDashboard() {
           setEditingApp(null);
         }}
         onSave={handleSaveApplication}
-        companies={companies}
+        companies={filteredCompanies}
         initialData={editingApp}
         users={users}
         currentUserId={currentUser?.id}
