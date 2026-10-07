@@ -27,17 +27,6 @@ export const INITIAL_USERS: UserAccount[] = [
     created_at: '2026-10-06T09:34:43.840Z',
     updated_at: '2026-10-06T11:47:20.892Z',
   },
-  {
-    id: 'user_denise',
-    name: 'Denise',
-    email: 'denise@hospitality.com',
-    role: 'member',
-    industry: 'Hospitality Management',
-    avatar: '✨',
-    notion_enabled: false,
-    created_at: '2026-10-06T09:34:43.840Z',
-    updated_at: '2026-10-06T11:47:24.070Z',
-  },
 ];
 
 const INITIAL_COMPANIES: Company[] = [];
@@ -70,6 +59,15 @@ function readLocalDb(): LocalDatabase {
     if (!parsed.users || parsed.users.length === 0) {
       parsed.users = [...INITIAL_USERS];
       writeLocalDb(parsed);
+    } else {
+      // Purge legacy demo seed account from existing file
+      const beforeLen = parsed.users.length;
+      parsed.users = parsed.users.filter(
+        (u) => u.id !== 'user_denise' && u.email?.toLowerCase() !== 'denise@hospitality.com'
+      );
+      if (parsed.users.length !== beforeLen) {
+        writeLocalDb(parsed);
+      }
     }
     return parsed;
   } catch (error) {
@@ -192,21 +190,10 @@ async function initPostgresSchema(sql: any) {
       WHERE LOWER(email) NOT IN (${adminEmail}, 'jizellecasia@gmail.com', 'jizelle.casia@gmail.com');
     `;
 
-    // Pre-seed demo invited member (Denise) so member role testing works out of the box
+    // Purge legacy demo seed account (Denise) from DB so real user edits persist permanently
     await sql`
-      INSERT INTO users (id, name, email, role, industry, avatar, notion_enabled, created_at, updated_at)
-      VALUES (
-        'user_denise',
-        'Denise',
-        'denise@hospitality.com',
-        'member',
-        'Hospitality Management',
-        '✨',
-        FALSE,
-        NOW(),
-        NOW()
-      )
-      ON CONFLICT (email) DO NOTHING;
+      DELETE FROM users
+      WHERE id = 'user_denise' OR LOWER(email) = 'denise@hospitality.com';
     `;
 
     schemaInitialized = true;
