@@ -61,16 +61,16 @@ export default function SSOLandingView() {
                 </p>
               </div>
 
-              {/* Archer Hero Artwork (Right beside the headline in the highlighted hero area, zero overlap, pure transparent) */}
-              <div className="shrink-0 flex items-center justify-center self-center sm:self-start">
-                <div className="relative w-40 h-40 sm:w-48 sm:h-48 lg:w-56 lg:h-56">
+              {/* Archer Hero Artwork (Right beside the headline, maximized size, zero shadow, pure transparent) */}
+              <div className="shrink-0 flex items-center justify-center self-center">
+                <div className="relative w-48 h-48 sm:w-60 sm:h-60 lg:w-72 lg:h-72 xl:w-80 xl:h-80">
                   <Image
                     src="/job-hunt-facvicon.png"
                     alt="Job Hunt Archer"
-                    width={224}
-                    height={224}
+                    width={320}
+                    height={320}
                     priority
-                    className="w-full h-full object-contain drop-shadow-md select-none pointer-events-none"
+                    className="w-full h-full object-contain select-none pointer-events-none"
                   />
                 </div>
               </div>
