@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
-import { toCanvas, toPng } from 'html-to-image';
+import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import ATSExportReport from './ATSExportReport';
 import { JobApplication } from '@/types/job';
@@ -278,34 +278,18 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
       // Small pause to ensure layout stabilization
       await new Promise((r) => setTimeout(r, 150));
 
-      let imgData: string;
-      let width = 840;
-      let height = reportRef.current.scrollHeight || 1200;
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2, // 2x high retina resolution
+        useCORS: true,
+        backgroundColor: '#FAF7F9',
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+      });
 
-      try {
-        const canvas = await toCanvas(reportRef.current, {
-          pixelRatio: 2, // 2x high retina resolution
-          backgroundColor: '#FAF7F9',
-          cacheBust: true,
-        });
-        imgData = canvas.toDataURL('image/png');
-        width = canvas.width;
-        height = canvas.height;
-      } catch (canvasErr) {
-        console.warn('toCanvas fallback to toPng:', canvasErr);
-        imgData = await toPng(reportRef.current, {
-          pixelRatio: 2,
-          backgroundColor: '#FAF7F9',
-          cacheBust: true,
-        });
-        const img = new window.Image();
-        img.src = imgData;
-        await new Promise((res) => {
-          img.onload = res;
-        });
-        width = img.naturalWidth || width * 2;
-        height = img.naturalHeight || height * 2;
-      }
+      const imgData = canvas.toDataURL('image/png');
+      const width = canvas.width;
+      const height = canvas.height;
 
       const cleanCompany = (companyName || 'Job').replace(/[^a-zA-Z0-9_-]/g, '_');
       const cleanRole = (jobTitle || 'Role').replace(/[^a-zA-Z0-9_-]/g, '_');
