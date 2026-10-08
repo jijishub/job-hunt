@@ -6,13 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "rpa": "node scripts/bytedance_apply.js",
+    "rpa:bytedance": "node scripts/bytedance_apply.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
     "@notionhq/client": "^5.27.0",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
+    "html2canvas-pro": "^2.5.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.52.0",
     "next": "16.3.8",
@@ -28,6 +31,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
+    "playwright-core": "^1.64.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

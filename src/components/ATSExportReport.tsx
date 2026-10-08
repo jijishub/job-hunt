@@ -47,7 +47,7 @@ export default function ATSExportReport({
       style={{
         position: 'fixed',
         left: '-9999px',
-        top: '-9999px',
+        top: '0px',
         zIndex: -100,
         opacity: 1,
         pointerEvents: 'none',
