@@ -188,6 +188,7 @@ export default function JobHuntDashboard() {
         body: JSON.stringify(data),
       });
       const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.error || 'Failed to save application');
       if (result.success) {
         setApplications((prev) =>
           prev.map((a) => (a.id === editingApp.id ? result.data : a))
@@ -203,6 +204,7 @@ export default function JobHuntDashboard() {
         body: JSON.stringify(data),
       });
       const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.error || 'Failed to save application');
       if (result.success) {
         setApplications((prev) => [result.data, ...prev]);
       }
@@ -242,7 +244,7 @@ export default function JobHuntDashboard() {
       )
     );
     try {
-      await fetch(`/api/applications/${id}`, {
+      const response = await fetch(`/api/applications/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -250,9 +252,13 @@ export default function JobHuntDashboard() {
           notion_status: notionStatusName,
         }),
       });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to update status');
+      setApplications((prev) => prev.map((app) => app.id === id ? result.data : app));
     } catch (e) {
       console.error('Failed to update status:', e);
       fetchData();
+      throw e;
     }
   };
 

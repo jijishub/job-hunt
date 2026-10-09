@@ -228,8 +228,10 @@ export default function JobLeadsView({
         status: 'LEAD',
         notion_status: 'Inquiry',
         priority: 'HIGH',
-        job_type: lead.job_types?.[0] || 'Full-Time',
-        work_model: lead.remote ? 'Remote' : 'On-Site',
+        job_type: /intern/i.test(lead.job_types?.[0] || '') ? 'INTERNSHIP'
+          : /part/i.test(lead.job_types?.[0] || '') ? 'PART_TIME'
+          : /contract/i.test(lead.job_types?.[0] || '') ? 'CONTRACT' : 'FULL_TIME',
+        work_model: lead.remote ? 'REMOTE' : 'ON_SITE',
         location: lead.location,
         job_url: lead.search_url,
         owner: currentUser?.id || 'admin',

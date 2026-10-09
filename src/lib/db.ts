@@ -13,6 +13,7 @@ interface LocalDatabase {
   applications: JobApplication[];
   users: UserAccount[];
   statuses?: any[];
+  leads?: JobApplication[];
 }
 
 export const INITIAL_USERS: UserAccount[] = [
@@ -56,6 +57,16 @@ function readLocalDb(): LocalDatabase {
     }
     const content = fs.readFileSync(DB_FILE, 'utf-8');
     const parsed = JSON.parse(content) as LocalDatabase;
+    // Move legacy leads out of the application collection without changing IDs.
+    parsed.leads ??= [];
+    const legacyLeads = parsed.applications.filter((app) => app.status === 'LEAD');
+    if (legacyLeads.length) {
+      for (const lead of legacyLeads) {
+        if (!parsed.leads.some((saved) => saved.id === lead.id)) parsed.leads.push(lead);
+      }
+      parsed.applications = parsed.applications.filter((app) => app.status !== 'LEAD');
+      writeLocalDb(parsed);
+    }
     if (!parsed.users || parsed.users.length === 0) {
       parsed.users = [...INITIAL_USERS];
       writeLocalDb(parsed);
@@ -72,7 +83,7 @@ function readLocalDb(): LocalDatabase {
     return parsed;
   } catch (error) {
     console.error('Error reading local db file:', error);
-    return { companies: [], applications: [], users: [] };
+    throw error;
   }
 }
 
@@ -85,6 +96,7 @@ function writeLocalDb(data: LocalDatabase): void {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (error) {
     console.error('Error writing local db file:', error);
+    throw error;
   }
 }
 
@@ -197,9 +209,17 @@ async function initPostgresSchema(sql: any) {
       WHERE id = 'user_denise' OR LOWER(email) = 'denise@hospitality.com';
     `;
 
+    await sql`CREATE TABLE IF NOT EXISTS leads (id TEXT PRIMARY KEY, data JSONB NOT NULL);`;
+    // One atomic statement preserves existing IDs and removes migrated duplicates.
+    await sql`
+      WITH moved AS (DELETE FROM applications WHERE status = 'LEAD' RETURNING *)
+      INSERT INTO leads (id, data) SELECT id, to_jsonb(moved) FROM moved
+      ON CONFLICT (id) DO NOTHING;
+    `;
     schemaInitialized = true;
   } catch (err) {
     console.error('Postgres schema init error:', err);
+    throw err;
   }
 }
 
@@ -356,15 +376,16 @@ export async function deleteCompany(id: string): Promise<boolean> {
   return true;
 }
 
-export async function getApplications(): Promise<JobApplication[]> {
+export async function getApplications(includeLeads = true): Promise<JobApplication[]> {
   const sql = getPostgresClient();
   if (sql) {
     await initPostgresSchema(sql);
     const rows = await sql`SELECT * FROM applications ORDER BY updated_at DESC;`;
-    return rows as JobApplication[];
+    const leads = includeLeads ? await sql`SELECT data FROM leads;` : [];
+    return [...rows, ...leads.map((row) => row.data)] as JobApplication[];
   }
   const db = readLocalDb();
-  return db.applications.sort(
+  return [...db.applications, ...(includeLeads ? db.leads || [] : [])].sort(
     (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   );
 }
@@ -374,10 +395,12 @@ export async function getApplicationById(id: string): Promise<JobApplication | n
   if (sql) {
     await initPostgresSchema(sql);
     const rows = await sql`SELECT * FROM applications WHERE id = ${id} LIMIT 1;`;
-    return (rows[0] as JobApplication) || null;
+    if (rows[0]) return rows[0] as JobApplication;
+    const leads = await sql`SELECT data FROM leads WHERE id = ${id};`;
+    return (leads[0]?.data as JobApplication) || null;
   }
   const db = readLocalDb();
-  return db.applications.find((a) => a.id === id) || null;
+  return [...db.applications, ...(db.leads || [])].find((a) => a.id === id) || null;
 }
 
 export async function getApplicationByNotionId(notionPageId: string): Promise<JobApplication | null> {
@@ -385,10 +408,12 @@ export async function getApplicationByNotionId(notionPageId: string): Promise<Jo
   if (sql) {
     await initPostgresSchema(sql);
     const rows = await sql`SELECT * FROM applications WHERE notion_page_id = ${notionPageId} LIMIT 1;`;
-    return (rows[0] as JobApplication) || null;
+    if (rows[0]) return rows[0] as JobApplication;
+    const leads = await sql`SELECT data FROM leads WHERE data->>'notion_page_id' = ${notionPageId} LIMIT 1;`;
+    return (leads[0]?.data as JobApplication) || null;
   }
   const db = readLocalDb();
-  return db.applications.find((a) => a.notion_page_id === notionPageId) || null;
+  return [...db.applications, ...(db.leads || [])].find((a) => a.notion_page_id === notionPageId) || null;
 }
 
 export async function createApplication(
@@ -403,6 +428,19 @@ export async function createApplication(
     created_at: now,
     updated_at: now,
   };
+
+  if (newApp.status === 'LEAD') {
+    const sql = getPostgresClient();
+    if (sql) {
+      await initPostgresSchema(sql);
+      await sql`INSERT INTO leads (id, data) VALUES (${id}, ${JSON.stringify(newApp)}::jsonb);`;
+    } else {
+      const db = readLocalDb();
+      db.leads = [newApp, ...(db.leads || [])];
+      writeLocalDb(db);
+    }
+    return newApp;
+  }
 
   const sql = getPostgresClient();
   if (sql) {
@@ -440,6 +478,55 @@ export async function updateApplication(
   id: string,
   updates: Partial<JobApplication>
 ): Promise<JobApplication | null> {
+  const saved = await getApplicationById(id);
+  if (!saved) return null;
+  if (saved.status !== 'LEAD' && updates.status === 'LEAD') {
+    const merged = { ...saved, ...updates, id, updated_at: new Date().toISOString() };
+    const sql = getPostgresClient();
+    if (sql) {
+      await sql`
+        WITH removed AS (DELETE FROM applications WHERE id = ${id} RETURNING id)
+        INSERT INTO leads (id, data) SELECT id, ${JSON.stringify(merged)}::jsonb FROM removed;
+      `;
+    } else {
+      const db = readLocalDb();
+      db.applications = db.applications.filter((app) => app.id !== id);
+      db.leads = [...(db.leads || []), merged];
+      writeLocalDb(db);
+    }
+    return merged;
+  }
+  if (saved.status === 'LEAD') {
+    const merged = { ...saved, ...updates, id, updated_at: new Date().toISOString() };
+    const sql = getPostgresClient();
+    if (merged.status === 'LEAD') {
+      if (sql) {
+        await sql`UPDATE leads SET data = ${JSON.stringify(merged)}::jsonb WHERE id = ${id};`;
+      } else {
+        const db = readLocalDb();
+        db.leads = (db.leads || []).map((lead) => lead.id === id ? merged : lead);
+        writeLocalDb(db);
+      }
+      return merged;
+    }
+    if (sql) {
+      const promoted = await sql`
+        WITH removed AS (DELETE FROM leads WHERE id = ${id} RETURNING id)
+        INSERT INTO applications
+        SELECT record.* FROM removed,
+          jsonb_populate_record(NULL::applications, ${JSON.stringify(merged)}::jsonb) AS record
+        RETURNING *;
+      `;
+      return (promoted[0] as JobApplication) || null;
+    }
+    const promoted = await createApplication(merged);
+    {
+      const db = readLocalDb();
+      db.leads = (db.leads || []).filter((lead) => lead.id !== id);
+      writeLocalDb(db);
+    }
+    return promoted;
+  }
   const sql = getPostgresClient();
   if (sql) {
     await initPostgresSchema(sql);
@@ -501,10 +588,12 @@ export async function deleteApplication(id: string): Promise<boolean> {
   if (sql) {
     await initPostgresSchema(sql);
     await sql`DELETE FROM applications WHERE id = ${id};`;
+    await sql`DELETE FROM leads WHERE id = ${id};`;
     return true;
   }
   const db = readLocalDb();
   db.applications = db.applications.filter((a) => a.id !== id);
+  db.leads = (db.leads || []).filter((a) => a.id !== id);
   writeLocalDb(db);
   return true;
 }
@@ -814,6 +903,3 @@ export async function deleteCustomStatus(id: string): Promise<boolean> {
   writeLocalDb(db);
   return true;
 }
-
-
-
