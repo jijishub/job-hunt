@@ -236,12 +236,12 @@ function buildNotionProperties(app: JobApplication) {
     },
     'Intern Position': {
       select: {
-        name: app.role_title,
+        name: app.role_title.replace(/,/g, ' -'),
       },
     },
     'Application Status': {
       select: {
-        name: statusSelectName,
+        name: statusSelectName.replace(/,/g, ' -'),
       },
     },
   };
@@ -364,7 +364,7 @@ export async function pullApplicationsFromNotion() {
       if (c && c.name) companyMap.set(c.name.trim().toLowerCase(), c);
     });
 
-    const existingApps = await getApplications(false);
+    const existingApps = await getApplications();
     const appMap = new Map<string, any>();
     existingApps.forEach((a) => {
       if (a.notion_page_id) {
@@ -485,11 +485,14 @@ export async function pullApplicationsFromNotion() {
         const existingApp = appMap.get(pageId) || appMap.get(pageId.replace(/-/g, ''));
 
         if (existingApp) {
+          // Pending or failed local edits must survive the pull so they can be retried.
+          if (existingApp.sync_status !== 'SYNCED') continue;
           await updateApplication(existingApp.id, {
             company_id: company.id,
             company_name: company.name,
             company_logo: company.logo_url,
-            role_title: roleTitle,
+            role_title: existingApp.role_title.replace(/,/g, ' -') === roleTitle
+              ? existingApp.role_title : roleTitle,
             status,
             notion_status,
             service,
@@ -567,22 +570,26 @@ export async function performTwoWaySync() {
 
   const allApps = await getApplications(false);
   let pushedCount = 0;
+  const failed: { id: string; company: string; role: string }[] = [];
 
   for (const app of allApps) {
     const isEligible = await isAppEligibleForNotionSync(app);
     if (!isEligible) {
       continue;
     }
-    if (app.sync_status === 'PENDING' || !app.notion_page_id) {
-      await pushApplicationToNotion(app);
-      pushedCount++;
+    if (app.sync_status !== 'SYNCED' || !app.notion_page_id) {
+      const pageId = await pushApplicationToNotion(app);
+      if (pageId) pushedCount++;
+      else failed.push({ id: app.id, company: app.company_name, role: app.role_title });
     }
   }
 
   return {
-    success: true,
+    success: failed.length === 0,
     pulled: pullResult.count,
     pushed: pushedCount,
+    failed,
+    message: failed.length ? `${failed.length} application(s) failed to sync to Notion. Please retry.` : undefined,
     timestamp: new Date().toISOString(),
   };
 }

@@ -64,7 +64,7 @@ export async function PUT(
       console.warn('Notion push background warning:', notionErr);
     }
 
-    return NextResponse.json({ success: true, data: updated });
+    return NextResponse.json({ success: true, data: await getApplicationById(id) || updated });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error?.message }, { status: 500 });
   }

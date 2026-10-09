@@ -168,6 +168,9 @@ export default function JobHuntDashboard() {
     try {
       const res = await fetch('/api/notion/sync', { method: 'POST' });
       const syncResult = await res.json();
+      if (!res.ok || !syncResult.success) {
+        alert(syncResult.message || syncResult.error || 'Notion sync failed. Please retry.');
+      }
       if (syncResult.success) {
         if (syncResult.data) setApplications(syncResult.data);
         if (syncResult.companies) setCompanies(syncResult.companies);
