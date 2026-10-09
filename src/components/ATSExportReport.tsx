@@ -17,7 +17,6 @@ interface ATSExportReportProps {
   companyName: string;
   candidateName?: string;
   reportRef: React.RefObject<HTMLDivElement | null>;
-  overview?: boolean;
 }
 
 export default function ATSExportReport({
@@ -26,10 +25,7 @@ export default function ATSExportReport({
   companyName,
   candidateName = 'Candidate Profile',
   reportRef,
-  overview = false,
 }: ATSExportReportProps) {
-  const concise = (text: string, limit: number) => text.length > limit
-    ? `${text.slice(0, limit).trimEnd()}…` : text;
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-[#047857] bg-[#ECFDF5] border-[#A7F3D0]';
     if (score >= 65) return 'text-[#9D3C5E] bg-[#FFF0F6] border-[#F1DDE9]';
@@ -59,7 +55,6 @@ export default function ATSExportReport({
         style={{
           boxSizing: 'border-box',
           backgroundColor: '#FAF7F9',
-          minHeight: overview ? '1123px' : undefined,
           overflowWrap: 'anywhere',
         }}
       >
@@ -117,7 +112,7 @@ export default function ATSExportReport({
                 </span>
               </div>
               <p className="text-xs text-[#736A6D] leading-relaxed">
-                {overview ? concise(result.summary, 450) : result.summary}
+                {result.summary}
               </p>
             </div>
           </div>
@@ -133,10 +128,10 @@ export default function ATSExportReport({
             </div>
             <ul className="space-y-2 text-xs text-[#736A6D]">
               {result.strengths?.length > 0 ? (
-                (overview ? result.strengths.slice(0, 3) : result.strengths).map((str, i) => (
+                result.strengths.map((str, i) => (
                   <li key={i} className="flex items-start gap-2 bg-[#ECFDF5] p-2.5 rounded-xl border border-[#A7F3D0]">
                     <span className="text-[#059669] font-bold">•</span>
-                    <span className="leading-relaxed">{overview ? concise(str, 140) : str}</span>
+                    <span className="leading-relaxed">{str}</span>
                   </li>
                 ))
               ) : (
@@ -153,10 +148,10 @@ export default function ATSExportReport({
             </div>
             <ul className="space-y-2 text-xs text-[#736A6D]">
               {result.gaps?.length > 0 ? (
-                (overview ? result.gaps.slice(0, 3) : result.gaps).map((gap, i) => (
+                result.gaps.map((gap, i) => (
                   <li key={i} className="flex items-start gap-2 bg-[#FFFBEB] p-2.5 rounded-xl border border-[#FDE68A]">
                     <span className="text-[#D97706] font-bold">•</span>
-                    <span className="leading-relaxed">{overview ? concise(gap, 140) : gap}</span>
+                    <span className="leading-relaxed">{gap}</span>
                   </li>
                 ))
               ) : (
@@ -181,12 +176,12 @@ export default function ATSExportReport({
                 <span>Found in Resume ({result.matchingSkills?.length || 0}):</span>
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {(overview ? result.matchingSkills?.slice(0, 8) : result.matchingSkills)?.map((skill, i) => (
+                {result.matchingSkills?.map((skill, i) => (
                   <span
                     key={i}
                     className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#ECFDF5] text-[#047857] border border-[#A7F3D0]"
                   >
-                    ✓ {overview ? concise(skill, 48) : skill}
+                    ✓ {skill}
                   </span>
                 ))}
               </div>
@@ -199,12 +194,12 @@ export default function ATSExportReport({
                 <span>Missing ATS Keywords & Gaps ({result.missingKeywords?.length || 0}):</span>
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {(overview ? result.missingKeywords?.slice(0, 8) : result.missingKeywords)?.map((keyword, i) => (
+                {result.missingKeywords?.map((keyword, i) => (
                   <span
                     key={i}
                     className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#FFF1F2] text-[#BE123C] border border-[#FECDD3]"
                   >
-                    + {overview ? concise(keyword, 48) : keyword}
+                    + {keyword}
                   </span>
                 ))}
               </div>
@@ -213,7 +208,7 @@ export default function ATSExportReport({
         </div>
 
         {/* Bullet Rewrites (Google XYZ Formula) */}
-        {!overview && result.bulletRewrites?.length > 0 && (
+        {result.bulletRewrites?.length > 0 && (
           <div className="bg-white rounded-2xl p-5 border border-[#F1DDE9] shadow-xs space-y-3.5">
             <div className="flex items-center gap-2 text-xs font-bold text-[#4A3E44]">
               <FileText className="w-4 h-4 text-[#FF7AB3]" />
@@ -241,7 +236,7 @@ export default function ATSExportReport({
         )}
 
         {/* Tailored Cover Pitch */}
-        {!overview && result.tailoredPitch && (
+        {result.tailoredPitch && (
           <div className="bg-white rounded-2xl p-5 border border-[#F1DDE9] shadow-xs space-y-2.5">
             <div className="flex items-center gap-2 text-xs font-bold text-[#4A3E44]">
               <MessageSquare className="w-4 h-4 text-[#FF7AB3]" />
@@ -254,7 +249,6 @@ export default function ATSExportReport({
         )}
 
         {/* Report Footer */}
-        {overview && <p className="text-[11px] text-[#736A6D]">Condensed overview: up to 3 strengths, 3 gaps and 8 keywords per category. Export PDF for all details, resume rewrites and application pitch.</p>}
         <div className="pt-2 border-t border-[#F1DDE9] flex items-center justify-between text-[10px] text-[#736A6D]">
           <span>Job Hunt & Leads • High-Precision Career Command Center</span>
           <span>Live at https://jobhunt.jizellecasia.site • Private & Confidential</span>

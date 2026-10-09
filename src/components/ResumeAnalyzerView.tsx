@@ -3,11 +3,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
-import { flushSync } from 'react-dom';
 import jsPDF from 'jspdf';
 import ATSExportReport from './ATSExportReport';
 import { getReportPageCuts } from '@/lib/report-pagination';
-import { captureReport, encodePng } from '@/lib/report-capture';
+import { captureReport } from '@/lib/report-capture';
 import { JobApplication } from '@/types/job';
 import { AIModelId, AVAILABLE_AI_MODELS, ResumeAnalysisResult } from '@/lib/ai';
 import {
@@ -29,8 +28,6 @@ import {
   Upload,
   FileCheck,
   Download,
-  ChevronDown,
-  Image as ImageIcon,
 } from 'lucide-react';
 
 interface ResumeAnalyzerViewProps {
@@ -70,9 +67,7 @@ export default function ResumeAnalyzerView({
 
   // Client-side export states (Zero DB writes!)
   const reportRef = useRef<HTMLDivElement>(null);
-  const exportDropdownRef = useRef<HTMLDivElement>(null);
-  const [isExporting, setIsExporting] = useState<'pdf' | 'png' | null>(null);
-  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
 
   // Copy feedback states
@@ -81,17 +76,6 @@ export default function ResumeAnalyzerView({
 
   // Active sub-tab in results
   const [activeResultTab, setActiveResultTab] = useState<'overview' | 'keywords' | 'bullets' | 'pitch'>('overview');
-
-  // Close export dropdown on outside click
-  useEffect(() => {
-    const handleOutside = (e: MouseEvent) => {
-      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target as Node)) {
-        setExportDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, []);
 
   // Pre-load from selected app if provided
   useEffect(() => {
@@ -270,9 +254,9 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
   };
 
   // Client-Side 1-Click Export (Zero DB writes to prevent DB population)
-  const handleExport = async (format: 'pdf' | 'png') => {
+  const handleExport = async () => {
     if (!reportRef.current || !result) return;
-    flushSync(() => setIsExporting(format));
+    setIsExporting(true);
     setError(null);
     setExportSuccessMsg(null);
 
@@ -282,66 +266,40 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
       const canvas = await captureReport(report);
 
       const width = canvas.width;
-      const height = canvas.height;
 
       const cleanCompany = (companyName || 'Job').replace(/[^a-zA-Z0-9_-]/g, '_');
       const cleanRole = (jobTitle || 'Role').replace(/[^a-zA-Z0-9_-]/g, '_');
       const baseFilename = `ATS_Report_${cleanCompany}_${cleanRole}_${result.matchScore}pct`;
 
-      if (format === 'png') {
-        let overview = canvas;
-        if (width !== 1588 || height !== 2246) {
-          overview = document.createElement('canvas');
-          overview.width = 1588;
-          overview.height = 2246;
-          const context = overview.getContext('2d');
-          if (!context) throw new Error('Could not create overview image');
-          context.fillStyle = '#FAF7F9';
-          context.fillRect(0, 0, overview.width, overview.height);
-          const scale = Math.min(overview.width / width, overview.height / height);
-          context.drawImage(canvas, (overview.width - width * scale) / 2, 0, width * scale, height * scale);
-        }
-        const url = URL.createObjectURL(await encodePng(overview));
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${baseFilename}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(url), 30_000);
-        setExportSuccessMsg('A4 PNG overview downloaded successfully!');
-      } else {
-        const cuts = getReportPageCuts(report, report.offsetWidth * (273 / 190));
-        const pdf = new jsPDF({
-          orientation: 'portrait', unit: 'mm', format: 'a4',
-        });
-        const ratio = canvas.height / report.scrollHeight;
-        for (let index = 0; index < cuts.length - 1; index++) {
-          if (index > 0) pdf.addPage();
-          const top = Math.round(cuts[index] * ratio);
-          const bottom = Math.round(cuts[index + 1] * ratio);
-          const pageCanvas = document.createElement('canvas');
-          pageCanvas.width = width;
-          pageCanvas.height = bottom - top;
-          const context = pageCanvas.getContext('2d');
-          if (!context) throw new Error('Could not create PDF page');
-          context.drawImage(canvas, 0, top, width, bottom - top, 0, 0, width, bottom - top);
-          pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', 10, 10, 190,
-            pageCanvas.height * 190 / width);
-          pdf.setFontSize(8);
-          pdf.setTextColor(115, 106, 109);
-          pdf.text(`Page ${index + 1} of ${cuts.length - 1}`, 200, 290, { align: 'right' });
-        }
-        pdf.save(`${baseFilename}.pdf`);
-        setExportSuccessMsg('PDF report downloaded successfully!');
+      const cuts = getReportPageCuts(report, report.offsetWidth * (273 / 190));
+      const pdf = new jsPDF({
+        orientation: 'portrait', unit: 'mm', format: 'a4',
+      });
+      const ratio = canvas.height / report.scrollHeight;
+      for (let index = 0; index < cuts.length - 1; index++) {
+        if (index > 0) pdf.addPage();
+        const top = Math.round(cuts[index] * ratio);
+        const bottom = Math.round(cuts[index + 1] * ratio);
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = width;
+        pageCanvas.height = bottom - top;
+        const context = pageCanvas.getContext('2d');
+        if (!context) throw new Error('Could not create PDF page');
+        context.drawImage(canvas, 0, top, width, bottom - top, 0, 0, width, bottom - top);
+        pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', 10, 10, 190,
+          pageCanvas.height * 190 / width);
+        pdf.setFontSize(8);
+        pdf.setTextColor(115, 106, 109);
+        pdf.text(`Page ${index + 1} of ${cuts.length - 1}`, 200, 290, { align: 'right' });
       }
+      pdf.save(`${baseFilename}.pdf`);
+      setExportSuccessMsg('PDF report downloaded successfully!');
       setTimeout(() => setExportSuccessMsg(null), 3000);
     } catch (err: any) {
       console.error('Export failed:', err);
       setError(`Export failed: ${err.message || 'Please try again'}`);
     } finally {
-      setIsExporting(null);
-      setExportDropdownOpen(false);
+      setIsExporting(false);
     }
   };
 
@@ -676,59 +634,29 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
                   </div>
 
                   {/* Export Report Action Dropdown (Client-Side, Zero DB writes) */}
-                  <div className="relative shrink-0 self-start sm:self-center" ref={exportDropdownRef}>
+                  <div className="shrink-0 self-start sm:self-center">
                     <div className="inline-flex rounded-xl shadow-2xs">
                       <button
                         type="button"
-                        onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
-                        disabled={isExporting !== null}
+                        onClick={handleExport}
+                        disabled={isExporting}
                         className="px-3.5 py-2 rounded-xl text-xs font-bold text-[#4A3E44] bg-[#FFF0F6] hover:bg-[#FCE7F3] border border-[#F1DDE9] transition flex items-center gap-2 cursor-pointer shadow-2xs hover:border-[#FF7AB3]"
-                        title="Download analysis as 1 single PDF or PNG (Zero DB writes)"
+                        title="Download the complete analysis as an A4 PDF"
                       >
                         {isExporting ? (
                           <>
                             <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#FF7AB3]" />
-                            <span>Exporting {isExporting.toUpperCase()}...</span>
+                            <span>Exporting PDF...</span>
                           </>
                         ) : (
                           <>
                             <Download className="w-3.5 h-3.5 text-[#FF7AB3]" />
-                            <span>Export Analysis</span>
-                            <ChevronDown className="w-3 h-3 text-stone-400" />
+                            <span>Download PDF</span>
                           </>
                         )}
                       </button>
                     </div>
 
-                    {exportDropdownOpen && !isExporting && (
-                      <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-[#F1DDE9] py-1.5 z-20 animate-in fade-in zoom-in-95">
-                        <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#736A6D] border-b border-[#F1DDE9]/60">
-                          Choose Format (Download)
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleExport('pdf')}
-                          className="w-full px-3.5 py-2.5 text-left text-xs font-semibold text-[#4A3E44] hover:bg-[#FFF0F6] hover:text-[#9D3C5E] flex items-center gap-2.5 transition cursor-pointer"
-                        >
-                          <FileText className="w-4 h-4 text-[#FF7AB3] shrink-0" />
-                          <div>
-                            <div className="font-bold">Download as PDF</div>
-                            <div className="text-[10px] text-stone-400">1 continuous full-page PDF</div>
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleExport('png')}
-                          className="w-full px-3.5 py-2.5 text-left text-xs font-semibold text-[#4A3E44] hover:bg-[#FFF0F6] hover:text-[#9D3C5E] flex items-center gap-2.5 transition cursor-pointer"
-                        >
-                          <ImageIcon className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <div>
-                            <div className="font-bold">Download as PNG</div>
-                            <div className="text-[10px] text-stone-400">High-resolution image</div>
-                          </div>
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -992,7 +920,7 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
         </div>
       </div>
 
-      {/* Hidden high-res export layout rendered for client-side PDF/PNG capture (Zero DB writes!) */}
+      {/* Full report layout for client-side PDF capture */}
       {result && (
         <ATSExportReport
           result={result}
@@ -1000,7 +928,6 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
           companyName={companyName}
           candidateName={session?.user?.name || 'Candidate Profile'}
           reportRef={reportRef}
-          overview={isExporting === 'png'}
         />
       )}
     </div>

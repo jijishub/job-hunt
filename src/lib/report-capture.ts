@@ -28,10 +28,3 @@ export async function captureReport(report: HTMLElement) {
       && !report.contains(element) && !element.contains(report),
   });
 }
-
-export function encodePng(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => canvas.toBlob((blob) => {
-    if (blob) resolve(blob);
-    else reject(new Error('Could not encode PNG image'));
-  }, 'image/png'));
-}
