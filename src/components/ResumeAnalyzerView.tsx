@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import ATSExportReport from './ATSExportReport';
+import { getReportPageCuts } from '@/lib/report-pagination';
 import { JobApplication } from '@/types/job';
 import { AIModelId, AVAILABLE_AI_MODELS, ResumeAnalysisResult } from '@/lib/ai';
 import {
@@ -275,10 +276,18 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
     setExportSuccessMsg(null);
 
     try {
-      // Small pause to ensure layout stabilization
+      await document.fonts.ready;
+      // Allow React to render the PNG overview before measuring the report.
       await new Promise((r) => setTimeout(r, 150));
 
-      const canvas = await html2canvas(reportRef.current, {
+      const report = reportRef.current;
+      await Promise.all(Array.from(report.querySelectorAll('img')).map(async (image) => {
+        if (!image.complete) await image.decode().catch(() => undefined);
+      }));
+      const pageHeight = report.offsetWidth * (273 / 190);
+      const cuts = getReportPageCuts(report, pageHeight);
+
+      const canvas = await html2canvas(report, {
         scale: 2, // 2x high retina resolution
         useCORS: true,
         backgroundColor: '#FAF7F9',
@@ -287,7 +296,6 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
         scrollY: 0,
       });
 
-      const imgData = canvas.toDataURL('image/png');
       const width = canvas.width;
       const height = canvas.height;
 
@@ -296,22 +304,43 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
       const baseFilename = `ATS_Report_${cleanCompany}_${cleanRole}_${result.matchScore}pct`;
 
       if (format === 'png') {
+        const overview = document.createElement('canvas');
+        overview.width = 1588;
+        overview.height = 2246;
+        const context = overview.getContext('2d');
+        if (!context) throw new Error('Could not create overview image');
+        context.fillStyle = '#FAF7F9';
+        context.fillRect(0, 0, overview.width, overview.height);
+        const scale = Math.min(overview.width / width, overview.height / height);
+        context.drawImage(canvas, (overview.width - width * scale) / 2, 0, width * scale, height * scale);
         const link = document.createElement('a');
-        link.href = imgData;
+        link.href = overview.toDataURL('image/png');
         link.download = `${baseFilename}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        setExportSuccessMsg('PNG report downloaded successfully!');
+        setExportSuccessMsg('A4 PNG overview downloaded successfully!');
       } else {
-        // Continuous single-page PDF with exact aspect ratio (no text truncation or split)
         const pdf = new jsPDF({
-          orientation: width > height ? 'landscape' : 'portrait',
-          unit: 'px',
-          format: [width, height],
-          hotfixes: ['px_scaling'],
+          orientation: 'portrait', unit: 'mm', format: 'a4',
         });
-        pdf.addImage(imgData, 'PNG', 0, 0, width, height);
+        const ratio = canvas.height / report.scrollHeight;
+        for (let index = 0; index < cuts.length - 1; index++) {
+          if (index > 0) pdf.addPage();
+          const top = Math.round(cuts[index] * ratio);
+          const bottom = Math.round(cuts[index + 1] * ratio);
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = width;
+          pageCanvas.height = bottom - top;
+          const context = pageCanvas.getContext('2d');
+          if (!context) throw new Error('Could not create PDF page');
+          context.drawImage(canvas, 0, top, width, bottom - top, 0, 0, width, bottom - top);
+          pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', 10, 10, 190,
+            pageCanvas.height * 190 / width);
+          pdf.setFontSize(8);
+          pdf.setTextColor(115, 106, 109);
+          pdf.text(`Page ${index + 1} of ${cuts.length - 1}`, 200, 290, { align: 'right' });
+        }
         pdf.save(`${baseFilename}.pdf`);
         setExportSuccessMsg('PDF report downloaded successfully!');
       }
@@ -980,6 +1009,7 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
           companyName={companyName}
           candidateName={session?.user?.name || 'Candidate Profile'}
           reportRef={reportRef}
+          overview={isExporting === 'png'}
         />
       )}
     </div>
