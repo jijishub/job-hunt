@@ -192,6 +192,7 @@ export default function JobHuntDashboard() {
       });
       const result = await res.json();
       if (!res.ok || !result.success) throw new Error(result.error || 'Failed to save application');
+      if (result.sync_error) alert(`Application saved. Notion sync failed: ${result.sync_error}`);
       if (result.success) {
         setApplications((prev) =>
           prev.map((a) => (a.id === editingApp.id ? result.data : a))
@@ -208,6 +209,7 @@ export default function JobHuntDashboard() {
       });
       const result = await res.json();
       if (!res.ok || !result.success) throw new Error(result.error || 'Failed to save application');
+      if (result.sync_error) alert(`Application saved. Notion sync failed: ${result.sync_error}`);
       if (result.success) {
         setApplications((prev) => [result.data, ...prev]);
       }

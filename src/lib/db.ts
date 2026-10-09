@@ -14,6 +14,7 @@ interface LocalDatabase {
   users: UserAccount[];
   statuses?: any[];
   leads?: JobApplication[];
+  duplicate_leads?: JobApplication[];
 }
 
 export const INITIAL_USERS: UserAccount[] = [
@@ -65,6 +66,19 @@ function readLocalDb(): LocalDatabase {
         if (!parsed.leads.some((saved) => saved.id === lead.id)) parsed.leads.push(lead);
       }
       parsed.applications = parsed.applications.filter((app) => app.status !== 'LEAD');
+      writeLocalDb(parsed);
+    }
+    const seenPages = new Set<string>();
+    const duplicates: JobApplication[] = [];
+    parsed.leads = parsed.leads.sort((a, b) => b.updated_at.localeCompare(a.updated_at)).filter((lead) => {
+      if (!lead.notion_page_id) return true;
+      const key = `${lead.notion_page_id.replace(/-/g, '').toLowerCase()}:${lead.owner || 'admin'}`;
+      if (seenPages.has(key)) { duplicates.push(lead); return false; }
+      seenPages.add(key);
+      return true;
+    });
+    if (duplicates.length) {
+      parsed.duplicate_leads = [...(parsed.duplicate_leads || []), ...duplicates];
       writeLocalDb(parsed);
     }
     if (!parsed.users || parsed.users.length === 0) {
@@ -215,6 +229,23 @@ async function initPostgresSchema(sql: any) {
       WITH moved AS (DELETE FROM applications WHERE status = 'LEAD' RETURNING *)
       INSERT INTO leads (id, data) SELECT id, to_jsonb(moved) FROM moved
       ON CONFLICT (id) DO NOTHING;
+    `;
+    await sql`CREATE TABLE IF NOT EXISTS duplicate_leads_archive (id TEXT PRIMARY KEY, data JSONB NOT NULL);`;
+    await sql`
+      WITH ranked AS (
+        SELECT id, row_number() OVER (
+          PARTITION BY lower(replace(data->>'notion_page_id', '-', '')), coalesce(data->>'owner', 'admin')
+          ORDER BY data->>'updated_at' DESC, id
+        ) AS rank FROM leads WHERE nullif(data->>'notion_page_id', '') IS NOT NULL
+      ), removed AS (
+        DELETE FROM leads WHERE id IN (SELECT id FROM ranked WHERE rank > 1) RETURNING *
+      ) INSERT INTO duplicate_leads_archive (id, data) SELECT id, data FROM removed
+        ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data;
+    `;
+    await sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS leads_notion_owner_unique ON leads
+        ((lower(replace(data->>'notion_page_id', '-', ''))), (coalesce(data->>'owner', 'admin')))
+        WHERE nullif(data->>'notion_page_id', '') IS NOT NULL;
     `;
     schemaInitialized = true;
   } catch (err) {
@@ -433,9 +464,24 @@ export async function createApplication(
     const sql = getPostgresClient();
     if (sql) {
       await initPostgresSchema(sql);
-      await sql`INSERT INTO leads (id, data) VALUES (${id}, ${JSON.stringify(newApp)}::jsonb);`;
+      const rows = await sql`
+        INSERT INTO leads (id, data) VALUES (${id}, ${JSON.stringify(newApp)}::jsonb)
+        ON CONFLICT DO NOTHING RETURNING data;
+      `;
+      if (!rows.length) {
+        const existing = await sql`SELECT data FROM leads WHERE id = ${id} OR (
+          lower(replace(data->>'notion_page_id', '-', '')) = ${newApp.notion_page_id?.replace(/-/g, '').toLowerCase() || null}
+          AND coalesce(data->>'owner', 'admin') = ${newApp.owner || 'admin'}
+        ) LIMIT 1;`;
+        return existing[0].data as JobApplication;
+      }
     } else {
       const db = readLocalDb();
+      const existing = (db.leads || []).find((lead) => lead.id === id || (
+        newApp.notion_page_id && lead.notion_page_id?.replace(/-/g, '').toLowerCase()
+          === newApp.notion_page_id.replace(/-/g, '').toLowerCase() && lead.owner === newApp.owner
+      ));
+      if (existing) return existing;
       db.leads = [newApp, ...(db.leads || [])];
       writeLocalDb(db);
     }
@@ -463,12 +509,15 @@ export async function createApplication(
         ${newApp.notes || null}, ${newApp.notion_page_id || null},
         ${newApp.last_synced_at || null}, ${newApp.sync_status}, ${now}, ${now}
       )
+      ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
       RETURNING *;
     `;
     return inserted[0] as JobApplication;
   }
 
   const db = readLocalDb();
+  const existing = db.applications.find((app) => app.id === id);
+  if (existing) return existing;
   db.applications.unshift(newApp);
   writeLocalDb(db);
   return newApp;

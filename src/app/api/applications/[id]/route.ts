@@ -58,13 +58,14 @@ export async function PUT(
       return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });
     }
 
+    let syncError: string | undefined;
     try {
-      await pushApplicationToNotion(updated);
+      await pushApplicationToNotion(updated, (message) => { syncError = message; });
     } catch (notionErr) {
       console.warn('Notion push background warning:', notionErr);
     }
 
-    return NextResponse.json({ success: true, data: await getApplicationById(id) || updated });
+    return NextResponse.json({ success: true, data: await getApplicationById(id) || updated, sync_error: syncError });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error?.message }, { status: 500 });
   }
