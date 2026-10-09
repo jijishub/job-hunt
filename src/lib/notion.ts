@@ -13,6 +13,7 @@ import {
 import { getStatusCategory } from './statuses';
 
 async function isAppEligibleForNotionSync(app: JobApplication): Promise<boolean> {
+  if (app.status === 'LEAD') return false;
   const users = await getUsers();
   const eligibleIds = new Set(
     users.filter((u) => u.role === 'admin' || u.notion_enabled).map((u) => u.id)
@@ -363,7 +364,7 @@ export async function pullApplicationsFromNotion() {
       if (c && c.name) companyMap.set(c.name.trim().toLowerCase(), c);
     });
 
-    const existingApps = await getApplications();
+    const existingApps = await getApplications(false);
     const appMap = new Map<string, any>();
     existingApps.forEach((a) => {
       if (a.notion_page_id) {
@@ -564,7 +565,7 @@ export async function performTwoWaySync() {
     };
   }
 
-  const allApps = await getApplications();
+  const allApps = await getApplications(false);
   let pushedCount = 0;
 
   for (const app of allApps) {

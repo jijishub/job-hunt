@@ -61,7 +61,8 @@ export async function POST(request: Request) {
       company = await getOrCreateCompany(
         company_name,
         company_logo,
-        company_website
+        company_website,
+        body.owner
       );
     } else {
       // For leads: reuse existing company if it already exists, but DO NOT create a new company row
@@ -91,6 +92,9 @@ export async function POST(request: Request) {
       date_applied,
       follow_up_date,
       notes,
+      owner: body.owner,
+      source: body.source,
+      notion_status: body.notion_status,
       sync_status: 'PENDING',
     });
 
@@ -111,4 +115,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

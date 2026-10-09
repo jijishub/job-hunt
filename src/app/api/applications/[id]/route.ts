@@ -25,15 +25,23 @@ export async function PUT(
   const { id } = await params;
   try {
     const body = await request.json();
+    const existingApp = await getApplicationById(id);
+    if (!existingApp) {
+      return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });
+    }
+    if (existingApp.status === 'LEAD' && body.status && body.status !== 'LEAD') {
+      body.company_name ||= existingApp.company_name;
+      body.date_applied ||= new Date().toISOString();
+    }
 
     if (body.company_name) {
-      const existingApp = await getApplicationById(id);
       const isLead = (body.status || existingApp?.status) === 'LEAD' || body.is_lead === true;
       if (!isLead) {
         const company = await getOrCreateCompany(
           body.company_name,
           body.company_logo,
-          body.company_website
+          body.company_website,
+          existingApp.owner
         );
         body.company_id = company.id;
         body.company_name = company.name;
@@ -74,4 +82,3 @@ export async function DELETE(
     return NextResponse.json({ success: false, error: error?.message }, { status: 500 });
   }
 }
-
