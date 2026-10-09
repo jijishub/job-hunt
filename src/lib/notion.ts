@@ -271,9 +271,14 @@ function buildNotionProperties(app: JobApplication) {
   }
 
   if (app.date_applied) {
+    // Postgres TIMESTAMPTZ values can be Date objects before JSON serialization.
+    const dateApplied = new Date(app.date_applied);
+    if (Number.isNaN(dateApplied.getTime())) {
+      throw new Error('Invalid application date. Please edit the application date and retry.');
+    }
     properties['Application/ Inquiry Date'] = {
       date: {
-        start: app.date_applied.split('T')[0],
+        start: dateApplied.toISOString().slice(0, 10),
       },
     };
   }

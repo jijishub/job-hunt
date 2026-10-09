@@ -6,7 +6,7 @@ const ts = require('typescript');
 const adminApp = { id: 'app_bytedance', company_name: 'ByteDance',
   role_title: 'Graduate Development Program (E-commerce, Philippines) - 2027 Start',
   status: 'APPLIED', owner: 'user_ji', sync_status: 'ERROR', notion_page_id: 'page-existing',
-  notes: 'N'.repeat(8350) };
+  notes: 'N'.repeat(8350), date_applied: new Date('2026-10-09T00:00:00Z') };
 let records = [];
 let calls = [];
 let failWrites = false;
@@ -34,6 +34,7 @@ async function write(body) {
   const chunks = body.properties['Post Notes'].rich_text;
   assert.ok(chunks.every((chunk) => chunk.text.content.length <= 2000));
   assert.equal(chunks.map((chunk) => chunk.text.content).join(''), adminApp.notes);
+  assert.equal(body.properties['Application/ Inquiry Date'].date.start, '2026-10-09');
   if (failWrites) throw new Error('Simulated Notion validation failure');
   return { id: 'page-existing' };
 }
@@ -64,6 +65,15 @@ async function run() {
   assert.equal(calls.length, 1);
   assert.equal(records[0].role_title, adminApp.role_title, 'Pull must preserve failed local edits');
   assert.equal(records[0].sync_status, 'SYNCED');
+  for (const date of ['2026-10-09', '2026-10-09T00:00:00.000Z']) {
+    records[0].date_applied = date;
+    assert.equal(await moduleObject.exports.pushApplicationToNotion(records[0]), 'page-existing');
+  }
+  records[0].date_applied = 'invalid-date';
+  let dateError;
+  assert.equal(await moduleObject.exports.pushApplicationToNotion(records[0], (error) => { dateError = error; }), null);
+  assert.ok(dateError.includes('Invalid application date'));
+  records[0].date_applied = adminApp.date_applied;
   records[0].sync_status = 'ERROR';
   failWrites = true;
   const failed = await moduleObject.exports.performTwoWaySync();
