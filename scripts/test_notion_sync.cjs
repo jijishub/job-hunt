@@ -5,10 +5,12 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const adminApp = { id: 'app_bytedance', company_name: 'ByteDance',
   role_title: 'Graduate Development Program (E-commerce, Philippines) - 2027 Start',
-  status: 'APPLIED', owner: 'user_ji', sync_status: 'ERROR', notion_page_id: 'page-existing' };
+  status: 'APPLIED', owner: 'user_ji', sync_status: 'ERROR', notion_page_id: 'page-existing',
+  notes: 'N'.repeat(8350) };
 let records = [];
 let calls = [];
 let failWrites = false;
+let pages;
 const db = {
   getUsers: async () => [{ id: 'user_ji', role: 'admin', notion_enabled: true }],
   getCompanies: async () => [],
@@ -19,17 +21,26 @@ const db = {
     return record;
   },
   getOrCreateCompany: async () => ({ id: 'company-byte', name: 'ByteDance' }),
+  createApplication: async (data) => {
+    const existing = records.find((app) => app.id === data.id);
+    if (existing) return existing;
+    records.push(data);
+    return data;
+  },
 };
 async function write(body) {
   calls.push(body);
   assert.ok(!body.properties['Intern Position'].select.name.includes(','));
+  const chunks = body.properties['Post Notes'].rich_text;
+  assert.ok(chunks.every((chunk) => chunk.text.content.length <= 2000));
+  assert.equal(chunks.map((chunk) => chunk.text.content).join(''), adminApp.notes);
   if (failWrites) throw new Error('Simulated Notion validation failure');
   return { id: 'page-existing' };
 }
 class Client {
   pages = { create: write, update: write };
   databases = { retrieve: async () => ({ data_sources: [{ id: 'source' }] }) };
-  dataSources = { query: async () => ({ results: [{ id: 'page-existing', properties: {
+  dataSources = { query: async () => ({ results: pages || [{ id: 'page-existing', properties: {
     'Company Name': { title: [{ plain_text: 'ByteDance' }] },
     'Intern Position': { select: { name: 'Old role from Notion' } },
   } }] }) };
@@ -42,7 +53,7 @@ vm.runInNewContext(compiled, {
   exports: moduleObject.exports, module: moduleObject, process: { env: {} },
   console: { ...console, error: () => {} },
   require: (name) => name === '@notionhq/client' ? { Client }
-    : name === './db' ? db : name === './statuses' ? { getStatusCategory: () => 'APPLIED' } : require(name),
+    : name === './db' ? db : name === './statuses' ? { getStatusCategory: (name) => name === 'Inquiry' ? 'LEAD' : 'APPLIED' } : require(name),
 });
 async function run() {
   records = [{ ...adminApp }, { ...adminApp, id: 'member-app', owner: 'member_1' },
@@ -60,6 +71,17 @@ async function run() {
   assert.equal(failed.pushed, 0);
   assert.equal(failed.failed[0].id, adminApp.id);
   assert.equal(records[0].sync_status, 'ERROR');
+  assert.ok(failed.message.includes('Simulated Notion validation failure'));
+  pages = [{ id: 'page-lead', properties: {
+    'Company Name': { title: [{ plain_text: 'Example' }] },
+    'Application Status': { select: { name: 'Inquiry' } },
+    'Post Notes': { rich_text: [{ plain_text: 'First part. ' }, { plain_text: 'Second part.' }] },
+  } }];
+  records = [];
+  await moduleObject.exports.pullApplicationsFromNotion();
+  await moduleObject.exports.pullApplicationsFromNotion();
+  assert.equal(records.length, 1, 'Repeated pull must not duplicate a lead');
+  assert.equal(records[0].notes, 'First part. Second part.', 'Pull must preserve all text chunks');
   console.log('Notion sync: comma normalization, failed-write retry, pull protection, accurate counts and owner/lead exclusions passed');
 }
 run().catch((error) => { console.error(error); process.exitCode = 1; });

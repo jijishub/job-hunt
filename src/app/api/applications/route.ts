@@ -98,15 +98,16 @@ export async function POST(request: Request) {
       sync_status: 'PENDING',
     });
 
+    let syncError: string | undefined;
     if (!isLead) {
       try {
-        await pushApplicationToNotion(newApp);
+        await pushApplicationToNotion(newApp, (message) => { syncError = message; });
       } catch (notionErr) {
         console.warn('Notion push background warning:', notionErr);
       }
     }
 
-    return NextResponse.json({ success: true, data: await getApplicationById(newApp.id) || newApp }, { status: 201 });
+    return NextResponse.json({ success: true, data: await getApplicationById(newApp.id) || newApp, sync_error: syncError }, { status: 201 });
   } catch (error: any) {
     console.error('Error in POST /api/applications:', error);
     return NextResponse.json(

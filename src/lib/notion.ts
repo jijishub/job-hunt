@@ -203,6 +203,14 @@ export function parseServiceAndLocation(raw?: string): { service?: string; locat
   return { service: trimmed, location: trimmed };
 }
 
+function notionText(content: string) {
+  const parts = [];
+  for (let start = 0; start < content.length; start += 2000) {
+    parts.push({ text: { content: content.slice(start, start + 2000) } });
+  }
+  return parts;
+}
+
 function buildNotionProperties(app: JobApplication) {
   let statusSelectName = app.notion_status;
   if (!statusSelectName) {
@@ -226,13 +234,7 @@ function buildNotionProperties(app: JobApplication) {
 
   const properties: Record<string, any> = {
     'Company Name': {
-      title: [
-        {
-          text: {
-            content: app.company_name,
-          },
-        },
-      ],
+      title: notionText(app.company_name),
     },
     'Intern Position': {
       select: {
@@ -252,7 +254,7 @@ function buildNotionProperties(app: JobApplication) {
         ? `${app.service}\n\n${app.location}`
         : app.location || app.service || '';
     properties['Service & Location'] = {
-      rich_text: [{ text: { content } }],
+      rich_text: notionText(content),
     };
   }
 
@@ -278,20 +280,20 @@ function buildNotionProperties(app: JobApplication) {
 
   if (app.information) {
     properties['Information'] = {
-      rich_text: [{ text: { content: app.information } }],
+      rich_text: notionText(app.information),
     };
   }
 
   if (app.notes) {
     properties['Post Notes'] = {
-      rich_text: [{ text: { content: app.notes } }],
+      rich_text: notionText(app.notes),
     };
   }
 
   return properties;
 }
 
-export async function pushApplicationToNotion(app: JobApplication): Promise<string | null> {
+export async function pushApplicationToNotion(app: JobApplication, onError?: (message: string) => void): Promise<string | null> {
   const isEligible = await isAppEligibleForNotionSync(app);
   if (!isEligible) {
     return null;
@@ -333,7 +335,8 @@ export async function pushApplicationToNotion(app: JobApplication): Promise<stri
       });
       return pageId;
     }
-  } catch (error) {
+  } catch (error: any) {
+    onError?.(error?.message || 'Notion write failed');
     console.error('Error syncing application to Notion:', error);
     await updateApplication(app.id, {
       sync_status: 'ERROR',
@@ -369,7 +372,7 @@ export async function pullApplicationsFromNotion() {
     existingApps.forEach((a) => {
       if (a.notion_page_id) {
         appMap.set(a.notion_page_id, a);
-        appMap.set(a.notion_page_id.replace(/-/g, ''), a);
+        appMap.set(a.notion_page_id.replace(/-/g, '').toLowerCase(), a);
       }
     });
 
@@ -381,8 +384,8 @@ export async function pullApplicationsFromNotion() {
         // 1. Company Name
         const titleProp = Object.values(props).find((p: any) => p.type === 'title') as any;
         const companyName = (
-          props['Company Name']?.title?.[0]?.plain_text ||
-          titleProp?.title?.[0]?.plain_text ||
+          props['Company Name']?.title?.map((part: any) => part.plain_text || part.text?.content || '').join('') ||
+          titleProp?.title?.map((part: any) => part.plain_text || part.text?.content || '').join('') ||
           props.Company?.select?.name ||
           props.Company?.rich_text?.[0]?.plain_text ||
           props.Name?.title?.[0]?.plain_text ||
@@ -432,7 +435,7 @@ export async function pullApplicationsFromNotion() {
 
         // 6. Service & Location Categorization
         const rawServiceLocation =
-          props['Service & Location']?.rich_text?.[0]?.plain_text ||
+          props['Service & Location']?.rich_text?.map((part: any) => part.plain_text || part.text?.content || '').join('') ||
           props.Location?.rich_text?.[0]?.plain_text ||
           undefined;
         const { service, location } = parseServiceAndLocation(rawServiceLocation);
@@ -465,9 +468,9 @@ export async function pullApplicationsFromNotion() {
         }
 
         // 10. Information & Post Notes
-        const information = props['Information']?.rich_text?.[0]?.plain_text || undefined;
+        const information = props['Information']?.rich_text?.map((part: any) => part.plain_text || part.text?.content || '').join('') || undefined;
         const notes =
-          props['Post Notes']?.rich_text?.[0]?.plain_text ||
+          props['Post Notes']?.rich_text?.map((part: any) => part.plain_text || part.text?.content || '').join('') ||
           props.Notes?.rich_text?.[0]?.plain_text ||
           undefined;
 
@@ -482,7 +485,7 @@ export async function pullApplicationsFromNotion() {
           company.industry = service;
         }
 
-        const existingApp = appMap.get(pageId) || appMap.get(pageId.replace(/-/g, ''));
+        const existingApp = appMap.get(pageId) || appMap.get(pageId.replace(/-/g, '').toLowerCase());
 
         if (existingApp) {
           // Pending or failed local edits must survive the pull so they can be retried.
@@ -509,6 +512,7 @@ export async function pullApplicationsFromNotion() {
           });
         } else {
           const created = await createApplication({
+            id: `notion_${pageId.replace(/-/g, '').toLowerCase()}`,
             company_id: company.id,
             company_name: company.name,
             company_logo: company.logo_url,
@@ -532,6 +536,7 @@ export async function pullApplicationsFromNotion() {
             last_synced_at: new Date().toISOString(),
           });
           appMap.set(pageId, created);
+          appMap.set(pageId.replace(/-/g, '').toLowerCase(), created);
         }
         syncedCount++;
       } catch (rowErr) {
@@ -570,7 +575,7 @@ export async function performTwoWaySync() {
 
   const allApps = await getApplications(false);
   let pushedCount = 0;
-  const failed: { id: string; company: string; role: string }[] = [];
+  const failed: { id: string; company: string; role: string; error?: string }[] = [];
 
   for (const app of allApps) {
     const isEligible = await isAppEligibleForNotionSync(app);
@@ -578,9 +583,10 @@ export async function performTwoWaySync() {
       continue;
     }
     if (app.sync_status !== 'SYNCED' || !app.notion_page_id) {
-      const pageId = await pushApplicationToNotion(app);
+      let error: string | undefined;
+      const pageId = await pushApplicationToNotion(app, (message) => { error = message; });
       if (pageId) pushedCount++;
-      else failed.push({ id: app.id, company: app.company_name, role: app.role_title });
+      else failed.push({ id: app.id, company: app.company_name, role: app.role_title, error });
     }
   }
 
@@ -589,7 +595,7 @@ export async function performTwoWaySync() {
     pulled: pullResult.count,
     pushed: pushedCount,
     failed,
-    message: failed.length ? `${failed.length} application(s) failed to sync to Notion. Please retry.` : undefined,
+    message: failed.length ? failed.map((app) => `${app.company}: ${app.error || 'Notion write failed'}`).join('\n') : undefined,
     timestamp: new Date().toISOString(),
   };
 }

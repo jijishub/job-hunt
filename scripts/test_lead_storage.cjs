@@ -45,6 +45,16 @@ async function run() {
   assert.equal(read().applications.length, 0);
   await db.deleteApplication(lead.id);
   assert.equal((await db.getApplications()).length, 0);
+  const imported = { ...lead, id: 'notion_test', notion_page_id: 'ABC-123', notes: 'Original' };
+  await db.createApplication(imported);
+  await db.createApplication({ ...imported, id: 'other-id' });
+  assert.equal((await db.getApplications()).length, 1, 'Same Notion page must not create another lead');
+  const stored = read();
+  stored.leads.push({ ...imported, id: 'historic-duplicate', notes: 'Older note', updated_at: '2020-01-01' });
+  fs.writeFileSync(path.join(directory, '.data/db.json'), JSON.stringify(stored));
+  assert.equal((await db.getApplications()).length, 1);
+  assert.equal(read().duplicate_leads.length, 1);
+  assert.equal(read().duplicate_leads[0].notes, 'Older note', 'Archived duplicate retains its data');
   console.log('Lead storage: save, edit, promotion, demotion, migration, deletion passed');
 }
 run().catch((error) => { console.error(error); process.exitCode = 1; });
