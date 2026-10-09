@@ -43,20 +43,30 @@ async function run() {
     executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
   try {
     const page = await browser.newPage();
+    // A stalled image elsewhere in the app must not delay report capture.
+    await page.route('https://example.invalid/slow.png', () => {});
     const css = cssFiles(path.join(root, '.next/static')).map((file) => fs.readFileSync(file, 'utf8')).join('\n');
     for (const overview of [false, true]) {
       const html = renderToStaticMarkup(React.createElement(Report, { result,
         jobTitle: 'Software Engineer', companyName: 'Example Company', candidateName: 'Test Candidate',
         reportRef: { current: null }, overview }));
-      await page.setContent(`<style>${css}</style>${html}`);
+      await page.setContent(`<style>${css}</style>${html}<aside><img src="https://example.invalid/slow.png">${'<p>Unrelated app content</p>'.repeat(2000)}</aside>`, { waitUntil: 'domcontentloaded' });
       await page.addScriptTag({ content: compile('src/lib/report-pagination.ts').replace(
         'Object.defineProperty(exports, "__esModule", { value: true });', '')
         .replaceAll('exports.', 'window.') });
       await page.addScriptTag({ path: path.join(root, 'node_modules/html2canvas-pro/dist/html2canvas-pro.js') });
+      await page.addScriptTag({ content: `window.reportCapture = (() => {
+        const exports = {}; const require = () => window.html2canvas;
+        ${compile('src/lib/report-capture.ts')}
+        return exports;
+      })();` });
       const metrics = await page.evaluate(async (overview) => {
         const report = document.querySelector('div > div');
         const cuts = window.getReportPageCuts(report, report.offsetWidth * 273 / 190);
-        const canvas = await window.html2canvas(report, { scale: 2, logging: false, backgroundColor: '#FAF7F9' });
+        const started = performance.now();
+        const canvas = await window.reportCapture.captureReport(report);
+        const blob = await window.reportCapture.encodePng(canvas);
+        const elapsedMs = Math.round(performance.now() - started);
         const origin = report.getBoundingClientRect().top;
         const walker = document.createTreeWalker(report, NodeFilter.SHOW_TEXT);
         let splitLines = 0;
@@ -69,10 +79,12 @@ async function run() {
           }
         }
         return { overview, width: canvas.width, height: canvas.height, cuts,
-          splitLines, contentHeight: report.scrollHeight,
+          splitLines, elapsedMs, blobBytes: blob.size, contentHeight: report.scrollHeight,
           containsPitch: report.textContent.includes('TAILORED APPLICATION PITCH') };
       }, overview);
       assert.equal(metrics.width, 1588);
+      assert.ok(metrics.elapsedMs < 5000, 'Capture must not wait for unrelated images');
+      assert.ok(metrics.blobBytes > 0);
       assert.equal(metrics.splitLines, 0);
       assert.equal(metrics.containsPitch, !overview);
       if (overview) assert.equal(metrics.height, 2246);

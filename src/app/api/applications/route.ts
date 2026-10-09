@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getApplications, createApplication, getOrCreateCompany, getCompanies } from '@/lib/db';
+import { getApplications, createApplication, getOrCreateCompany, getCompanies, getApplicationById } from '@/lib/db';
 import { pushApplicationToNotion, pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
 
 export async function GET() {
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, data: newApp }, { status: 201 });
+    return NextResponse.json({ success: true, data: await getApplicationById(newApp.id) || newApp }, { status: 201 });
   } catch (error: any) {
     console.error('Error in POST /api/applications:', error);
     return NextResponse.json(

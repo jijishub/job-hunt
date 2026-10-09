@@ -3,10 +3,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
-import html2canvas from 'html2canvas-pro';
+import { flushSync } from 'react-dom';
 import jsPDF from 'jspdf';
 import ATSExportReport from './ATSExportReport';
 import { getReportPageCuts } from '@/lib/report-pagination';
+import { captureReport, encodePng } from '@/lib/report-capture';
 import { JobApplication } from '@/types/job';
 import { AIModelId, AVAILABLE_AI_MODELS, ResumeAnalysisResult } from '@/lib/ai';
 import {
@@ -271,30 +272,14 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
   // Client-Side 1-Click Export (Zero DB writes to prevent DB population)
   const handleExport = async (format: 'pdf' | 'png') => {
     if (!reportRef.current || !result) return;
-    setIsExporting(format);
+    flushSync(() => setIsExporting(format));
     setError(null);
     setExportSuccessMsg(null);
 
     try {
-      await document.fonts.ready;
-      // Allow React to render the PNG overview before measuring the report.
-      await new Promise((r) => setTimeout(r, 150));
-
       const report = reportRef.current;
-      await Promise.all(Array.from(report.querySelectorAll('img')).map(async (image) => {
-        if (!image.complete) await image.decode().catch(() => undefined);
-      }));
-      const pageHeight = report.offsetWidth * (273 / 190);
-      const cuts = getReportPageCuts(report, pageHeight);
-
-      const canvas = await html2canvas(report, {
-        scale: 2, // 2x high retina resolution
-        useCORS: true,
-        backgroundColor: '#FAF7F9',
-        logging: false,
-        scrollX: 0,
-        scrollY: 0,
-      });
+      if (!report) throw new Error('Report is unavailable');
+      const canvas = await captureReport(report);
 
       const width = canvas.width;
       const height = canvas.height;
@@ -304,23 +289,29 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
       const baseFilename = `ATS_Report_${cleanCompany}_${cleanRole}_${result.matchScore}pct`;
 
       if (format === 'png') {
-        const overview = document.createElement('canvas');
-        overview.width = 1588;
-        overview.height = 2246;
-        const context = overview.getContext('2d');
-        if (!context) throw new Error('Could not create overview image');
-        context.fillStyle = '#FAF7F9';
-        context.fillRect(0, 0, overview.width, overview.height);
-        const scale = Math.min(overview.width / width, overview.height / height);
-        context.drawImage(canvas, (overview.width - width * scale) / 2, 0, width * scale, height * scale);
+        let overview = canvas;
+        if (width !== 1588 || height !== 2246) {
+          overview = document.createElement('canvas');
+          overview.width = 1588;
+          overview.height = 2246;
+          const context = overview.getContext('2d');
+          if (!context) throw new Error('Could not create overview image');
+          context.fillStyle = '#FAF7F9';
+          context.fillRect(0, 0, overview.width, overview.height);
+          const scale = Math.min(overview.width / width, overview.height / height);
+          context.drawImage(canvas, (overview.width - width * scale) / 2, 0, width * scale, height * scale);
+        }
+        const url = URL.createObjectURL(await encodePng(overview));
         const link = document.createElement('a');
-        link.href = overview.toDataURL('image/png');
+        link.href = url;
         link.download = `${baseFilename}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 30_000);
         setExportSuccessMsg('A4 PNG overview downloaded successfully!');
       } else {
+        const cuts = getReportPageCuts(report, report.offsetWidth * (273 / 190));
         const pdf = new jsPDF({
           orientation: 'portrait', unit: 'mm', format: 'a4',
         });
