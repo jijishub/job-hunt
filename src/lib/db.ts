@@ -15,6 +15,7 @@ interface LocalDatabase {
   statuses?: any[];
   leads?: JobApplication[];
   duplicate_leads?: JobApplication[];
+  duplicate_applications?: JobApplication[];
 }
 
 export const INITIAL_USERS: UserAccount[] = [
@@ -66,6 +67,22 @@ function readLocalDb(): LocalDatabase {
         if (!parsed.leads.some((saved) => saved.id === lead.id)) parsed.leads.push(lead);
       }
       parsed.applications = parsed.applications.filter((app) => app.status !== 'LEAD');
+      writeLocalDb(parsed);
+    }
+    const applicationPages = new Set<string>();
+    const duplicateApplications: JobApplication[] = [];
+    parsed.applications = parsed.applications.sort((a, b) => {
+      const pending = Number(b.sync_status !== 'SYNCED') - Number(a.sync_status !== 'SYNCED');
+      return pending || b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id);
+    }).filter(app => {
+      if (!app.notion_page_id) return true;
+      const key = `${app.notion_page_id.replace(/-/g, '').toLowerCase()}:${app.owner || 'admin'}`;
+      if (applicationPages.has(key)) { duplicateApplications.push(app); return false; }
+      applicationPages.add(key);
+      return true;
+    });
+    if (duplicateApplications.length) {
+      parsed.duplicate_applications = [...(parsed.duplicate_applications || []), ...duplicateApplications];
       writeLocalDb(parsed);
     }
     const seenPages = new Set<string>();
@@ -247,6 +264,27 @@ async function initPostgresSchema(sql: any) {
         ((lower(replace(data->>'notion_page_id', '-', ''))), (coalesce(data->>'owner', 'admin')))
         WHERE nullif(data->>'notion_page_id', '') IS NOT NULL;
     `;
+    // Preserve every superseded row before enforcing Notion identity.
+    await sql.transaction([
+      sql`CREATE TABLE IF NOT EXISTS duplicate_applications_archive (id TEXT PRIMARY KEY, data JSONB NOT NULL);`,
+      sql`LOCK TABLE applications IN SHARE ROW EXCLUSIVE MODE;`,
+      sql`
+      WITH ranked AS (
+        SELECT id, row_number() OVER (
+          PARTITION BY lower(replace(notion_page_id, '-', '')), coalesce(owner, 'admin')
+          ORDER BY (sync_status IS DISTINCT FROM 'SYNCED') DESC, updated_at DESC, id
+        ) AS rank FROM applications WHERE nullif(notion_page_id, '') IS NOT NULL
+      ), removed AS (
+        DELETE FROM applications WHERE id IN (SELECT id FROM ranked WHERE rank > 1) RETURNING *
+      ) INSERT INTO duplicate_applications_archive (id, data)
+        SELECT id, to_jsonb(removed) FROM removed ON CONFLICT (id) DO NOTHING;
+      `,
+      sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS applications_notion_owner_unique ON applications
+        ((lower(replace(notion_page_id, '-', ''))), (coalesce(owner, 'admin')))
+        WHERE nullif(notion_page_id, '') IS NOT NULL;
+      `,
+    ]);
     schemaInitialized = true;
   } catch (err) {
     console.error('Postgres schema init error:', err);
@@ -292,7 +330,7 @@ export async function getOrCreateCompany(
     await initPostgresSchema(sql);
     const existing = await sql`SELECT * FROM companies WHERE LOWER(name) = LOWER(${trimmedName}) LIMIT 1;`;
     if (existing.length > 0) {
-      if (logo_url && !existing[0].logo_url) {
+      if (logo_url && logo_url !== existing[0].logo_url) {
         await sql`UPDATE companies SET logo_url = ${logo_url}, updated_at = NOW() WHERE id = ${existing[0].id};`;
         existing[0].logo_url = logo_url;
       }
@@ -319,7 +357,7 @@ export async function getOrCreateCompany(
     (c) => c.name.toLowerCase() === trimmedName.toLowerCase()
   );
   if (existing) {
-    if (logo_url && !existing.logo_url) {
+    if (logo_url && logo_url !== existing.logo_url) {
       existing.logo_url = logo_url;
       existing.updated_at = new Date().toISOString();
       writeLocalDb(db);
@@ -411,7 +449,11 @@ export async function getApplications(includeLeads = true): Promise<JobApplicati
   const sql = getPostgresClient();
   if (sql) {
     await initPostgresSchema(sql);
-    const rows = await sql`SELECT * FROM applications ORDER BY updated_at DESC;`;
+    const rows = await sql`
+      SELECT a.*, coalesce(c.logo_url, a.company_logo) AS company_logo
+      FROM applications a LEFT JOIN companies c ON c.id = a.company_id
+      ORDER BY a.updated_at DESC;
+    `;
     const leads = includeLeads ? await sql`SELECT data FROM leads;` : [];
     return [...rows, ...leads.map((row) => row.data)] as JobApplication[];
   }
@@ -509,14 +551,23 @@ export async function createApplication(
         ${newApp.notes || null}, ${newApp.notion_page_id || null},
         ${newApp.last_synced_at || null}, ${newApp.sync_status}, ${now}, ${now}
       )
-      ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
+      ON CONFLICT DO NOTHING
       RETURNING *;
     `;
-    return inserted[0] as JobApplication;
+    if (inserted[0]) return inserted[0] as JobApplication;
+    const existing = await sql`SELECT * FROM applications WHERE id = ${id} OR (
+      lower(replace(notion_page_id, '-', '')) = ${newApp.notion_page_id?.replace(/-/g, '').toLowerCase() || null}
+      AND coalesce(owner, 'admin') = ${newApp.owner || 'admin'}
+    ) LIMIT 1;`;
+    if (!existing[0]) throw new Error('Conflicting application could not be retrieved.');
+    return existing[0] as JobApplication;
   }
 
   const db = readLocalDb();
-  const existing = db.applications.find((app) => app.id === id);
+  const existing = db.applications.find((app) => app.id === id || (
+    newApp.notion_page_id && app.notion_page_id?.replace(/-/g, '').toLowerCase()
+      === newApp.notion_page_id.replace(/-/g, '').toLowerCase() && (app.owner || 'admin') === (newApp.owner || 'admin')
+  ));
   if (existing) return existing;
   db.applications.unshift(newApp);
   writeLocalDb(db);

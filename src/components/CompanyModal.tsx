@@ -1,5 +1,7 @@
 'use client';
 
+import ImageDropzone from './ImageDropzone';
+
 import React, { useState, useEffect } from 'react';
 import { Company } from '@/types/job';
 import { X, Building2, Globe, Image as ImageIcon, Upload } from 'lucide-react';
@@ -218,6 +220,8 @@ export default function CompanyModal({
               </label>
               <span className="text-[11px] text-[#736A6D]">Auto-compressed (&lt;20KB)</span>
             </div>
+
+            <ImageDropzone onImage={file => compressImage(file, dataUrl => { setLogoUrl(dataUrl); setSelectedEmoji(null); })} />
 
             <div className="relative">
               <input

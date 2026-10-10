@@ -11,7 +11,6 @@ import {
   Database,
   Brain,
   Layers,
-  CheckCircle2,
   ArrowRight,
 } from 'lucide-react';
 
@@ -128,10 +127,6 @@ export default function SSOLandingView() {
             </div>
 
             <div className="flex items-center gap-3 pt-1 text-xs text-[#736A6D]">
-              <span className="flex items-center gap-1.5 text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Private Workspace Active</span>
-              </span>
               <span>Admin: <strong className="text-[#4A3E44]">jizellecasia@gmail.com</strong></span>
             </div>
           </div>

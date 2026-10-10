@@ -479,11 +479,19 @@ export async function pullApplicationsFromNotion() {
           props.Notes?.rich_text?.[0]?.plain_text ||
           undefined;
 
+        const notionLogo = page.icon?.type === 'emoji' ? `emoji:${page.icon.emoji}`
+          : page.icon?.type === 'external' ? page.icon.external.url
+          : page.icon?.type === 'file' ? page.icon.file.url : undefined;
+
         // Efficient cached company retrieval / creation
         let company = companyMap.get(companyName.toLowerCase());
         if (!company) {
-          company = await getOrCreateCompany(companyName);
+          company = await getOrCreateCompany(companyName, notionLogo);
           companyMap.set(companyName.toLowerCase(), company);
+        }
+        if (notionLogo && !company.logo_url) {
+          await updateCompany(company.id, { logo_url: notionLogo });
+          company.logo_url = notionLogo;
         }
         if (service && !company.industry) {
           await updateCompany(company.id, { industry: service });

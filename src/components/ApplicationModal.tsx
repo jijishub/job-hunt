@@ -1,5 +1,7 @@
 'use client';
 
+import ImageDropzone from './ImageDropzone';
+
 import React, { useState, useEffect } from 'react';
 import { JobApplication, Company, ApplicationStatus, Priority, JobType, WorkModel, UserAccount } from '@/types/job';
 import {
@@ -288,6 +290,7 @@ export default function ApplicationModal({
                   />
                 </label>
               </div>
+              <ImageDropzone onImage={file => compressImage(file, setCustomLogoUrl)} />
               <div className="relative">
                 <input
                   type="text"
