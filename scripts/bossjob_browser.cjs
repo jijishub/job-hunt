@@ -20,10 +20,24 @@ function bossjobHelper(payload) {
  const label=el=>el.getAttribute('aria-label')||[...(el.labels||[])].map(item=>item.textContent).join(' ')||el.placeholder||el.name||el.id;
  const normalize=value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
  const report=message=>{status.textContent=message;};
- upload.onclick=()=>{try{
+ upload.onclick=async()=>{try{
   guard();
-  const fields=[...document.querySelectorAll('input[type=file]')].filter(el=>!panel.contains(el)&&!el.disabled&&(/pdf|\.doc/i.test(el.accept)||/resume|\bcv\b/i.test(label(el)+' '+el.parentElement?.textContent)));
-  if(fields.length!==1)throw Error('Open the resume editor. Expected one resume upload control; found '+fields.length+'.');
+  const candidates=()=>[...document.querySelectorAll('input[type=file]')].filter(el=>!panel.contains(el)&&!el.disabled&&(/pdf|\.doc/i.test(el.accept)||(!/image\//i.test(el.accept)&&/resume|\bcv\b/i.test(label(el)+' '+el.parentElement?.textContent))));
+  let fields=candidates();
+  if(!fields.length){
+   const buttons=[...document.querySelectorAll('button,[role=button]')].filter(el=>visible(el)&&normalize(el.getAttribute('aria-label')||el.textContent)==='upload resume');
+   if(buttons.length!==1)throw Error('Expected one Bossjob Upload resume button; found '+buttons.length+'.');
+   report('Opening Bossjob resume uploader?');
+   // Supply the embedded PDF instead of opening the operating-system file picker.
+   const originalClick=HTMLInputElement.prototype.click;
+   HTMLInputElement.prototype.click=function(){if(this.type!=='file')return originalClick.call(this);};
+   try{
+    buttons[0].click();
+    const deadline=Date.now()+10000;
+    while(panel.isConnected&&Date.now()<deadline){guard();fields=candidates();if(fields.length)break;await new Promise(resolve=>setTimeout(resolve,100));}
+   }finally{HTMLInputElement.prototype.click=originalClick;}
+  }
+  if(fields.length!==1)throw Error('Expected one resume upload control; found '+fields.length+'. Open the resume editor and download a fresh field inspection.');
   const bytes=Uint8Array.from(atob(payload.resume),character=>character.charCodeAt(0));
   const transfer=new DataTransfer();transfer.items.add(new File([bytes],payload.filename,{type:'application/pdf'}));fields[0].files=transfer.files;
   fields[0].dispatchEvent(new Event('input',{bubbles:true}));fields[0].dispatchEvent(new Event('change',{bubbles:true}));
@@ -47,7 +61,7 @@ function bossjobHelper(payload) {
   for(const [field,value] of operations){const prototype=field.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value').set.call(field,String(value));field.dispatchEvent(new Event('input',{bubbles:true}));field.dispatchEvent(new Event('change',{bubbles:true}));}
   report('Filled '+operations.length+' fields from '+entry.label+'. Review dates and selections, then save in Bossjob.');
  }catch(error){report(error.message);}};
- inspect.onclick=()=>{try{guard();const fields=[...document.querySelectorAll('input,textarea,select,button,[role=combobox]')].filter(visible).map(el=>({tag:el.tagName,type:el.type,id:el.id,name:el.name,label:label(el),accept:el.accept,text:el.tagName==='BUTTON'?el.textContent.trim():undefined}));const url=URL.createObjectURL(new Blob([JSON.stringify(fields,null,2)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='bossjob-controls.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);report('Field inspection downloaded.');}catch(error){report(error.message);}};
+ inspect.onclick=()=>{try{guard();const fields=[...document.querySelectorAll('input,textarea,select,button,[role=combobox]')].filter(el=>!panel.contains(el)).map(el=>({tag:el.tagName,type:el.type,id:el.id,name:el.name,label:label(el),accept:el.accept,visible:visible(el),context:el.parentElement?.textContent?.trim().slice(0,300),text:el.tagName==='BUTTON'?el.textContent.trim():undefined}));const url=URL.createObjectURL(new Blob([JSON.stringify(fields,null,2)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='bossjob-controls.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);report('Field inspection downloaded.');}catch(error){report(error.message);}};
  return {source:payload.data.source,profile:payload.data.profile};
 }
 module.exports={bossjobHelper};

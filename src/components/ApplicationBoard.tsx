@@ -1,5 +1,7 @@
 'use client';
 
+import RoleFitBadge from './RoleFitBadge';
+
 import React, { useState, useEffect } from 'react';
 import { JobApplication, ApplicationStatus } from '@/types/job';
 import PriorityBadge from './PriorityBadge';
@@ -127,6 +129,7 @@ export default function ApplicationBoard({
                   {/* Notion Stage & Service Categorization Badges */}
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <StatusBadge status={app.notion_status || app.status} size="sm" />
+                      <RoleFitBadge app={app} />
                     {app.service && (
                       <span className="inline-block px-2 py-0.5 rounded-md text-[9px] font-semibold bg-stone-100 text-[#736A6D] border border-stone-200/60 truncate max-w-[120px]" title={app.service}>
                         🏷️ {app.service}

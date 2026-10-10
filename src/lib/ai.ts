@@ -112,13 +112,15 @@ export function getAIConfig() {
 export async function callGeminiJSON<T>(
   systemPrompt: string,
   userPrompt: string,
-  model?: AIModelId
+  model?: AIModelId,
+  options?: { timeoutMs?: number }
 ): Promise<T> {
   const config = getAIConfig();
   const selectedModel = model || config.defaultModel;
 
   const response = await fetch(`${config.baseUrl}/chat/completions`, {
     method: 'POST',
+    signal: options?.timeoutMs ? AbortSignal.timeout(options.timeoutMs) : undefined,
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${config.apiKey}`,

@@ -1,11 +1,16 @@
+import { getSessionAccount } from '@/lib/session-account';
+import { ownsApplication } from '@/lib/ownership';
+import { validRoleFit } from '@/lib/role-fit';
 import { NextResponse } from 'next/server';
 import { getApplications, createApplication, getOrCreateCompany, getCompanies, getApplicationById } from '@/lib/db';
 import { pushApplicationToNotion, pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
 
 export async function GET() {
   try {
+    const user = await getSessionAccount();
+    if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     let apps = await getApplications();
-    if (apps.length === 0) {
+    if (apps.length === 0 && user.notion_enabled) {
       const config = getNotionConfig();
       if (config.isConfigured) {
         const pull = await pullApplicationsFromNotion();
@@ -14,7 +19,7 @@ export async function GET() {
         }
       }
     }
-    return NextResponse.json({ success: true, data: apps });
+    return NextResponse.json({ success: true, data: apps.filter(app => ownsApplication(app, user)) });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error?.message || 'Failed to fetch applications' },
@@ -25,7 +30,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getSessionAccount();
+    if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const body = await request.json();
+    body.owner = user.id;
+    if (body.role_fit != null && !validRoleFit(body.role_fit)) return NextResponse.json({ success: false, error: 'Invalid role fit.' }, { status: 400 });
     const {
       company_name,
       company_logo,
@@ -34,11 +43,11 @@ export async function POST(request: Request) {
       status = 'LEAD',
       priority = 'MEDIUM',
       job_type = 'FULL_TIME',
-      work_model = 'REMOTE',
+      work_model = 'ON_SITE',
       location,
       salary_min,
       salary_max,
-      salary_currency = 'USD',
+      salary_currency = 'PHP',
       job_url,
       contact_name,
       contact_email,
@@ -78,6 +87,10 @@ export async function POST(request: Request) {
       company_name: company?.name || company_name.trim(),
       company_logo: company?.logo_url || company_logo,
       role_title,
+      job_description: body.job_description,
+      role_fit: body.role_fit || null,
+      role_fit_source: body.role_fit ? (body.role_fit_source === 'ai' ? 'ai' : 'manual') : null,
+      role_fit_analysis: body.role_fit_analysis || null,
       status,
       priority,
       job_type,
@@ -94,7 +107,7 @@ export async function POST(request: Request) {
       notes,
       owner: body.owner,
       source: body.source,
-      notion_status: body.notion_status,
+      notion_status: body.notion_status || (status === 'LEAD' ? 'Not started' : undefined),
       sync_status: 'PENDING',
     });
 

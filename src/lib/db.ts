@@ -1,3 +1,4 @@
+import type { PersonalPreferences } from './preferences';
 import { Company, JobApplication, UserAccount, UserRole } from '@/types/job';
 import fs from 'fs';
 import path from 'path';
@@ -9,6 +10,7 @@ const DATA_DIR = process.env.VERCEL ? path.join('/tmp', '.data') : path.join(pro
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 interface LocalDatabase {
+  profiles?: Record<string, { resume_text: string; updated_at: string; preferences?: PersonalPreferences }>;
   companies: Company[];
   applications: JobApplication[];
   users: UserAccount[];
@@ -176,7 +178,7 @@ async function initPostgresSchema(sql: any) {
         location TEXT,
         salary_min NUMERIC,
         salary_max NUMERIC,
-        salary_currency TEXT DEFAULT 'USD',
+        salary_currency TEXT DEFAULT 'PHP',
         job_url TEXT,
         source TEXT DEFAULT 'DIRECT',
         owner TEXT DEFAULT 'admin',
@@ -195,6 +197,14 @@ async function initPostgresSchema(sql: any) {
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS notion_status TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS service TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS information TEXT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS job_description TEXT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS stage_history JSONB;`;
+    await sql`ALTER TABLE applications ALTER COLUMN salary_currency SET DEFAULT 'PHP';`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS role_fit TEXT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS role_fit_source TEXT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS role_fit_analysis JSONB;`;
+    await sql`CREATE TABLE IF NOT EXISTS candidate_profiles (owner TEXT PRIMARY KEY, resume_text TEXT NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW());`;
+    await sql`ALTER TABLE candidate_profiles ADD COLUMN IF NOT EXISTS preferences JSONB;`;
     await sql`ALTER TABLE companies ADD COLUMN IF NOT EXISTS created_by TEXT;`;
 
     await sql`
@@ -497,6 +507,7 @@ export async function createApplication(
 
   const newApp: JobApplication = {
     ...data,
+    stage_history: data.stage_history || [{ status: data.status, notion_status: data.notion_status, at: now }],
     id,
     created_at: now,
     updated_at: now,
@@ -535,13 +546,13 @@ export async function createApplication(
     await initPostgresSchema(sql);
     const inserted = await sql`
       INSERT INTO applications (
-        id, company_id, company_name, company_logo, role_title, status, notion_status, service, information, priority,
+        id, company_id, company_name, company_logo, role_title, job_description, role_fit, role_fit_source, role_fit_analysis, stage_history, status, notion_status, service, information, priority,
         job_type, work_model, location, salary_min, salary_max, salary_currency,
         job_url, source, owner, contact_name, contact_email, date_applied, follow_up_date, notes,
         notion_page_id, last_synced_at, sync_status, created_at, updated_at
       ) VALUES (
         ${newApp.id}, ${newApp.company_id || null}, ${newApp.company_name}, ${newApp.company_logo || null},
-        ${newApp.role_title}, ${newApp.status}, ${newApp.notion_status || null}, ${newApp.service || null}, ${newApp.information || null},
+        ${newApp.role_title}, ${newApp.job_description || null}, ${newApp.role_fit || null}, ${newApp.role_fit_source || null}, ${JSON.stringify(newApp.role_fit_analysis || null)}::jsonb, ${JSON.stringify(newApp.stage_history || [])}::jsonb, ${newApp.status}, ${newApp.notion_status || null}, ${newApp.service || null}, ${newApp.information || null},
         ${newApp.priority}, ${newApp.job_type},
         ${newApp.work_model}, ${newApp.location || null}, ${newApp.salary_min || null},
         ${newApp.salary_max || null}, ${newApp.salary_currency}, ${newApp.job_url || null},
@@ -580,6 +591,9 @@ export async function updateApplication(
 ): Promise<JobApplication | null> {
   const saved = await getApplicationById(id);
   if (!saved) return null;
+  if ((updates.status && updates.status !== saved.status) || (updates.notion_status && updates.notion_status !== saved.notion_status)) {
+    updates = { ...updates, stage_history: [...(saved.stage_history || [{ status: saved.status, notion_status: saved.notion_status, at: saved.updated_at }]), { status: updates.status || saved.status, notion_status: updates.notion_status || saved.notion_status, at: new Date().toISOString() }] };
+  }
   if (saved.status !== 'LEAD' && updates.status === 'LEAD') {
     const merged = { ...saved, ...updates, id, updated_at: new Date().toISOString() };
     const sql = getPostgresClient();
@@ -641,6 +655,11 @@ export async function updateApplication(
         company_name = ${merged.company_name},
         company_logo = ${merged.company_logo || null},
         role_title = ${merged.role_title},
+        job_description = ${merged.job_description || null},
+        stage_history = ${JSON.stringify(merged.stage_history || [])}::jsonb,
+        role_fit = ${merged.role_fit || null},
+        role_fit_source = ${merged.role_fit_source || null},
+        role_fit_analysis = ${JSON.stringify(merged.role_fit_analysis || null)}::jsonb,
         status = ${merged.status},
         notion_status = ${merged.notion_status || null},
         service = ${merged.service || null},
@@ -651,7 +670,7 @@ export async function updateApplication(
         location = ${merged.location || null},
         salary_min = ${merged.salary_min || null},
         salary_max = ${merged.salary_max || null},
-        salary_currency = ${merged.salary_currency || 'USD'},
+        salary_currency = ${merged.salary_currency || 'PHP'},
         job_url = ${merged.job_url || null},
         source = ${merged.source || 'DIRECT'},
         owner = ${merged.owner || current.owner || 'admin'},
@@ -1002,4 +1021,26 @@ export async function deleteCustomStatus(id: string): Promise<boolean> {
   db.statuses = db.statuses.filter((s: any) => s.id !== id);
   writeLocalDb(db);
   return true;
+}
+
+export async function getCandidateProfile(owner: string): Promise<string | null> {
+  const sql = getPostgresClient();
+  if (sql) { await initPostgresSchema(sql); const rows = await sql`SELECT resume_text FROM candidate_profiles WHERE owner = ${owner};`; return rows[0]?.resume_text || null; }
+  return readLocalDb().profiles?.[owner]?.resume_text || null;
+}
+export async function saveCandidateProfile(owner: string, resumeText: string) {
+  const sql = getPostgresClient();
+  if (sql) { await initPostgresSchema(sql); await sql`INSERT INTO candidate_profiles (owner, resume_text) VALUES (${owner}, ${resumeText}) ON CONFLICT (owner) DO UPDATE SET resume_text = EXCLUDED.resume_text, updated_at = NOW();`; return; }
+  const db = readLocalDb(); db.profiles ??= {}; db.profiles[owner] = { ...db.profiles[owner], resume_text: resumeText, updated_at: new Date().toISOString() }; writeLocalDb(db);
+}
+
+export async function getCandidatePreferences(owner: string): Promise<PersonalPreferences | null> {
+  const sql = getPostgresClient();
+  if (sql) { await initPostgresSchema(sql); const rows = await sql`SELECT preferences FROM candidate_profiles WHERE owner = ${owner};`; return rows[0]?.preferences || null; }
+  return readLocalDb().profiles?.[owner]?.preferences || null;
+}
+export async function saveCandidatePreferences(owner: string, preferences: PersonalPreferences) {
+  const sql = getPostgresClient();
+  if (sql) { await initPostgresSchema(sql); await sql`INSERT INTO candidate_profiles (owner, resume_text, preferences) VALUES (${owner}, '', ${JSON.stringify(preferences)}::jsonb) ON CONFLICT (owner) DO UPDATE SET preferences = EXCLUDED.preferences, updated_at = NOW();`; return; }
+  const db = readLocalDb(); db.profiles ??= {}; db.profiles[owner] = { ...db.profiles[owner], resume_text: db.profiles[owner]?.resume_text || '', preferences, updated_at: new Date().toISOString() }; writeLocalDb(db);
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import RoleFitBadge from './RoleFitBadge';
+
 import React from 'react';
 import { JobApplication } from '@/types/job';
 import StatusBadge from './StatusBadge';
@@ -159,6 +161,7 @@ export default function ApplicationDetailModal({
                 </span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <StatusBadge status={app.notion_status || app.status} />
+                  <RoleFitBadge app={app} />
                 </div>
               </div>
               <div>
@@ -239,6 +242,14 @@ export default function ApplicationDetailModal({
               </div>
             )}
           </div>
+
+          {app.role_fit_analysis && <section className="rounded-xl border border-[#F1DDE9] bg-[#FFF5F8] p-4 text-xs space-y-2">
+            <h3 className="font-semibold text-[#9D3C5E]">Role fit assessment</h3>
+            <p>{app.role_fit_analysis.explanation}</p>
+            {app.role_fit_analysis.strengths.length > 0 && <p><strong>Experience evidence:</strong> {app.role_fit_analysis.strengths.join('; ')}</p>}
+            {app.role_fit_analysis.gaps.length > 0 && <p><strong>Requirements to address:</strong> {app.role_fit_analysis.gaps.join('; ')}</p>}
+            {app.role_fit_analysis.preference_notes && <p><strong>Preference alignment:</strong> {app.role_fit_analysis.preference_alignment?.toLowerCase()} ? {app.role_fit_analysis.preference_notes}</p>}
+          </section>}
 
           {app.information && (
             <div>

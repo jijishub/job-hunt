@@ -158,12 +158,16 @@ export default function JobLeadsView({
         const info = { filename: data.filename || file.name, pages: data.totalPages || 1 };
         setCandidatePdfInfo(info);
         if (isAdmin) setAdminPdfInfo(info);
-        if (typeof window !== 'undefined' && data.text) {
-          localStorage.setItem('candidate_resume_text', data.text);
-          localStorage.setItem('candidate_resume_name', data.filename || file.name);
+        if (data.text) {
+        const saved = await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resumeText: data.text }) });
+        if (!saved.ok) throw new Error('Resume extracted, but saving it to your account failed.');
+      }
+      if (typeof window !== 'undefined' && data.text) {
+          localStorage.setItem(`candidate_resume_text:${currentUser?.id || 'signed-out'}`, data.text);
+          localStorage.setItem(`candidate_resume_name:${currentUser?.id || 'signed-out'}`, data.filename || file.name);
           if (isAdmin) {
-            localStorage.setItem('admin_imported_resume_text', data.text);
-            localStorage.setItem('admin_imported_resume_name', data.filename || file.name);
+            localStorage.setItem(`admin_imported_resume_text:${currentUser?.id || 'signed-out'}`, data.text);
+            localStorage.setItem(`admin_imported_resume_name:${currentUser?.id || 'signed-out'}`, data.filename || file.name);
           }
         }
       } else {
@@ -184,8 +188,8 @@ export default function JobLeadsView({
     let profileText = '';
     if (useResumeContext && typeof window !== 'undefined') {
       profileText =
-        localStorage.getItem('candidate_resume_text') ||
-        localStorage.getItem('admin_imported_resume_text') ||
+        localStorage.getItem(`candidate_resume_text:${currentUser?.id || 'signed-out'}`) ||
+        localStorage.getItem(`admin_imported_resume_text:${currentUser?.id || 'signed-out'}`) ||
         (portfolioData ? JSON.stringify(portfolioData) : '') ||
         '';
     }
@@ -252,8 +256,8 @@ export default function JobLeadsView({
     }
     if (typeof window !== 'undefined') {
       const savedName =
-        localStorage.getItem('candidate_resume_name') ||
-        localStorage.getItem('admin_imported_resume_name');
+        localStorage.getItem(`candidate_resume_name:${currentUser?.id || 'signed-out'}`) ||
+        localStorage.getItem(`admin_imported_resume_name:${currentUser?.id || 'signed-out'}`);
       if (savedName) {
         setCandidatePdfInfo({ filename: savedName, pages: 1 });
         if (isAdmin) {

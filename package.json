@@ -23,7 +23,9 @@
     "rpa:jobstreet:watch": "node scripts/jobstreet_sync.cjs --watch",
     "test:jobstreet": "node --test scripts/test_jobstreet.cjs scripts/test_jobstreet_sequence.cjs scripts/test_jobstreet_recipe.cjs",
     "rpa:bossjob": "node scripts/bossjob_sync.cjs",
-    "rpa:bossjob:prepare": "node scripts/bossjob_sync.cjs --prepare"
+    "rpa:bossjob:prepare": "node scripts/bossjob_sync.cjs --prepare",
+    "test:pipeline": "node --test scripts/test_pipeline.cjs",
+    "test:pipeline:ui": "node --test scripts/test_pipeline_ui.cjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",

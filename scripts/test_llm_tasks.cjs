@@ -44,3 +44,16 @@ test('Bossjob main-session helper fills labeled fields and supplies exact resume
   await page.getByRole('button',{name:'Fill open editor',exact:true}).click();assert.equal(await page.locator('#name').inputValue(),'Unchanged');assert.match(await page.locator('#bossjob-helper').innerText(),/Ambiguous field/);
  }finally{await browser.close();}
 });
+
+test('Bossjob helper opens the inspected Upload resume button and fills its hidden PDF input',async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ try{
+  const page=await browser.newPage();await page.route('https://bossjob.ph/**',route=>route.fulfill({contentType:'text/html',body:'<button id="open-upload" type="submit">Upload resume</button><script>document.querySelector("button").onclick=()=>{const input=document.createElement("input");input.type="file";input.accept=".pdf,.docx";input.hidden=true;document.body.append(input);input.click();};</script>'}));
+  await page.goto('https://bossjob.ph/en-us/manage-profile');
+  await page.evaluate(bossjobHelper,{data:{source:{path:'active.pdf'},profile:{personal:{},experience:[],education:[]}},resume:Buffer.from('%PDF-active').toString('base64'),filename:'active.pdf'});
+  let fileChoosers=0;page.on('filechooser',()=>fileChoosers++);
+  await page.getByRole('button',{name:'Upload active resume',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('input[type=file]')?.files?.length===1);
+  assert.equal(await page.locator('input[type=file]').evaluate(field=>field.files[0].name),'active.pdf');assert.equal(fileChoosers,0);
+ }finally{await browser.close();}
+});

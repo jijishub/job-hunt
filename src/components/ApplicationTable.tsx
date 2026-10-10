@@ -1,5 +1,7 @@
 'use client';
 
+import RoleFitBadge from './RoleFitBadge';
+
 import React from 'react';
 import { JobApplication } from '@/types/job';
 import StatusBadge from './StatusBadge';
@@ -51,6 +53,7 @@ export default function ApplicationTable({
               <th className="py-3 px-4 w-[28%]">ROLE & POSITION</th>
               <th className="py-3 px-4 w-[20%]">COMPANY</th>
               <th className="py-3 px-4 w-[14%]">STATUS</th>
+              <th className="py-3 px-4">ROLE FIT</th>
               <th className="py-3 px-4 w-[12%]">PRIORITY</th>
               <th className="py-3 px-4 w-[14%]">WORK MODEL</th>
               <th className="py-3 px-4 w-[12%]">DATE APPLIED</th>
@@ -133,13 +136,14 @@ export default function ApplicationTable({
                     <StatusBadge status={app.notion_status || app.status} size="sm" />
                   </td>
 
+                  <td className="py-3 px-4"><RoleFitBadge app={app} /></td>
                   <td className="py-3.5 px-4">
                     <PriorityBadge priority={app.priority} size="sm" />
                   </td>
 
                   <td className="py-3.5 px-4 text-[#736A6D]">
                     <div className="flex items-center gap-1 font-medium capitalize">
-                      {app.work_model.toLowerCase()}
+                      {app.work_model.toLowerCase().replace('_', '-')}
                     </div>
                     {app.location && (
                       <div className="flex items-center gap-0.5 text-[11px] text-[#736A6D]/80 mt-0.5 truncate max-w-[140px]">
