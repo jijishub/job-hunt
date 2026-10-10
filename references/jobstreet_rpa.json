@@ -1,0 +1,224 @@
+{
+  "schema_version": 2,
+  "mapping_status": "Openers and field/control names observed in live reports; full sync not yet verified",
+  "tasks": [
+    {
+      "name": "Update personal name",
+      "open": {
+        "button": "Edit personal details"
+      },
+      "editor_selector": "#personal-details-form-drawer",
+      "steps": [
+        {
+          "action": "fill",
+          "label": "First name",
+          "data": "profile.personal.first_name"
+        },
+        {
+          "action": "fill",
+          "label": "Last name",
+          "data": "profile.personal.last_name"
+        }
+      ],
+      "save": {
+        "button": "Save"
+      }
+    },
+    {
+      "name": "Update career entry",
+      "for_each": "profile.experience",
+      "open": {
+        "entry_ids": {
+          "Junior Forward-Deployed Engineer": "edit-role-77703460-d125-4267-9883-da8ed84754d5",
+          "IT Specialist Intern (AI Product & Growth Trainee)": "edit-role-cc347b11-38a9-4e39-9f67-85fcf7bb5130",
+          "Core Systems Delivery Intern": "edit-role-2f410983-3ed7-44dd-9f2e-19422a54d0d6",
+          "Founder & Digital Product Freelancer": "edit-role-df42c8ab-6c0d-4be3-a1e8-d6252baa28eb"
+        },
+        "section": "Career history",
+        "match_data": [
+          "profile.experience.$index.title",
+          "profile.experience.$index.company"
+        ],
+        "button": "Edit"
+      },
+      "steps": [
+        {
+          "action": "fill",
+          "selector": "#title",
+          "data": "profile.experience.$index.title"
+        },
+        {
+          "action": "fill",
+          "selector": "#company",
+          "data": "profile.experience.$index.company"
+        },
+        {
+          "action": "fill",
+          "selector": "#achievements",
+          "data": "profile.experience.$index.description"
+        },
+        {
+          "action": "select",
+          "label": "Month",
+          "index": 0,
+          "data": "profile.experience.$index.start_date",
+          "format": "month_number"
+        },
+        {
+          "action": "select",
+          "label": "Year",
+          "index": 0,
+          "data": "profile.experience.$index.start_date",
+          "format": "year"
+        },
+        {
+          "action": "select",
+          "label": "Month",
+          "index": 1,
+          "data": "profile.experience.$index.end_date",
+          "format": "month_number",
+          "when": "profile.experience.$index.end_date"
+        },
+        {
+          "action": "select",
+          "label": "Year",
+          "index": 1,
+          "data": "profile.experience.$index.end_date",
+          "format": "year",
+          "when": "profile.experience.$index.end_date"
+        }
+      ],
+      "save": {
+        "button": "Save role"
+      },
+      "expected_by_entry": {
+        "Junior Forward-Deployed Engineer": {
+          "selector": "#title",
+          "values": [
+            "Forward Deployed Engineer",
+            "Junior Forward-Deployed Engineer"
+          ]
+        },
+        "IT Specialist Intern (AI Product & Growth Trainee)": {
+          "selector": "#title",
+          "values": [
+            "Information Technology Specialist Intern (AI Product & Growth Trainee)",
+            "IT Specialist Intern (AI Product & Growth Trainee)"
+          ]
+        },
+        "Core Systems Delivery Intern": {
+          "selector": "#title",
+          "values": [
+            "Core Systems Delivery Intern"
+          ]
+        },
+        "Founder & Digital Product Freelancer": {
+          "selector": "#title",
+          "values": [
+            "Digital Product Freelancer",
+            "Founder & Digital Product Freelancer"
+          ]
+        }
+      },
+      "prepare": [
+        {
+          "action": "check",
+          "selector": "#stillInRole",
+          "data": "profile.experience.$index.current"
+        }
+      ]
+    },
+    {
+      "name": "Update education entry",
+      "for_each": "profile.education",
+      "open": {
+        "entry_ids": {
+          "POLYTECHNIC UNIVERSITY OF THE PHILIPPINES - PARAÑAQUE CITY CAMPUS (PUPPQ)": "edit-qualification-713d0823-9849-4f6c-a23d-918d6a7fce54"
+        },
+        "section": "Education",
+        "match_data": [
+          "profile.education.$index.institution"
+        ],
+        "button": "Edit"
+      },
+      "steps": [
+        {
+          "action": "fill",
+          "selector": "#institute",
+          "data": "profile.education.$index.institution"
+        },
+        {
+          "action": "fill",
+          "selector": "#name",
+          "data": "profile.education.$index.qualification"
+        },
+        {
+          "action": "fill",
+          "selector": "#highlights",
+          "data": "profile.education.$index.description"
+        },
+        {
+          "action": "select",
+          "selector": "#completionDate",
+          "data": "profile.education.$index.end_year"
+        }
+      ],
+      "save": {
+        "button": "Save education"
+      },
+      "expected_by_entry": {
+        "POLYTECHNIC UNIVERSITY OF THE PHILIPPINES - PARAÑAQUE CITY CAMPUS (PUPPQ)": {
+          "selector": "#name",
+          "values": [
+            "Bachelor of Science (Information Technology)",
+            "Bachelor of Science in Information Technology"
+          ]
+        }
+      },
+      "prepare": [
+        {
+          "action": "check",
+          "selector": "#completed",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "Upload current resume",
+      "open": {
+        "button_prefix": "Add or manage resumés"
+      },
+      "steps": [
+        {
+          "action": "check",
+          "selector": "#defaultResume",
+          "value": true
+        },
+        {
+          "action": "upload",
+          "selector": "input[type=file]"
+        }
+      ],
+      "complete": {
+        "scope_selector": "#resume-form-drawer",
+        "text": "$filename"
+      },
+      "editor_selector": "#resume-form-drawer",
+      "after": {
+        "button": "Done"
+      }
+    },
+    {
+      "name": "Update professional summary",
+      "open": { "selector": "#editPersonalSummary" },
+      "steps": [
+        {
+          "action": "fill",
+          "selector": "textarea",
+          "value": "BS Information Technology Cum Laude graduate with professional experience specializing in full-stack deployments, enterprise RAG systems, and AI automation in client-facing roles. Proven track record of executing rapid delivery cycles alongside executives to modernize corporate tech stacks, accelerate client workflows, and reduce operational costs. Founder of a digital product brand with 15,000+ downloads worldwide."
+        }
+      ],
+      "save": { "button": ["Save summary", "Save"] }
+    }
+  ]
+}
