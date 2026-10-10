@@ -1,28 +1,26 @@
+import { getSessionAccount } from '@/lib/session-account';
+import { ownsApplication } from '@/lib/ownership';
 import { NextResponse } from 'next/server';
 import { getCompanies, getOrCreateCompany, getApplications, updateCompany, deleteCompany } from '@/lib/db';
 import { pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userParam = searchParams.get('user') || undefined;
-    const roleParam = searchParams.get('role');
-    const adminEmail = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
-    const isAdmin =
-      roleParam === 'admin' ||
-      userParam === 'jizellecasia@gmail.com' ||
-      userParam === 'jizelle.casia@gmail.com' ||
-      userParam === adminEmail;
-
-    let companies = await getCompanies(userParam, isAdmin);
-    let applications = await getApplications();
-
+    const user = await getSessionAccount();
+    if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
+    const userParam = user.email;
+    const isAdmin = user.role === 'admin';
+    let companies = await getCompanies();
+    let applications = (await getApplications()).filter(app => ownsApplication(app, user));
+    companies = companies.filter(company => applications.some(app => app.company_id === company.id)
+      || company.created_by === user.id || company.created_by?.toLowerCase() === user.email.toLowerCase()
+      || (user.id === 'user_ji' && !company.created_by));
     if (companies.length === 0 && applications.length === 0 && isAdmin) {
       const config = getNotionConfig();
       if (config.isConfigured) {
         await pullApplicationsFromNotion();
-        companies = await getCompanies(userParam, isAdmin);
-        applications = await getApplications();
+        companies = (await getCompanies()).filter(company => company.created_by === user.id || company.created_by === user.email || (user.id === 'user_ji' && !company.created_by));
+        applications = (await getApplications()).filter(app => ownsApplication(app, user));
       }
     }
 
@@ -44,12 +42,14 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const user = await getSessionAccount();
+    if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const { name, logo_url, website, industry, created_by } = await request.json();
     if (!name || !name.trim()) {
       return NextResponse.json({ success: false, error: 'Company name is required' }, { status: 400 });
     }
 
-    const company = await getOrCreateCompany(name, logo_url, website, created_by);
+    const company = await getOrCreateCompany(name, logo_url, website, user.id);
     if (industry) {
       await updateCompany(company.id, { industry });
     }
@@ -62,10 +62,18 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const user = await getSessionAccount();
+    if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) {
       return NextResponse.json({ success: false, error: 'Company ID is required' }, { status: 400 });
+    }
+    const company = (await getCompanies()).find(company => company.id === id);
+    const apps = (await getApplications()).filter(app => app.company_id === id);
+    if (!company || apps.some(app => !ownsApplication(app, user))
+      || (!apps.length && company.created_by !== user.id && company.created_by !== user.email && !(user.id === 'user_ji' && !company.created_by))) {
+      return NextResponse.json({ success: false, error: 'This company is shared or belongs to another account.' }, { status: 403 });
     }
     await deleteCompany(id);
     return NextResponse.json({ success: true });

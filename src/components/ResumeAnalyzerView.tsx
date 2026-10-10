@@ -131,9 +131,13 @@ export default function ResumeAnalyzerView({
         fileSize: data.fileSize || file.size,
         totalPages: data.totalPages || 1,
       });
+      if (data.text) {
+        const saved = await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resumeText: data.text }) });
+        if (!saved.ok) throw new Error('Resume extracted, but saving it to your account failed.');
+      }
       if (typeof window !== 'undefined' && data.text) {
-        localStorage.setItem('candidate_resume_text', data.text);
-        localStorage.setItem('candidate_resume_name', data.filename || file.name);
+        localStorage.setItem(`candidate_resume_text:${(session?.user as any)?.id || 'signed-out'}`, data.text);
+        localStorage.setItem(`candidate_resume_name:${(session?.user as any)?.id || 'signed-out'}`, data.filename || file.name);
       }
     } catch (err: any) {
       console.error('PDF upload error:', err);

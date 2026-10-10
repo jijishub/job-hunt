@@ -1,0 +1,84 @@
+### Summary: Why 150+ job applications aren't getting responses
+
+A recruiter with 11 years of experience argues that the problem isn't always your résumé—it's often your job targeting strategy.
+
+1\. Categorize your applications by fit.
+
+- Strong fit: You already have most of the required experience.
+- Possible fit: You're qualified but would need to demonstrate transferable skills.
+- Weak fit: You don't meet several important requirements.
+
+2\. Identify where your applications fail.
+
+| Application stage              | Likely problem                                      |
+| ------------------------------ | --------------------------------------------------- |
+| Almost no responses            | Job targeting or résumé                             |
+| Recruiter screening only       | Self-introduction, salary expectations              |
+| Interviews but no final rounds | Technical skills or experience mismatch             |
+| Final rounds but no offer      | Competition, compensation, or interview performance |
+
+3\. Stop endlessly rewriting your résumé. If you're already getting interviews, your résumé is doing its job. Focus on interview performance instead.
+
+4\. Track your applications. Use a spreadsheet to record job titles, qualifications, résumé versions, referrals, and recruitment outcomes. Look for patterns.
+
+5\. Prioritize relevance over volume. Applying to 30 positions you're strongly qualified for may be more productive than applying to 300 loosely related positions.
+
+6\. Maintain a master résumé. Create targeted versions for different job categories instead of rewriting everything for every application.
+
+7\. Consider hiring seasonality. The recruiter observes that hiring can slow during the holidays, with some companies preparing January recruitment in December.
+
+### Main takeaway
+
+Optimize your job-search conversion rate, not your application count.
+
+Treat job hunting like a funnel: measure which stage loses opportunities, identify the likely cause, and improve that specific stage.
+
+One important caveat: this is a recruiter's practical advice, not a statistically validated study. External factors like hiring freezes and competition can also affect outcomes.
+
+Source: [Original Reddit discussion](https://www.reddit.com/r/JobSearchAndResumes/comments/1wz9euz/what_i_tell_candidates_who_say_ive_sent_150/).
+
+---
+
+### Summary: Job search tips after wasting 6 months
+
+The author spent months sending 10–15 applications daily, believing more applications meant better chances. After tracking the results, they realized that many applications were poorly matched and wasted time.
+
+1\. Read job responsibilities before qualifications. Meeting the minimum requirements doesn't necessarily mean you're a strong candidate. Your actual experience should match the day-to-day work.
+
+2\. Categorize jobs by fit and adjust your effort.
+
+| Job fit                 | Time investment | Strategy                         |
+| ----------------------- | --------------- | -------------------------------- |
+| Strong fit + interested | 30–45 minutes   | Tailor résumé, contact employees |
+| Possible fit            | 10–15 minutes   | Make quick résumé adjustments    |
+| Weak fit                | Skip            | Avoid stretching qualifications  |
+
+3\. Maintain a master résumé. Keep all your skills, projects, accomplishments, and measurable results in one document. Tailor copies by rearranging relevant information, not rewriting everything.
+
+4\. Track interview conversion, not application volume. Record the company, position, fit category, referral status, and furthest recruitment stage reached.
+
+5\. Analyze patterns after several weeks. The author suggests that around 60+ applications can reveal useful trends, although this isn't a scientifically established threshold.
+
+6\. Spend more time selecting opportunities. Finding hundreds of job postings is easy. Identifying positions worth applying to is the more valuable skill.
+
+7\. Use AI tools carefully. The author mentions CVnomist for résumé matching, but emphasizes reviewing the output and never fabricating qualifications.&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://www.reddit.com\&sz=32)
+
+Reddit
+
+
+
+### Main takeaway
+
+Job searching is an optimization problem, not a volume competition.
+
+Measure how effectively your applications convert into interviews and offers, then allocate more time to opportunities with better results.
+
+### How this compares with the previous Reddit post
+
+Both posts emphasize the same principles: targeted applications, reusable résumés, recruitment-stage tracking, and data-driven adjustments.
+
+The difference is that the previous post focuses on diagnosing why applications fail, while this one focuses on allocating your time efficiently before applying.
+
+Together, they suggest a practical approach: Target → Tailor → Apply → Track → Analyze → Improve.

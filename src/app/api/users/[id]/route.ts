@@ -1,3 +1,4 @@
+import { getSessionAccount } from '@/lib/session-account';
 import { NextResponse } from 'next/server';
 import { updateUser, deleteUser, getUserById } from '@/lib/db';
 
@@ -6,7 +7,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const account = await getSessionAccount();
+    if (!account) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const { id } = await params;
+    if (account.role !== 'admin' && account.id !== id) return NextResponse.json({ success: false, error: 'User not found.' }, { status: 404 });
     const user = await getUserById(id);
     if (!user) {
       return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
@@ -22,7 +26,10 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const account = await getSessionAccount();
+    if (!account) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const { id } = await params;
+    if (account.role !== 'admin') return NextResponse.json({ success: false, error: 'Admin access required.' }, { status: 403 });
     const body = await req.json();
     const updated = await updateUser(id, body);
     if (!updated) {
@@ -39,7 +46,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const account = await getSessionAccount();
+    if (!account) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const { id } = await params;
+    if (account.role !== 'admin') return NextResponse.json({ success: false, error: 'Admin access required.' }, { status: 403 });
     const success = await deleteUser(id);
     return NextResponse.json({ success });
   } catch (error: any) {

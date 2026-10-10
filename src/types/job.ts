@@ -1,3 +1,6 @@
+export type RoleFit = 'STRONG' | 'POSSIBLE' | 'WEAK';
+export interface RoleFitAnalysis { preference_alignment?: 'ALIGNED' | 'MIXED' | 'MISALIGNED' | 'UNKNOWN'; preference_notes?: string; fit: RoleFit; explanation: string; strengths: string[]; gaps: string[]; analyzed_at: string; }
+
 export type ApplicationStatus =
   | 'LEAD'
   | 'APPLIED'
@@ -32,7 +35,12 @@ export interface JobApplication {
   company_id: string;
   company_name: string;
   company_logo?: string;
+  stage_history?: { status: ApplicationStatus; notion_status?: string; at: string }[];
   role_title: string;
+  job_description?: string;
+  role_fit?: RoleFit | null;
+  role_fit_source?: 'manual' | 'ai' | null;
+  role_fit_analysis?: RoleFitAnalysis | null;
   status: ApplicationStatus;
   notion_status?: string;
   service?: string;

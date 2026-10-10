@@ -19,6 +19,7 @@ import { JobApplication, UserAccount } from '@/types/job';
 interface HeaderProps {
   applications?: JobApplication[];
   onNewApp: () => void;
+  onOpenPreferences: () => void;
   onOpenNotionSettings: () => void;
   onSyncNotion: () => void;
   isSyncing: boolean;
@@ -31,6 +32,7 @@ interface HeaderProps {
 
 export default function Header({
   onNewApp,
+  onOpenPreferences,
   onOpenNotionSettings,
   onSyncNotion,
   isSyncing,
@@ -154,6 +156,8 @@ export default function Header({
               </button>
             </>
           )}
+
+          <button type="button" onClick={onOpenPreferences} className="inline-flex items-center gap-1.5 rounded-xl border border-[#F1DDE9] bg-white px-3 py-2 text-xs font-semibold text-[#9D3C5E]"><Settings className="w-3.5 h-3.5" />My preferences</button>
 
           {/* New Application CTA */}
           <button

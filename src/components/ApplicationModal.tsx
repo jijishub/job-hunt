@@ -1,5 +1,10 @@
 'use client';
 
+import CandidateProfileEditor from './CandidateProfileEditor';
+import { ROLE_FITS } from '@/lib/role-fit';
+import { parseJobImport, JOB_JSON_PROMPT } from '@/lib/job-import';
+import type { RoleFit, RoleFitAnalysis } from '@/types/job';
+
 import ImageDropzone from './ImageDropzone';
 
 import React, { useState, useEffect } from 'react';
@@ -90,19 +95,27 @@ export default function ApplicationModal({
   currentUserId,
 }: ApplicationModalProps) {
   const [roleTitle, setRoleTitle] = useState('');
+  const [jobDescription, setJobDescription] = useState('');
+  const [roleFit, setRoleFit] = useState<RoleFit | null>(null);
+  const [fitAnalysis, setFitAnalysis] = useState<RoleFitAnalysis | null>(null);
+  const [autoFit, setAutoFit] = useState(true);
+  const [fitError, setFitError] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importMessage, setImportMessage] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [customLogoUrl, setCustomLogoUrl] = useState('');
   const [status, setStatus] = useState<ApplicationStatus>('LEAD');
   const [priority, setPriority] = useState<Priority>('MEDIUM');
   const [jobType, setJobType] = useState<JobType>('FULL_TIME');
-  const [workModel, setWorkModel] = useState<WorkModel>('REMOTE');
+  const [workModel, setWorkModel] = useState<WorkModel>('ON_SITE');
   const [location, setLocation] = useState('');
   const [service, setService] = useState('');
-  const [notionStatus, setNotionStatus] = useState('');
+  const [notionStatus, setNotionStatus] = useState('Not started');
   const [information, setInformation] = useState('');
   const [salaryMin, setSalaryMin] = useState<string>('');
   const [salaryMax, setSalaryMax] = useState<string>('');
-  const [salaryCurrency, setSalaryCurrency] = useState('USD');
+  const [salaryCurrency, setSalaryCurrency] = useState('PHP');
   const [jobUrl, setJobUrl] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -132,6 +145,11 @@ export default function ApplicationModal({
   }, [isOpen]);
 
   useEffect(() => {
+    setJobDescription(initialData?.job_description || '');
+    setRoleFit(initialData?.role_fit || null);
+    setFitAnalysis(initialData?.role_fit_analysis || null);
+    setAutoFit(initialData?.role_fit_source !== 'manual');
+    setFitError(''); setImportOpen(false); setImportText(''); setImportMessage('');
     if (initialData) {
       setRoleTitle(initialData.role_title || '');
       setCompanyName(initialData.company_name || '');
@@ -146,11 +164,11 @@ export default function ApplicationModal({
       setInformation(initialData.information || '');
       setPriority(initialData.priority || 'MEDIUM');
       setJobType(initialData.job_type || 'FULL_TIME');
-      setWorkModel(initialData.work_model || 'REMOTE');
+      setWorkModel(initialData.work_model || 'ON_SITE');
       setLocation(initialData.location || '');
       setSalaryMin(initialData.salary_min ? String(initialData.salary_min) : '');
       setSalaryMax(initialData.salary_max ? String(initialData.salary_max) : '');
-      setSalaryCurrency(initialData.salary_currency || 'USD');
+      setSalaryCurrency(initialData.salary_currency || 'PHP');
       setJobUrl(initialData.job_url || '');
       setContactName(initialData.contact_name || '');
       setContactEmail(initialData.contact_email || '');
@@ -161,17 +179,17 @@ export default function ApplicationModal({
       setRoleTitle('');
       setCompanyName('');
       setCustomLogoUrl('');
-      setNotionStatus('Applied - With MOA');
-      setStatus('APPLIED');
+      setNotionStatus('Not started');
+      setStatus('LEAD');
       setService('');
       setInformation('');
       setPriority('MEDIUM');
       setJobType('FULL_TIME');
-      setWorkModel('REMOTE');
+      setWorkModel('ON_SITE');
       setLocation('');
       setSalaryMin('');
       setSalaryMax('');
-      setSalaryCurrency('USD');
+      setSalaryCurrency('PHP');
       setJobUrl('');
       setContactName('');
       setContactEmail('');
@@ -193,13 +211,48 @@ export default function ApplicationModal({
     c.name.toLowerCase().includes(companyName.toLowerCase())
   );
 
+  const applyJobJson = () => {
+    try {
+      const job = parseJobImport(importText);
+      if (job.role_title) { if (job.role_title !== roleTitle && !job.job_description) setJobDescription(''); setRoleTitle(job.role_title); }
+      if (job.company_name) setCompanyName(job.company_name);
+      if (job.job_description) setJobDescription(job.job_description);
+      if (job.location) setLocation(job.location);
+      if (job.work_model) setWorkModel(job.work_model);
+      if (job.job_type) setJobType(job.job_type);
+      if (job.salary_min != null) setSalaryMin(String(job.salary_min));
+      if (job.salary_max != null) setSalaryMax(String(job.salary_max));
+      if (job.salary_currency) setSalaryCurrency(job.salary_currency);
+      if (job.job_url) setJobUrl(job.job_url);
+      setFitAnalysis(null); setRoleFit(null); setAutoFit(true);
+      setImportMessage('Job fields filled in the draft. Review them before saving. No application has been created yet.');
+    } catch (error) { setImportMessage(error instanceof Error ? error.message : 'JSON import failed.'); }
+  };
+
+  const analyzeFit = async () => {
+    const response = await fetch('/api/role-fit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roleTitle, jobDescription, jobFacts: { company: companyName, location, work_model: workModel, job_type: jobType, salary_min: salaryMin ? Number(salaryMin) : undefined, salary_max: salaryMax ? Number(salaryMax) : undefined, salary_currency: salaryCurrency } }) });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.error || 'Role fit analysis failed.');
+    setRoleFit(result.data.fit); setFitAnalysis(result.data); setFitError('');
+    return result.data as RoleFitAnalysis;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!roleTitle.trim() || !companyName.trim()) return;
 
     setIsSubmitting(true);
     try {
+      let assessment = fitAnalysis;
+      if (autoFit && jobDescription.trim().length < 30 && (initialData?.job_description !== jobDescription || initialData?.role_title !== roleTitle)) assessment = null;
+      if (autoFit && jobDescription.trim().length >= 30 && (!assessment || initialData?.job_description !== jobDescription || initialData?.role_title !== roleTitle)) {
+        assessment = await analyzeFit();
+      }
       await onSave({
+        job_description: jobDescription.trim(),
+        role_fit: autoFit ? assessment?.fit || null : roleFit,
+        role_fit_source: autoFit ? (assessment ? 'ai' : null) : (roleFit ? 'manual' : null),
+        role_fit_analysis: autoFit ? assessment : null,
         role_title: roleTitle.trim(),
         company_name: companyName.trim(),
         company_logo: customLogoUrl || undefined,
@@ -223,7 +276,7 @@ export default function ApplicationModal({
       });
       onClose();
     } catch (err) {
-      console.error(err);
+      setFitError(err instanceof Error ? err.message : 'Save failed.');
     } finally {
       setIsSubmitting(false);
     }
@@ -376,7 +429,8 @@ export default function ApplicationModal({
 
               {!isAddingCustomStatus ? (
                 <select
-                  value={notionStatus || 'Applied - With MOA'}
+                  aria-label="Application stage"
+                  value={notionStatus || 'Not started'}
                   onChange={(e) => {
                     const chosen = e.target.value;
                     setNotionStatus(chosen);
@@ -456,6 +510,7 @@ export default function ApplicationModal({
                 Work Model
               </label>
               <select
+                aria-label="Work model"
                 value={workModel}
                 onChange={(e) => setWorkModel(e.target.value as WorkModel)}
                 className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
@@ -596,6 +651,30 @@ export default function ApplicationModal({
               className="w-full px-3.5 py-2.5 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs text-[#4A3E44] placeholder-stone-400 transition"
             />
           </div>
+
+          <section className="space-y-3 rounded-xl border border-[#F1DDE9] p-3 bg-[#FFF5F8]">
+            <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-xs text-[#9D3C5E]">Job requirements and fit</h3><button type="button" onClick={() => setImportOpen(!importOpen)} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E]">Import job JSON</button></div>
+            {importOpen && <div className="space-y-2 rounded-xl border border-[#F1DDE9] bg-white p-3">
+              <p className="text-xs text-[#736A6D]">Ask Gemini to extract the job posting, then paste its JSON here. This fills your draft for review.</p>
+              <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(JOB_JSON_PROMPT); setImportMessage('Gemini prompt copied. Paste it with the job posting in Gemini.'); } catch { setImportMessage(JOB_JSON_PROMPT); } }} className="text-xs font-semibold text-[#9D3C5E]">Copy Gemini extraction prompt</button>
+              <textarea aria-label="Job posting JSON" rows={5} className="w-full rounded-lg border border-[#F1DDE9] p-2 text-xs font-mono" value={importText} onChange={event => setImportText(event.target.value)} placeholder={'{"role_title":"Developer","company_name":"Example","description":"...","qualifications":["TypeScript"],"location":"Makati","work_model":"ON_SITE","job_type":"FULL_TIME","salary_currency":"PHP"}'} />
+              <button type="button" onClick={applyJobJson} className="rounded-lg bg-[#9D3C5E] px-3 py-2 text-xs text-white">Fill draft from JSON</button>
+              {importMessage && <p role="status" className="text-xs text-[#9D3C5E]">{importMessage}</p>}
+            </div>}
+            <label className="block text-xs font-semibold text-[#9D3C5E]">Job requirements
+              <textarea aria-label="Job requirements" rows={4} value={jobDescription} onChange={event => setJobDescription(event.target.value)} placeholder="Paste the actual job description, required skills, and experience. A job title alone is not enough to assess fit." className="mt-1 w-full rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs font-normal" />
+            </label>
+            <label className="block text-xs font-semibold">Role fit
+              <select aria-label="Role fit" value={autoFit ? 'AUTO' : roleFit || 'UNASSESSED'} onChange={event => { setAutoFit(event.target.value === 'AUTO'); if (event.target.value !== 'AUTO') setRoleFit(event.target.value === 'UNASSESSED' ? null : event.target.value as RoleFit); }} className="ml-2 rounded-lg border border-[#F1DDE9] bg-white p-2">
+                <option value="AUTO">AI assessment (default)</option><option value="UNASSESSED">Leave unassessed</option>{ROLE_FITS.map(fit => <option key={fit.value} value={fit.value}>{fit.label}</option>)}
+              </select>
+            </label>
+            <p className="text-xs text-[#736A6D]">{autoFit ? 'Analyzes on save when your resume and job requirements are available. Otherwise saved as unassessed.' : (ROLE_FITS.find(fit => fit.value === roleFit)?.description || 'No rating yet. You can assess this role later in Analytics.')}</p>
+            {fitAnalysis && autoFit && <p className="text-xs text-[#9D3C5E]">{ROLE_FITS.find(fit => fit.value === fitAnalysis.fit)?.label}: {fitAnalysis.explanation}{fitAnalysis.preference_notes ? ` Preferences: ${fitAnalysis.preference_notes}` : ''}</p>}
+            <button type="button" disabled={isSubmitting || jobDescription.trim().length < 30} onClick={async () => { setIsSubmitting(true); setFitError(''); try { await analyzeFit(); setAutoFit(true); } catch (error) { setFitError(error instanceof Error ? error.message : 'Analysis failed.'); } finally { setIsSubmitting(false); } }} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E] disabled:opacity-50">Reanalyze role fit</button>
+            <CandidateProfileEditor />
+            {fitError && <p role="alert" className="text-xs text-rose-700">{fitError} Select a manual fit or leave this role unassessed and retry.</p>}
+          </section>
 
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#F1DDE9]">
             <button
