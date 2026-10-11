@@ -321,6 +321,101 @@ export default function ApplicationModal({
                 onChange={(e) => setRoleTitle(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] focus:ring-2 focus:ring-[#FF7AB3]/20 text-[#4A3E44] placeholder-stone-400 transition"
               />
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider">
+                      Status
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingCustomStatus(!isAddingCustomStatus)}
+                      className="text-[11px] font-semibold text-[#FF7AB3] hover:text-[#9D3C5E] transition"
+                    >
+                      {isAddingCustomStatus ? 'Cancel' : '+ Add Option'}
+                    </button>
+                  </div>
+
+                  {!isAddingCustomStatus ? (
+                    <select
+                      aria-label="Application stage"
+                      value={notionStatus || 'Not started'}
+                      onChange={(e) => {
+                        const chosen = e.target.value;
+                        setNotionStatus(chosen);
+                        setStatus(getStatusCategory(chosen));
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
+                    >
+                      {statusOptions.map((opt) => (
+                        <option key={opt.id || opt.name} value={opt.name}>
+                          {opt.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="New status..."
+                        value={newStatusInput}
+                        onChange={(e) => setNewStatusInput(e.target.value)}
+                        className="flex-1 px-2.5 py-1.5 rounded-xl border border-[#FF7AB3] text-xs text-[#4A3E44] focus:outline-none bg-white min-w-0"
+                      />
+                      <button
+                        type="button"
+                        disabled={isSavingStatus || !newStatusInput.trim()}
+                        onClick={async () => {
+                          if (!newStatusInput.trim()) return;
+                          setIsSavingStatus(true);
+                          try {
+                            const res = await fetch('/api/statuses', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ name: newStatusInput.trim() }),
+                            });
+                            const data = await res.json();
+                            if (data.success && data.data) {
+                              const newOpt = data.data;
+                              setStatusOptions((prev) => [...prev, newOpt]);
+                              setNotionStatus(newOpt.name);
+                              setStatus(getStatusCategory(newOpt.name));
+                              setNewStatusInput('');
+                              setIsAddingCustomStatus(false);
+                            }
+                          } catch (err) {
+                            console.error('Failed to save status:', err);
+                          } finally {
+                            setIsSavingStatus(false);
+                          }
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-[#FF7AB3] text-white text-xs font-bold hover:bg-[#F06292] transition disabled:opacity-50 shrink-0"
+                      >
+                        {isSavingStatus ? '...' : 'Add'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
+                    Priority
+                  </label>
+                  <select
+                    aria-label="Priority"
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value as Priority)}
+                    className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
+                  >
+                    {PRIORITY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+              </div>
             </div>
 
             <div className="relative">
@@ -414,99 +509,7 @@ export default function ApplicationModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider">
-                  Status
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsAddingCustomStatus(!isAddingCustomStatus)}
-                  className="text-[11px] font-semibold text-[#FF7AB3] hover:text-[#9D3C5E] transition"
-                >
-                  {isAddingCustomStatus ? 'Cancel' : '+ Add Option'}
-                </button>
-              </div>
-
-              {!isAddingCustomStatus ? (
-                <select
-                  aria-label="Application stage"
-                  value={notionStatus || 'Not started'}
-                  onChange={(e) => {
-                    const chosen = e.target.value;
-                    setNotionStatus(chosen);
-                    setStatus(getStatusCategory(chosen));
-                  }}
-                  className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
-                >
-                  {statusOptions.map((opt) => (
-                    <option key={opt.id || opt.name} value={opt.name}>
-                      {opt.name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    placeholder="New status..."
-                    value={newStatusInput}
-                    onChange={(e) => setNewStatusInput(e.target.value)}
-                    className="flex-1 px-2.5 py-1.5 rounded-xl border border-[#FF7AB3] text-xs text-[#4A3E44] focus:outline-none bg-white min-w-0"
-                  />
-                  <button
-                    type="button"
-                    disabled={isSavingStatus || !newStatusInput.trim()}
-                    onClick={async () => {
-                      if (!newStatusInput.trim()) return;
-                      setIsSavingStatus(true);
-                      try {
-                        const res = await fetch('/api/statuses', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ name: newStatusInput.trim() }),
-                        });
-                        const data = await res.json();
-                        if (data.success && data.data) {
-                          const newOpt = data.data;
-                          setStatusOptions((prev) => [...prev, newOpt]);
-                          setNotionStatus(newOpt.name);
-                          setStatus(getStatusCategory(newOpt.name));
-                          setNewStatusInput('');
-                          setIsAddingCustomStatus(false);
-                        }
-                      } catch (err) {
-                        console.error('Failed to save status:', err);
-                      } finally {
-                        setIsSavingStatus(false);
-                      }
-                    }}
-                    className="px-2.5 py-1.5 rounded-xl bg-[#FF7AB3] text-white text-xs font-bold hover:bg-[#F06292] transition disabled:opacity-50 shrink-0"
-                  >
-                    {isSavingStatus ? '...' : 'Add'}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
-                Priority
-              </label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as Priority)}
-                className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
-              >
-                {PRIORITY_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
                 Work Model
@@ -671,11 +674,11 @@ export default function ApplicationModal({
           <section className="space-y-3 rounded-xl border border-[#F1DDE9] p-3 bg-[#FFF5F8]">
             <h3 className="font-semibold text-xs text-[#9D3C5E]">Role fit analysis</h3>
             <label className="block text-xs font-semibold">Role fit
-              <select aria-label="Role fit" value={autoFit ? 'AUTO' : roleFit || 'UNASSESSED'} onChange={event => { setAutoFit(event.target.value === 'AUTO'); if (event.target.value !== 'AUTO') setRoleFit(event.target.value === 'UNASSESSED' ? null : event.target.value as RoleFit); }} className="ml-2 rounded-lg border border-[#F1DDE9] bg-white p-2">
+              <select aria-label="Role fit" value={autoFit ? fitAnalysis?.fit || roleFit || 'AUTO' : roleFit || 'UNASSESSED'} onChange={event => { setAutoFit(event.target.value === 'AUTO'); if (event.target.value !== 'AUTO') setRoleFit(event.target.value === 'UNASSESSED' ? null : event.target.value as RoleFit); }} className="ml-2 rounded-lg border border-[#F1DDE9] bg-white p-2">
                 <option value="AUTO">AI assessment (default)</option><option value="UNASSESSED">Leave unassessed</option>{ROLE_FITS.map(fit => <option key={fit.value} value={fit.value}>{fit.label}</option>)}
               </select>
             </label>
-            <p className="text-xs text-[#736A6D]">{autoFit ? 'Analyzes on save when your resume and job requirements are available. Otherwise saved as unassessed.' : (ROLE_FITS.find(fit => fit.value === roleFit)?.description || 'No rating yet. You can assess this role later in Analytics.')}</p>
+            <p className="text-xs text-[#736A6D]">{autoFit ? (fitAnalysis || roleFit ? 'Selected from the AI assessment. Choose another rating to set a manual fit.' : 'Analyzes on save when your resume and job requirements are available. Otherwise saved as unassessed.') : (ROLE_FITS.find(fit => fit.value === roleFit)?.description || 'No rating yet. You can assess this role later in Analytics.')}</p>
             {fitAnalysis && autoFit && <p className="text-xs text-[#9D3C5E]">{ROLE_FITS.find(fit => fit.value === fitAnalysis.fit)?.label}: {fitAnalysis.explanation}{fitAnalysis.preference_notes ? ` Preferences: ${fitAnalysis.preference_notes}` : ''}</p>}
             <button type="button" disabled={isSubmitting || jobDescription.trim().length < 30} onClick={async () => { setIsSubmitting(true); setFitError(''); try { await analyzeFit(); setAutoFit(true); } catch (error) { setFitError(error instanceof Error ? error.message : 'Analysis failed.'); } finally { setIsSubmitting(false); } }} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E] disabled:opacity-50">Reanalyze role fit</button>
 
