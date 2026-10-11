@@ -211,6 +211,16 @@ function notionText(content: string) {
   return parts;
 }
 
+function readNotionText(props: Record<string, any>, names: string[]): string | undefined {
+  for (const name of names) {
+    const property = props[name];
+    if (property?.type === 'rich_text' || Array.isArray(property?.rich_text)) {
+      return (property.rich_text || []).map((part: any) => part.plain_text ?? part.text?.content ?? '').join('');
+    }
+  }
+  return undefined;
+}
+
 function buildNotionProperties(app: JobApplication) {
   let statusSelectName = app.notion_status;
   if (!statusSelectName) {
@@ -385,6 +395,7 @@ export async function pullApplicationsFromNotion() {
       try {
         const pageId = page.id;
         const props = page.properties || {};
+        const existingApp = appMap.get(pageId) || appMap.get(pageId.replace(/-/g, '').toLowerCase());
 
         // 1. Company Name
         const titleProp = Object.values(props).find((p: any) => p.type === 'title') as any;
@@ -415,11 +426,11 @@ export async function pullApplicationsFromNotion() {
           undefined;
 
         const status: ApplicationStatus = notion_status ? getStatusCategory(notion_status) : 'APPLIED';
-        let priority: Priority = 'MEDIUM';
+        let priority: Priority = existingApp?.priority || 'MEDIUM';
 
-        if (status === 'ACCEPTED' || status === 'INTERVIEWING') {
+        if (!existingApp && (status === 'ACCEPTED' || status === 'INTERVIEWING')) {
           priority = 'HIGH';
-        } else if (status === 'REJECTED' || status === 'WITHDRAWN') {
+        } else if (!existingApp && (status === 'REJECTED' || status === 'WITHDRAWN')) {
           priority = 'LOW';
         }
 
@@ -433,10 +444,11 @@ export async function pullApplicationsFromNotion() {
 
         // 5. Work Model
         const workModelProp = props['Work Model'] || props.Workplace || props.Setup;
-        const workModelRaw = (workModelProp?.select?.name || 'HYBRID').toUpperCase();
-        let work_model: WorkModel = 'HYBRID';
+        const workModelRaw = (workModelProp?.select?.name || '').toUpperCase();
+        let work_model: WorkModel = existingApp?.work_model || 'HYBRID';
         if (workModelRaw.includes('REMOTE')) work_model = 'REMOTE';
         else if (workModelRaw.includes('ON-SITE') || workModelRaw.includes('ONSITE')) work_model = 'ON_SITE';
+        else if (workModelRaw.includes('HYBRID')) work_model = 'HYBRID';
 
         // 6. Service & Location Categorization
         const rawServiceLocation =
@@ -463,7 +475,7 @@ export async function pullApplicationsFromNotion() {
         const rawDate =
           props['Application/ Inquiry Date']?.date?.start ||
           props['Date Applied']?.date?.start;
-        let date_applied: string = new Date().toISOString();
+        let date_applied: string | undefined = existingApp?.date_applied;
         if (rawDate) {
           try {
             date_applied = new Date(rawDate).toISOString();
@@ -473,11 +485,12 @@ export async function pullApplicationsFromNotion() {
         }
 
         // 10. Information & Post Notes
-        const information = props['Information']?.rich_text?.map((part: any) => part.plain_text || part.text?.content || '').join('') || undefined;
-        const notes =
-          props['Post Notes']?.rich_text?.map((part: any) => part.plain_text || part.text?.content || '').join('') ||
-          props.Notes?.rich_text?.[0]?.plain_text ||
-          undefined;
+        const information = readNotionText(props, ['Information']);
+        const notes = readNotionText(props, ['Post Notes', 'Notes']);
+        const textFields = {
+          ...(information !== undefined ? { information, job_description: information } : {}),
+          ...(notes !== undefined ? { notes } : {}),
+        };
 
         const notionLogo = page.icon?.type === 'emoji' ? `emoji:${page.icon.emoji}`
           : page.icon?.type === 'external' ? page.icon.external.url
@@ -498,8 +511,6 @@ export async function pullApplicationsFromNotion() {
           company.industry = service;
         }
 
-        const existingApp = appMap.get(pageId) || appMap.get(pageId.replace(/-/g, '').toLowerCase());
-
         if (existingApp) {
           // Pending or failed local edits must survive the pull so they can be retried.
           if (existingApp.sync_status !== 'SYNCED') continue;
@@ -512,15 +523,13 @@ export async function pullApplicationsFromNotion() {
             status,
             notion_status,
             service,
-            information,
-            job_description: information,
+            ...textFields,
             priority,
             work_model,
             location,
             job_url,
             contact_email,
             date_applied,
-            notes,
             sync_status: 'SYNCED',
             last_synced_at: new Date().toISOString(),
           });
@@ -534,7 +543,7 @@ export async function pullApplicationsFromNotion() {
             status,
             notion_status,
             service,
-            information,
+            ...textFields,
             priority,
             job_type: 'INTERNSHIP',
             work_model,
@@ -543,7 +552,6 @@ export async function pullApplicationsFromNotion() {
             job_url,
             contact_email,
             date_applied,
-            notes,
             owner: defaultOwnerId,
             notion_page_id: pageId,
             sync_status: 'SYNCED',
