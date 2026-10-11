@@ -58,6 +58,9 @@ export interface JobApplication {
   offer_amount?: number | null;
   offer_currency?: string | null;
   offer_pay_period?: OfferPayPeriod | null;
+  expected_salary_amount?: number | null;
+  expected_salary_currency?: string | null;
+  expected_salary_pay_period?: OfferPayPeriod | null;
   job_url?: string;
   source?: 'LINKEDIN' | 'JOBSTREET' | 'INDEED' | 'GOOGLE' | 'DIRECT' | 'OTHER';
   owner?: string;

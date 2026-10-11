@@ -184,25 +184,39 @@ test('salary offer statistics use recorded amounts, retain zero, and separate cu
  assert.equal(pipelineAnalytics([]).salaryOffers.count,0);assert.deepEqual(pipelineAnalytics([]).salaryOffers.groups,[]);
 });
 
+test('expected salary compares offers against the same application and unit, excluding missing and mismatched values',()=>{
+ const {pipelineAnalytics}=loader()('src/lib/analytics.ts');
+ const rows=[sample({id:'below',offer_amount:50000,expected_salary_amount:60000}),sample({id:'equal',offer_amount:70000,expected_salary_amount:'70000.00'}),sample({id:'above',offer_amount:90000,expected_salary_amount:80000}),sample({id:'waiting',expected_salary_amount:65000}),sample({id:'currency',offer_amount:2000,offer_currency:'USD',expected_salary_amount:90000}),sample({id:'period',offer_amount:840000,offer_pay_period:'ANNUAL',expected_salary_amount:75000}),sample({id:'invalid',expected_salary_amount:false}),sample({id:'blank',expected_salary_amount:''}),sample({id:'zero',expected_salary_amount:0,offer_amount:0,offer_pay_period:'HOURLY',expected_salary_pay_period:'HOURLY'}),sample({id:'below',expected_salary_amount:1,offer_amount:900000,updated_at:'2026-09-01'})];
+ const stats=pipelineAnalytics(rows).salaryOffers;
+ assert.equal(stats.expectedCount,7);
+ const group=stats.expectations.find(value=>value.key==='PHP:MONTHLY');
+ assert.equal(group.count,6);assert.equal(group.median,72500);assert.equal(group.matched,3);assert.equal(group.met,2);assert.equal(group.medianGap,0);
+ assert.deepEqual(group.pairs.map(pair=>pair.gap),[-10000,0,10000]);
+ assert.equal(stats.expectations.find(value=>value.key==='PHP:HOURLY').met,1);
+ const pending=pipelineAnalytics([sample({expected_salary_amount:45000})]).salaryOffers;
+ assert.equal(pending.count,0);assert.equal(pending.expectations[0].median,45000);assert.equal(pending.expectations[0].medianGap,null);
+});
+
 test('offer API validates, normalizes, edits and clears only the signed-in application',async()=>{
  let saved;const load=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',role:'member'})},'@/lib/notion':{},'@/lib/db':{getCompanies:async()=>[],createApplication:async data=>(saved={...sample(),...data}),getApplicationById:async()=>saved,updateApplication:async(id,data)=>(saved={...saved,...data})}});
  const req=body=>new Request('http://local',{method:'POST',body:JSON.stringify(body)});const route=load('src/app/api/applications/route.ts');
- assert.equal((await route.POST(req({role_title:'Engineer',company_name:'Example',status:'LEAD',offer_amount:'65000.50',offer_currency:'php',offer_pay_period:'MONTHLY'}))).status,201);assert.equal(saved.offer_amount,65000.5);assert.equal(saved.offer_currency,'PHP');
+ assert.equal((await route.POST(req({role_title:'Engineer',company_name:'Example',status:'LEAD',offer_amount:'65000.50',offer_currency:'php',offer_pay_period:'MONTHLY',expected_salary_amount:'70000.50',expected_salary_currency:' php ',expected_salary_pay_period:'MONTHLY'}))).status,201);assert.equal(saved.offer_amount,65000.5);assert.equal(saved.offer_currency,'PHP');assert.equal(saved.expected_salary_amount,70000.5);assert.equal(saved.expected_salary_currency,'PHP');
  const edit=load('src/app/api/applications/[id]/route.ts');const params={params:Promise.resolve({id:'app'})};
- assert.equal((await edit.PUT(req({notes:'Updated note'}),params)).status,200);assert.equal(saved.offer_amount,65000.5);
- for(const body of [{offer_amount:-1},{offer_amount:false},{offer_amount:'NaN'},{offer_currency:'INVALID'},{offer_pay_period:'DAILY'}])assert.equal((await edit.PUT(req(body),params)).status,400);
- assert.equal((await edit.PUT(req({offer_amount:''}),params)).status,200);assert.equal(saved.offer_amount,null);
+ assert.equal((await edit.PUT(req({notes:'Updated note'}),params)).status,200);assert.equal(saved.offer_amount,65000.5);assert.equal(saved.expected_salary_amount,70000.5);
+ for(const body of [{offer_amount:-1},{offer_amount:false},{offer_amount:'NaN'},{offer_currency:'INVALID'},{offer_pay_period:'DAILY'},{expected_salary_amount:-1},{expected_salary_amount:false},{expected_salary_amount:'NaN'},{expected_salary_currency:'INVALID'},{expected_salary_pay_period:'DAILY'}])assert.equal((await edit.PUT(req(body),params)).status,400);
+ assert.equal((await edit.PUT(req({offer_amount:''}),params)).status,200);assert.equal(saved.offer_amount,null);assert.equal(saved.expected_salary_amount,70000.5);
+ assert.equal((await edit.PUT(req({expected_salary_amount:''}),params)).status,200);assert.equal(saved.expected_salary_amount,null);
 });
 
 test('local offer persistence survives promotion, Notion-style updates and explicit clearing',async()=>{
  const original=process.cwd(),directory=fs.mkdtempSync(path.join(os.tmpdir(),'job-offers-')),env={POSTGRES_URL:process.env.POSTGRES_URL,DATABASE_URL:process.env.DATABASE_URL,VERCEL:process.env.VERCEL};
- try {for(const key of Object.keys(env))delete process.env[key];process.chdir(directory);const db=loader()('src/lib/db.ts');const lead=await db.createApplication(sample({status:'LEAD',offer_amount:0,offer_currency:'PHP',offer_pay_period:'MONTHLY'}));await db.updateApplication(lead.id,{status:'APPLIED'});await db.updateApplication(lead.id,{status:'WITHDRAWN',notes:'Notion changed notes',sync_status:'SYNCED'});const restored=await db.getApplicationById(lead.id);assert.equal(restored.offer_amount,0);assert.equal(restored.offer_currency,'PHP');assert.equal(restored.offer_pay_period,'MONTHLY');await db.updateApplication(lead.id,{offer_amount:null});assert.equal((await db.getApplicationById(lead.id)).offer_amount,null);
+ try {for(const key of Object.keys(env))delete process.env[key];process.chdir(directory);const db=loader()('src/lib/db.ts');const lead=await db.createApplication(sample({status:'LEAD',offer_amount:0,offer_currency:'PHP',offer_pay_period:'MONTHLY',expected_salary_amount:70000,expected_salary_currency:'PHP',expected_salary_pay_period:'MONTHLY'}));await db.updateApplication(lead.id,{status:'APPLIED'});await db.updateApplication(lead.id,{status:'WITHDRAWN',notes:'Notion changed notes',sync_status:'SYNCED'});const restored=await db.getApplicationById(lead.id);assert.equal(restored.offer_amount,0);assert.equal(restored.offer_currency,'PHP');assert.equal(restored.offer_pay_period,'MONTHLY');assert.equal(restored.expected_salary_amount,70000);assert.equal(restored.expected_salary_currency,'PHP');assert.equal(restored.expected_salary_pay_period,'MONTHLY');await db.updateApplication(lead.id,{expected_salary_amount:null});assert.equal((await db.getApplicationById(lead.id)).expected_salary_amount,null);await db.updateApplication(lead.id,{offer_amount:null});assert.equal((await db.getApplicationById(lead.id)).offer_amount,null);
  } finally {process.chdir(original);for(const [key,value]of Object.entries(env)){if(value===undefined)delete process.env[key];else process.env[key]=value;}fs.rmSync(directory,{recursive:true,force:true});}
 });
 
 test('offer PDF contains distributions and medians without company/application lists',async()=>{
- const {analyticsPdf}=loader()('src/lib/analytics-export.ts');const rows=[sample({id:'one',role_title:'PRIVATE_OFFER_ROLE',company_name:'PRIVATE_OFFER_COMPANY',offer_amount:60000}),sample({id:'two',offer_amount:80000}),sample({id:'usd',offer_amount:1200,offer_currency:'USD',offer_pay_period:'HOURLY'})];const pdf=await analyticsPdf(rows,'Member','All roles');assert.equal(pdf.getNumberOfPages(),4);
- const {extractText}=require('unpdf');const text=(await extractText(new Uint8Array(pdf.output('arraybuffer')),{mergePages:true})).text;assert.match(text,/Recorded salary offers/);assert.match(text,/PHP 70,000.00/);assert.match(text,/USD \/ Hourly/);assert.doesNotMatch(text,/PRIVATE_OFFER/);
+ const {analyticsPdf}=loader()('src/lib/analytics-export.ts');const rows=[sample({id:'one',role_title:'PRIVATE_OFFER_ROLE',company_name:'PRIVATE_OFFER_COMPANY',offer_amount:60000,expected_salary_amount:65000}),sample({id:'two',offer_amount:80000}),sample({id:'usd',offer_amount:1200,offer_currency:'USD',offer_pay_period:'HOURLY'})];const pdf=await analyticsPdf(rows,'Member','All roles');assert.equal(pdf.getNumberOfPages(),4);
+ const {extractText}=require('unpdf');const text=(await extractText(new Uint8Array(pdf.output('arraybuffer')),{mergePages:true})).text;assert.match(text,/Recorded salary offers/);assert.match(text,/PHP 70,000.00/);assert.match(text,/USD \/ Hourly/);assert.doesNotMatch(text,/PRIVATE_OFFER/);assert.match(text,/Salary expectations/);assert.match(text,/0 of 1 matching offers meet expectations/);assert.match(text,/-PHP 5,000.00/);
  fs.writeFileSync(path.join(ROOT,'.data','salary-offer-report-preview.pdf'),Buffer.from(pdf.output('arraybuffer')));
 });
 

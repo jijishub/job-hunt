@@ -64,16 +64,19 @@ test('dashboard isolates account data, defaults new roles, saves manual/AI fits,
     const position=document.querySelector('[aria-label="Job description"]').compareDocumentPosition(document.querySelector('[aria-label="Personal comments"]'));
     return (position & Node.DOCUMENT_POSITION_FOLLOWING)!==0;
   }));
+  assert.equal(await page.getByLabel('Expected salary currency',{exact:true}).inputValue(),'PHP');assert.equal(await page.getByLabel('Expected salary pay period',{exact:true}).inputValue(),'MONTHLY');
+  await page.getByLabel('Expected salary',{exact:true}).fill('70000.25');
   await page.getByLabel('Offer amount',{exact:true}).fill('65000.50');await page.getByRole('button',{name:'Save Changes',exact:true}).click();
-  assert.equal(updates.at(-1).offer_amount,65000.5);assert.equal(updates.at(-1).offer_currency,'PHP');assert.equal(updates.at(-1).offer_pay_period,'MONTHLY');
+  assert.equal(updates.at(-1).offer_amount,65000.5);assert.equal(updates.at(-1).expected_salary_amount,70000.25);assert.equal(updates.at(-1).expected_salary_currency,'PHP');assert.equal(updates.at(-1).offer_currency,'PHP');assert.equal(updates.at(-1).offer_pay_period,'MONTHLY');
   await page.getByRole('button',{name:'Analytics',exact:true}).click();
   const offers=page.getByRole('region',{name:'Recorded salary offers'});
   await offers.getByText('PHP 65,000.50',{exact:true}).waitFor();
   await offers.getByRole('button',{name:'Review recorded offers',exact:true}).click();
   assert.match(await page.locator('#analytics-role-review').innerText(),/Manual-fit Developer/);
   await page.locator('#analytics-role-review').getByRole('button',{name:'Review offer',exact:true}).click();
-  assert.equal(await page.getByLabel('Offer amount',{exact:true}).inputValue(),'65,000.50');
+  assert.equal(await page.getByLabel('Offer amount',{exact:true}).inputValue(),'65,000.50');assert.equal(await page.getByLabel('Expected salary',{exact:true}).inputValue(),'70,000.25');
+  await page.getByLabel('Expected salary',{exact:true}).fill('');
   await page.getByLabel('Offer amount',{exact:true}).fill('');await page.getByRole('button',{name:'Save Changes',exact:true}).click();
-  assert.equal(updates.at(-1).offer_amount,null);await page.getByText('No salary offers recorded yet. Add an actual offer in an application to start comparing.').waitFor();
+  assert.equal(updates.at(-1).offer_amount,null);assert.equal(updates.at(-1).expected_salary_amount,null);await page.getByText('No salary offers recorded yet. Add an actual offer in an application to start comparing.').waitFor();
  }finally{await browser.close();}
 });

@@ -1,56 +1,84 @@
-<p align="center"><img src="public/job-hunt%20official%20text.png" alt="Job Hunt" width="360" /></p>
+<p align="center">
+  <img src="public/job-hunt%20official%20text.png" alt="Job Hunt" width="360" />
+</p>
 
-A private job application tracker with a separate leads pipeline, resume analysis, role-fit assessment, and application analytics.
+<p align="center"><strong>🌸 A clearer view of your next career move.</strong></p>
+<p align="center">Applications, leads, resumes, and analytics in one private workspace.</p>
+<p align="center">
+  <a href="https://jobhunt.jizellecasia.site">Open Job Hunt</a> ·
+  <a href="#getting-started">Local setup</a> ·
+  <a href="DEPLOYMENT.md">Deployment guide</a>
+</p>
 
-[Live application](https://jobhunt.jizellecasia.site)
+---
 
-## Features
+## The workspace
 
-- Table and board views with job descriptions, personal notes, salary, and application history.
-- Member statuses: Not started, Applied, Interview, Accepted, and Not Proceeding, with custom options. New entries default to Not started; admin accounts retain detailed Notion stages.
-- Preferences for target roles, work models, job types, currency, resume text, and analytics phase mappings.
-- A master resume in My preferences, used by member AI tools. Admin ATS matching can also use the live portfolio. Role-fit assessment runs only when requested.
-- Interactive pastel charts for phase progress, fit conversion, current outcomes, and monthly submissions. Analytics show sample sizes and inferred phases, separate internships and regular employment, and export PDF reports.
-- Company search and a short Guide tab for members.
-- Leads stay separate until promoted. See [lead feed behavior](references/leads-feed-explained.txt).
-- Google sign-in and account ownership checks. Notion integration and user management are admin features.
+| Area | What you can do |
+| --- | --- |
+| Applications | Track roles in a table or board, with editable dates, statuses, descriptions, and personal notes. |
+| Companies | Reuse company profiles and logos across applications and leads. |
+| Leads | Save real postings, generate search keywords, and choose LinkedIn, JobStreet, Indeed, or Google Jobs. |
+| Resume & AI | Keep a master resume and request ATS matching or role-fit assessments when needed. |
+| Analytics | Explore progress, fit conversion, offers, rejections, and monthly activity; export aggregate PDF reports. |
+| Salary insights | Record expected salary and actual base-pay offers; compare matching currencies and pay periods. |
+| Preferences | Set targets, your default job-type view, and analytics status mappings for your account. |
 
-## Local setup
+Google sign-in keeps each account's records separate. Members use the cloud database; the administrator also has two-way Notion sync and account management.
 
-Requires Node.js and npm. Built with Next.js 16, React 19, Tailwind CSS 4, NextAuth, and Neon PostgreSQL.
+New applications default to **Not started** and today's date, both editable. Role-fit analysis runs only when requested. Leads remain separate until promoted, and AI discovery generates search ideas to research rather than confirmed vacancies.
 
-```sh
+## Built with
+
+**Next.js 16** · **React 19** · **TypeScript** · **Tailwind CSS 4**
+
+Neon PostgreSQL for storage, NextAuth for authentication, Notion for administrator sync, and a configurable AI endpoint for analysis.
+
+## Getting started
+
+Install Node.js and npm, then run:
+
+```powershell
 npm install
 npm run dev
 ```
 
-Configure `.env.local` with `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `POSTGRES_URL`. Set `ADMIN_EMAIL` to the administrator email.
+Add your configuration to `.env.local`:
 
-AI features use `AI_BASE_URL`, `AI_API_KEY`, and `AI_DEFAULT_MODEL`. Admin Notion sync uses `NOTION_API_KEY` and `NOTION_DATABASE_ID`; webhook sync also requires `NOTION_WEBHOOK_SECRET`. Keep credentials out of source control. Without PostgreSQL, local development uses the JSON fallback.
+| Purpose | Variables |
+| --- | --- |
+| Authentication | `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| Database | `POSTGRES_URL` |
+| Administrator | `ADMIN_EMAIL` |
+| AI features | `AI_BASE_URL`, `AI_API_KEY`, `AI_DEFAULT_MODEL` |
+| Administrator Notion sync | `NOTION_API_KEY`, `NOTION_DATABASE_ID` |
+| Optional Notion webhook | `NOTION_WEBHOOK_SECRET` |
 
-Leads must come from actual postings. AI discovery provides unverified search ideas, not confirmed vacancies or application records.
+Local development uses a JSON fallback when PostgreSQL is not configured. Keep credentials in your environment files, outside source control. See the [deployment guide](DEPLOYMENT.md) for hosting and Google OAuth setup.
 
-## Fill missing company icons
+## Useful commands
 
-From PowerShell in this project:
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start local development. |
+| `npm run build` | Create the production build. |
+| `npm run start` | Serve the production build. |
+| `npm run test:pipeline` | Check analytics, application APIs, and persistence. |
+| `npm run test:pipeline:ui` | Check browser flows against a running local server. |
+| `npx tsc --noEmit` | Check TypeScript. |
+| `npm run company-icons:preview` | List companies missing icons without changing records. |
+| `npm run company-icons` | Research and fill missing company icons. |
 
-```powershell
-npm run company-icons
-```
+Browser checks use Chrome and `http://localhost:3100` by default. Start the app with `npx next dev -p 3100`, or set `PIPELINE_TEST_URL` to your local server.
 
-Requires the Codex CLI signed in (`codex login`) and the live `POSTGRES_URL` in `.env.local`. The command starts a new Codex research session with live web search, then downloads verified official logos and fills empty company icon fields. Existing icons are preserved, including icons added during the run. Uncertain matches are skipped. This uses your signed-in Codex account, separately from the app's AI API.
+### Company icons
 
-Backups, sources and results are saved under `.data/company-icons/`. Preview missing companies without starting Codex or changing the database with `npm run company-icons:preview`.
+The icon job requires a signed-in Codex CLI and `POSTGRES_URL` in `.env.local`. It researches official logos, fills empty icons, preserves existing ones, and skips uncertain matches. Backups and source references go to `.data/company-icons/`. It uses your signed-in Codex account separately from the app's AI API.
 
-The job uses [Codex non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode).
+## Project references
 
-## Verification and deployment
+`LLM.txt` holds project feedback and requests. The `references/` folder keeps application JSON, resumes, and research material; these remain separate from the app's source code.
 
-```sh
-npm run test:pipeline
-npm run test:pipeline:ui
-npx tsc --noEmit
-npm run build
-```
+---
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for hosting and OAuth configuration.
+<p align="center">🤍 Created by <a href="https://jizellecasia.site">Jizelle Casia</a> · <a href="https://coolsymbol.com">♡</a></p>

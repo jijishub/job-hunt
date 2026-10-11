@@ -20,8 +20,11 @@ export function applicationValidationError(body: Record<string, unknown>) {
     if (body[field] != null && body[field] !== '' && (!Number.isFinite(Number(body[field])) || Number(body[field]) < 0)) return 'Salary must be a nonnegative amount.';
   }
   if (body.salary_min != null && body.salary_max != null && body.salary_max !== '' && Number(body.salary_min) > Number(body.salary_max)) return 'Maximum salary must be at least the minimum.';
-  if (body.offer_amount != null && String(body.offer_amount).trim() !== '' && (!['number', 'string'].includes(typeof body.offer_amount) || !Number.isFinite(Number(body.offer_amount)) || Number(body.offer_amount) < 0)) return 'Offer amount must be a nonnegative number.';
-  if (body.offer_currency != null && (typeof body.offer_currency !== 'string' || !CURRENCIES.some(currency => currency === (body.offer_currency as string).trim().toUpperCase()))) return 'Choose PHP or USD for the offer currency.';
-  if (body.offer_pay_period != null && !OFFER_PAY_PERIODS.some(period => period.value === body.offer_pay_period)) return 'Choose a valid offer pay period.';
+  for (const [prefix, label] of [['offer', 'Offer'], ['expected_salary', 'Expected salary']]) {
+    const amount = body[`${prefix}_amount`], currency = body[`${prefix}_currency`], period = body[`${prefix}_pay_period`];
+    if (amount != null && String(amount).trim() !== '' && (!['number', 'string'].includes(typeof amount) || !Number.isFinite(Number(amount)) || Number(amount) < 0)) return `${label} amount must be a nonnegative number.`;
+    if (currency != null && (typeof currency !== 'string' || !CURRENCIES.some(value => value === currency.trim().toUpperCase()))) return `Choose PHP or USD for the ${label.toLowerCase()} currency.`;
+    if (period != null && !OFFER_PAY_PERIODS.some(value => value.value === period)) return `Choose a valid ${label.toLowerCase()} pay period.`;
+  }
   return null;
 }

@@ -127,6 +127,9 @@ export default function ApplicationModal({
   const [offerAmount, setOfferAmount] = useState('');
   const [offerCurrency, setOfferCurrency] = useState('PHP');
   const [offerPayPeriod, setOfferPayPeriod] = useState<OfferPayPeriod>('MONTHLY');
+  const [expectedSalary, setExpectedSalary] = useState('');
+  const [expectedCurrency, setExpectedCurrency] = useState('PHP');
+  const [expectedPeriod, setExpectedPeriod] = useState<OfferPayPeriod>('MONTHLY');
   const [jobUrl, setJobUrl] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -161,6 +164,9 @@ export default function ApplicationModal({
     setOfferAmount(initialData?.offer_amount != null ? String(initialData.offer_amount) : '');
     setOfferCurrency(initialData?.offer_currency || 'PHP');
     setOfferPayPeriod(initialData?.offer_pay_period || 'MONTHLY');
+    setExpectedSalary(initialData?.expected_salary_amount != null ? String(initialData.expected_salary_amount) : '');
+    setExpectedCurrency(initialData?.expected_salary_currency || 'PHP');
+    setExpectedPeriod(initialData?.expected_salary_pay_period || 'MONTHLY');
     setAnalyticsStage(initialData?.analytics_stage || 'NOT_SUBMITTED'); setNotProceeding(initialData?.not_proceeding || false);
     setRoleFit(initialData?.role_fit || initialData?.role_fit_analysis?.fit || null);
     setFitAnalysis(initialData?.role_fit_analysis || null);
@@ -281,6 +287,9 @@ export default function ApplicationModal({
         offer_amount: offerAmount.trim() ? Number(offerAmount) : null,
         offer_currency: offerCurrency,
         offer_pay_period: offerPayPeriod,
+        expected_salary_amount: expectedSalary.trim() ? Number(expectedSalary) : null,
+        expected_salary_currency: expectedCurrency,
+        expected_salary_pay_period: expectedPeriod,
         job_url: jobUrl.trim() || undefined,
         contact_name: contactName.trim() || undefined,
         contact_email: contactEmail.trim() || undefined,
@@ -674,6 +683,11 @@ export default function ApplicationModal({
           </div>
           <section className="space-y-3 rounded-xl border border-[#F1DDE9] p-3">
             <h3 className="text-xs font-semibold text-[#9D3C5E]">Job offer</h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-[2fr_1fr_1fr]">
+              <label className="text-xs font-semibold">Expected salary<CurrencyInput aria-label="Expected salary" value={expectedSalary} onValueChange={setExpectedSalary} placeholder="Your salary expectation" className="mt-1 w-full rounded-lg border border-[#F1DDE9] p-2 text-xs font-normal" /></label>
+              <label className="text-xs font-semibold">Currency<select aria-label="Expected salary currency" value={expectedCurrency} onChange={event => setExpectedCurrency(event.target.value)} className="mt-1 w-full rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs font-normal">{CURRENCIES.map(currency => <option key={currency} value={currency}>{currency}</option>)}</select></label>
+              <label className="text-xs font-semibold">Pay period<select aria-label="Expected salary pay period" value={expectedPeriod} onChange={event => setExpectedPeriod(event.target.value as OfferPayPeriod)} className="mt-1 w-full rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs font-normal">{OFFER_PAY_PERIODS.map(period => <option key={period.value} value={period.value}>{period.label}</option>)}</select></label>
+            </div>
             <div className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr]">
               <label className="text-xs font-semibold">Offer amount<CurrencyInput aria-label="Offer amount" value={offerAmount} onValueChange={setOfferAmount} placeholder="Leave blank until offered" className="mt-1 w-full rounded-lg border border-[#F1DDE9] p-2 text-xs font-normal" /></label>
               <label className="text-xs font-semibold">Currency<select aria-label="Offer currency" value={offerCurrency} onChange={event => setOfferCurrency(event.target.value)} className="mt-1 w-full rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs font-normal">{CURRENCIES.map(currency => <option key={currency} value={currency}>{currency}</option>)}</select></label>

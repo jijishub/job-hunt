@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { PipelineStats } from '@/lib/analytics';
 import { AnalyticsStage } from '@/lib/analytics-stages';
 
-export type ChartSelection = { kind: 'fit' | 'outcome' | 'month' | 'offer'; value: string; label: string }
+export type ChartSelection = { kind: 'fit' | 'outcome' | 'month' | 'offer' | 'expected'; value: string; label: string }
   | { kind: 'phase'; value: AnalyticsStage; label: string; evidence?: 'recorded' | 'inferred' };
 const card = 'min-w-0 rounded-2xl border border-[#F1DDE9] bg-white p-5 shadow-xs';
 const fitColors = ['#A6DCC7', '#F4D6A4', '#F6B4C4', '#C8BCE8'];
