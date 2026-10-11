@@ -10,7 +10,8 @@ import RoleFitBadge from './RoleFitBadge';
 import AnalyticsCharts, { ChartSelection } from './AnalyticsCharts';
 import { PersonalPreferences, DefaultView } from '@/lib/preferences';
 import SalaryOffersChart from './SalaryOffersChart';
-import { recordedSalaryOffer, offerPeriodLabel } from '@/lib/salary-offers';
+import SalaryExpectationsChart from './SalaryExpectationsChart';
+import { recordedSalaryOffer, recordedExpectedSalary, offerPeriodLabel } from '@/lib/salary-offers';
 import { formatSalaryRange } from '@/lib/currencies';
 
 interface AnalyticsViewProps {
@@ -56,6 +57,7 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
   const scopeLabel = scope === 'INTERNSHIP' ? 'Internships' : scope === 'OTHER' ? 'Regular Employment' : 'All (combined)';
   const reviewApps = scoped.filter(app => {
     if (selection?.kind === 'offer' && recordedSalaryOffer(app)?.key !== selection.value) return false;
+    if (selection?.kind === 'expected' && recordedExpectedSalary(app)?.key !== selection.value) return false;
     if (selection?.kind === 'fit' && (validRoleFit(app.role_fit) ? app.role_fit : 'UNASSESSED') !== selection.value) return false;
     if (selection?.kind === 'outcome' && currentOutcome(app, mapping, rejectionStatuses) !== selection.value) return false;
     if (selection?.kind === 'month' && (reachedStage(app, mapping) < 1 || !applicationDay(app.date_applied)?.startsWith(selection.value) || applicationDay(app.date_applied)! > stats.asOf)) return false;
@@ -106,6 +108,7 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
       ].map(([label, value, detail]) => <div key={label} className={card}><p className="text-xs font-semibold text-[#736A6D]">{label}</p><p className="my-2 text-3xl font-bold text-[#9D3C5E]">{value}</p><p className="text-[11px] text-[#736A6D]">{detail}</p></div>)}</div>
       <AnalyticsCharts stats={stats} onReview={review} />
       <SalaryOffersChart stats={stats} preferences={preferences} onReview={review} />
+      <SalaryExpectationsChart stats={stats} onReview={review} />
       <div className="grid gap-4 lg:grid-cols-2">
         <section className={card}><h3 className="text-sm font-bold">Fit coverage</h3><p className="mt-1 text-xs text-[#736A6D]">{stats.assessed} assessed · {stats.unassessed} unassessed · {percent(stats.coverage)} coverage</p>
           <div className="mt-4 flex h-5 overflow-hidden rounded-lg bg-[#FAF7F9]">{stats.fits.map((fit, index) => fit.total > 0 && <button type="button" key={fit.value} style={{ width: `${fit.total / stats.total * 100}%`, backgroundColor: ['#A6DCC7', '#F4D6A4', '#F6B4C4', '#C8BCE8'][index] }} title={`${fit.label}: ${fit.total}`} aria-label={`Review ${fit.total} ${fit.label} roles`} onClick={() => review({ kind: 'fit', value: fit.value, label: fit.label })} />)}</div>
@@ -124,7 +127,8 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
         <p className="mt-2 text-[11px] text-[#736A6D]">{reviewApps.length} roles in this review</p>
         <div className="mt-3 space-y-2">{reviewApps.slice(safePage * 10, (safePage + 1) * 10).map(app => {
           const offer = recordedSalaryOffer(app);
-          return <div key={app.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#FAF7F9] p-3 text-xs"><div><strong>{app.role_title}</strong><p className="text-[#736A6D]">{app.company_name} · {app.notion_status || app.status}</p>{offer && <p className="mt-1 font-medium text-[#9D3C5E]">{formatSalaryRange(offer.amount, undefined, offer.currency)} / {offerPeriodLabel(offer.period).toLowerCase()}</p>}</div><div className="flex items-center gap-2"><RoleFitBadge app={app} />{onEditApp && <button onClick={() => onEditApp(app)} className={button}>{selection?.kind === 'offer' ? 'Review offer' : 'Review fit'}</button>}</div></div>;
+          const expected = recordedExpectedSalary(app);
+          return <div key={app.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#FAF7F9] p-3 text-xs"><div><strong>{app.role_title}</strong><p className="text-[#736A6D]">{app.company_name} · {app.notion_status || app.status}</p>{offer && <p className="mt-1 font-medium text-[#9D3C5E]">{formatSalaryRange(offer.amount, undefined, offer.currency)} / {offerPeriodLabel(offer.period).toLowerCase()}</p>}{expected && <p className="mt-1 text-[#736A6D]">Expected: {formatSalaryRange(expected.amount, undefined, expected.currency)} / {offerPeriodLabel(expected.period).toLowerCase()}</p>}</div><div className="flex items-center gap-2"><RoleFitBadge app={app} />{onEditApp && <button onClick={() => onEditApp(app)} className={button}>{selection?.kind === 'offer' ? 'Review offer' : selection?.kind === 'expected' ? 'Review salary' : 'Review fit'}</button>}</div></div>;
         })}{!reviewApps.length && <p className="text-xs text-[#736A6D]">No roles match this review.</p>}</div>
         {pageCount > 1 && <div className="mt-3 flex items-center justify-end gap-3 text-xs"><button disabled={!safePage} className={button} onClick={() => setReviewPage(safePage - 1)}>Previous</button><span>{safePage + 1} / {pageCount}</span><button disabled={safePage === pageCount - 1} className={button} onClick={() => setReviewPage(safePage + 1)}>Next</button></div>}
       </section>

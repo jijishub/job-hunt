@@ -60,8 +60,8 @@ test('board columns, custom moves, failed moves, add defaults and currency previ
     assert.equal(await page.getByText('PHP 60,000.00 – 80,000.00', { exact: true }).count(), 1);
     await page.getByRole('button', { name: 'Add application to Applied', exact: true }).click();
     assert.equal(await page.getByLabel('Application stage', { exact: true }).inputValue(), 'Applied');
-    assert.equal(await page.getByLabel('Salary currency').inputValue(), 'PHP');
-    assert.deepEqual(await page.getByLabel('Salary currency').locator('option').allTextContents(), ['PHP', 'USD']);
+    assert.equal(await page.getByLabel('Salary currency', { exact: true }).inputValue(), 'PHP');
+    assert.deepEqual(await page.getByLabel('Salary currency', { exact: true }).locator('option').allTextContents(), ['PHP', 'USD']);
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     // The category deliberately cannot be inferred from this name.
     state.statuses.push({ id: 'custom_review', name: 'Phone review', category: 'SCREENING', color: 'orange' });

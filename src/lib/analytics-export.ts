@@ -173,6 +173,17 @@ export async function analyticsPdf(
     room(23); label(title, 16, y, 12, colors.rose, true); y += 9;
   };
   if (!stats.salaryOffers.count) { paragraph('Salary offers: no actual offers recorded yet.', 16, 178, 8, colors.muted); y += 7; }
+  if (stats.salaryOffers.expectedCount) {
+    section('Salary expectations');
+    stats.salaryOffers.expectations.forEach(group => {
+      room(26);
+      paragraph(`${group.currency} / ${offerPeriodLabel(group.period)}: ${group.count} expectations; median ${formatSalaryRange(group.median, undefined, group.currency)}.`, 16, 178, 9);
+      paragraph(group.matched ? `${group.met} of ${group.matched} matching offers meet expectations. Median offer minus expected salary: ${group.medianGap! > 0 ? '+' : group.medianGap! < 0 ? '-' : ''}${formatSalaryRange(Math.abs(group.medianGap!), undefined, group.currency)}.` : 'No matching offers recorded yet.', 16, 178, 8, colors.muted);
+      y += 3;
+    });
+    paragraph('Comparisons pair the same application with matching currency and pay period.', 16, 178, 8, colors.muted);
+    y += 7;
+  }
   section('Preference targets');
   const human = (values?: string[]) => values?.length ? values.map(value => value.replaceAll('_', ' ').toLowerCase()).join(', ') : 'Not set';
   const targetRows = [
