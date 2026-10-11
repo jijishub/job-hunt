@@ -4,6 +4,7 @@ import { pullApplicationsFromNotion } from '@/lib/notion';
 export async function POST(request: Request) {
   try {
     const webhookSecret = process.env.NOTION_WEBHOOK_SECRET;
+    if (!webhookSecret) return NextResponse.json({ error: 'Notion webhook secret is not configured.' }, { status: 503 });
     if (webhookSecret) {
       const headerSecret = request.headers.get('x-notion-secret');
       if (headerSecret !== webhookSecret) {

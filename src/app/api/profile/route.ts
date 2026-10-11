@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getSessionAccount } from '@/lib/session-account';
 import { getCandidateProfile, saveCandidateProfile } from '@/lib/db';
-import activeResume from '@/lib/active-resume.json';
 
 export async function GET() {
   const user = await getSessionAccount();
   if (!user) return NextResponse.json({ success: false, error: 'Sign in to access your resume.' }, { status: 401 });
   const saved = await getCandidateProfile(user.id);
-  return NextResponse.json({ success: true, resumeText: saved || (user.email === 'jizelle.casia@gmail.com' ? activeResume.resume_text : '') });
+  return NextResponse.json({ success: true, resumeText: saved || '' });
 }
 export async function PUT(request: Request) {
   const user = await getSessionAccount();

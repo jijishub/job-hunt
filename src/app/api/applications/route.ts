@@ -1,3 +1,4 @@
+import { applicationValidationError } from '@/lib/application-validation';
 import { ANALYTICS_STAGES } from '@/lib/analytics-stages';
 import { getSessionAccount } from '@/lib/session-account';
 import { ownsApplication } from '@/lib/ownership';
@@ -11,7 +12,7 @@ export async function GET() {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     let apps = await getApplications();
-    if (apps.length === 0 && user.notion_enabled) {
+    if (apps.length === 0 && user.role === 'admin' && user.notion_enabled) {
       const config = getNotionConfig();
       if (config.isConfigured) {
         const pull = await pullApplicationsFromNotion();
@@ -34,6 +35,8 @@ export async function POST(request: Request) {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const body = await request.json();
+    const validationError = applicationValidationError(body);
+    if (validationError) return NextResponse.json({ success: false, error: validationError }, { status: 400 });
     if (body.analytics_stage != null && !ANALYTICS_STAGES.includes(body.analytics_stage)) return NextResponse.json({ success: false, error: 'Invalid analytics phase.' }, { status: 400 });
     if (body.not_proceeding != null && typeof body.not_proceeding !== 'boolean') return NextResponse.json({ success: false, error: 'Invalid Not Proceeding flag.' }, { status: 400 });
     body.owner = user.id;
@@ -59,7 +62,7 @@ export async function POST(request: Request) {
       notes,
     } = body;
 
-    if (!role_title || !company_name) {
+    if (!role_title?.trim() || !company_name?.trim()) {
       return NextResponse.json(
         { success: false, error: 'Role title and Company name are required' },
         { status: 400 }
@@ -102,8 +105,8 @@ export async function POST(request: Request) {
       job_type,
       work_model,
       location,
-      salary_min: salary_min ? Number(salary_min) : undefined,
-      salary_max: salary_max ? Number(salary_max) : undefined,
+      salary_min: salary_min != null && salary_min !== '' ? Number(salary_min) : undefined,
+      salary_max: salary_max != null && salary_max !== '' ? Number(salary_max) : undefined,
       salary_currency,
       job_url,
       contact_name,
@@ -118,7 +121,7 @@ export async function POST(request: Request) {
     });
 
     let syncError: string | undefined;
-    if (!isLead) {
+    if (!isLead && user.role === 'admin' && user.notion_enabled) {
       try {
         await pushApplicationToNotion(newApp, (message) => { syncError = message; });
       } catch (notionErr) {

@@ -21,7 +21,10 @@ export function stageForStatus(status: string, category?: string, mapping: Recor
   return ({ LEAD: 'NOT_SUBMITTED', APPLIED: 'SUBMITTED', SCREENING: 'SCREENING', INTERVIEWING: 'INTERVIEW', OFFER: 'OFFER', ACCEPTED: 'OFFER', REJECTED: 'SUBMITTED', WITHDRAWN: 'SUBMITTED' } as Record<string, AnalyticsStage>)[category || ''] || 'NOT_SUBMITTED';
 }
 export function reachedStage(app: JobApplication, mapping: Record<string, AnalyticsStage> = {}) {
+  return Math.max(0, ...recordedStages(app, mapping).map(stage => ANALYTICS_STAGES.indexOf(stage)));
+}
+export function recordedStages(app: JobApplication, mapping: Record<string, AnalyticsStage> = {}) {
   const recorded = [{ status: app.status, notion_status: app.notion_status }, ...(app.stage_history || [])].map(stage => stageForStatus(stage.notion_status || stage.status, stage.status, mapping));
-  if (app.analytics_stage) recorded.push(app.analytics_stage);
-  return Math.max(...recorded.map(stage => ANALYTICS_STAGES.indexOf(stage)));
+  if (app.analytics_stage && ANALYTICS_STAGES.includes(app.analytics_stage)) recorded.push(app.analytics_stage);
+  return [...new Set(recorded)];
 }

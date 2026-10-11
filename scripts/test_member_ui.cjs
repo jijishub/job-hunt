@@ -1,0 +1,106 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { chromium } = require('playwright-core');
+const fs = require('node:fs');
+
+test('members can use Guide, master resume, company search, charts, ATS and real leads without admin access', async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    const user = { id: 'member', email: 'member@example.com', name: 'Member Tester', role: 'member', industry: 'Finance', notion_enabled: false };
+    const base = { owner: user.id, company_id: 'finance', company_name: 'Finance Company', priority: 'MEDIUM', job_type: 'FULL_TIME', work_model: 'REMOTE', salary_currency: 'PHP', created_at: '2026-10-10', updated_at: '2026-10-10' };
+    let apps = [
+      { ...base, id: 'offer', role_title: 'Finance Analyst', status: 'ACCEPTED', notion_status: 'Accepted', role_fit: 'STRONG', date_applied: '2026-10-10', information: 'Build accurate financial reports and analyze business performance.', notes: 'My private interview feedback.' },
+      { ...base, id: 'reject', role_title: 'Audit Analyst', status: 'REJECTED', notion_status: 'Not Accepted', role_fit: 'WEAK', date_applied: '2026-10-09' },
+      { ...base, id: 'lead', role_title: 'Saved Finance Lead', status: 'LEAD', notion_status: 'Not started' },
+      ...Array.from({ length: 10 }, (_, i) => ({ ...base, id: 'pending' + i, role_title: 'Pending Analyst ' + i, status: 'APPLIED', date_applied: '2026-10-08' })),
+      { ...base, id: 'foreign', owner: 'other', company_id: 'foreign', company_name: 'Other Private Company', role_title: 'Other Private Job', status: 'ACCEPTED' },
+    ];
+    const companies = [{ id: 'finance', name: 'Finance Company', created_by: 'member', industry: 'Finance', website: 'https://example.com', applicationCount: 13 }, { id: 'travel', name: 'Travel Company', created_by: 'member', industry: 'Tourism', applicationCount: 0 }, { id: 'foreign', name: 'Other Private Company', created_by: 'other' }];
+    let profile = 'Member master resume: financial reporting and business analysis.';
+    let fitCalls = 0, atsCalls = [], creations = [], statusWrites = [], preferences = { target_companies: [], target_roles: [], preferred_locations: [], work_models: [], job_types: [], salary_currency: 'PHP', dealbreakers: '', portfolio_summary: '' };
+    await page.route('**/api/**', async route => {
+      const request = route.request(), pathname = new URL(request.url()).pathname, method = request.method();
+      let data = { success: true, data: [] };
+      if (pathname === '/api/auth/session') data = { user, expires: '2099-01-01' };
+      else if (pathname === '/api/users') data = { success: true, data: [user] };
+      else if (pathname === '/api/profile') { if (method === 'PUT') profile = request.postDataJSON().resumeText; data = { success: true, resumeText: profile }; }
+      else if (pathname === '/api/preferences') { if (method === 'PUT') preferences = request.postDataJSON(); data = { success: true, data: preferences }; }
+      else if (pathname === '/api/companies') data = { success: true, data: companies };
+      else if (pathname === '/api/statuses') data = { success: true, data: [{ id: 'not-started', name: 'Not started', category: 'LEAD' }, { id: 'applied', name: 'Applied', category: 'APPLIED' }] };
+      else if (pathname === '/api/applications') {
+        if (method === 'POST') { const app = { ...base, ...request.postDataJSON(), id: 'new' }; creations.push(app); apps.push(app); data = { success: true, data: app }; }
+        else data = { success: true, data: apps };
+      } else if (pathname.startsWith('/api/applications/') && method === 'PUT') {
+        const id = pathname.split('/').at(-1), body = request.postDataJSON(); statusWrites.push(body); const app = apps.find(a => a.id === id); Object.assign(app, body); data = { success: true, data: app };
+      } else if (pathname === '/api/role-fit') fitCalls++;
+      else if (pathname === '/api/ai/analyze') { atsCalls.push(request.postDataJSON()); data = { success: true, data: { matchScore: 80, matchTier: 'Strong Match', summary: 'Saved master resume matches financial reporting requirements.', matchingSkills: ['Reporting'], missingKeywords: [], strengths: ['Financial reporting'], gaps: [], bulletRewrites: [], interviewTips: ['Explain a reporting project.'], tailoredPitch: 'A pitch using only saved evidence.', modelUsed: 'luna', analyzedAt: '2026-10-12T00:00:00Z' } }; }
+      else if (pathname === '/api/leads/generate') data = { success: true, kind: 'SEARCH_IDEAS', data: [{ id: 'idea', title: 'Research Finance Roles', company_name: 'Employer Idea', description: 'Research reporting roles.', ai_verdict: 'Explore reporting experience.', match_score: 98, salary_range: 'PHP 999,999' }] };
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(data) });
+    });
+    await page.goto(process.env.PIPELINE_TEST_URL || 'http://localhost:3100');
+    await page.getByRole('button', { name: 'Guide', exact: true }).click();
+    await page.getByRole('heading', { name: 'Your quick-start guide' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Notion settings', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Sync Notion', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'My preferences', exact: true }).last().click();
+    await page.getByLabel('Account resume text').fill('Updated member master resume with financial reporting experience.');
+    await page.getByRole('button', { name: 'Save resume', exact: true }).click();
+    await page.getByText('Resume saved to your account. New analyses will use this version.').waitFor();
+    await page.getByRole('button', { name: 'Close preferences', exact: true }).click();
+    await page.getByRole('button', { name: /^Companies/ }).click();
+    await page.getByLabel('Search companies').fill('tourism');
+    await page.getByText('Travel Company', { exact: true }).waitFor();
+    assert.equal(await page.getByText('Finance Company', { exact: true }).count(), 0);
+    await page.getByLabel('Search companies').fill('no such company');
+    await page.getByText('No companies match your search.').waitFor();
+    await page.getByRole('button', { name: 'Analytics', exact: true }).click();
+    await page.getByRole('heading', { name: 'Member Tester’s job-search analytics' }).waitFor();
+    await page.getByRole('button', { name: 'Review Strong fit applications', exact: true }).click();
+    const review = page.locator('#analytics-role-review');
+    assert.match(await review.innerText(), /Finance Analyst/);assert.doesNotMatch(await review.innerText(), /Audit Analyst|Other Private/);
+    await page.getByRole('button', { name: 'Review 1 inferred Final interview roles', exact: true }).click();
+    assert.match(await review.innerText(), /1 roles in this review/);
+    await page.getByRole('button', { name: 'Show all', exact: true }).click();
+    await review.getByRole('button', { name: 'Next', exact: true }).click();
+    assert.match(await review.innerText(), /2 \/ 2/);
+    await page.getByLabel('Analytics job type').selectOption('INTERNSHIP');
+    await page.getByRole('heading', { name: 'Your charts start here' }).waitFor();
+    await page.getByLabel('Analytics job type').selectOption('ALL');
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+    fs.mkdirSync('.data', { recursive: true }); await page.screenshot({ path: '.data/member-analytics-mobile.png', fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByRole('button', { name: 'AI Resume & ATS', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('[aria-label="ATS resume"]')?.value.startsWith('Updated member'));
+    assert.equal(await page.getByLabel('ATS resume').getAttribute('readonly'), '');
+    assert.equal(await page.getByRole('button', { name: 'Use live portfolio for this match', exact: true }).count(), 0);
+    await page.getByLabel('ATS tracked opportunity').selectOption('offer');
+    assert.equal(await page.getByLabel('ATS job requirements').inputValue(), apps[0].information);
+    await page.getByRole('button', { name: /Run AI ATS Match/ }).click();
+    await page.getByText('Saved master resume matches financial reporting requirements.', { exact: true }).first().waitFor();
+    assert.equal(atsCalls[0].applicationId, 'offer'); assert.equal(atsCalls[0].resumeText, undefined);
+    await page.getByRole('button', { name: 'My preferences', exact: true }).last().click();
+    await page.getByLabel('Account resume text').fill('Fresh member master resume version three.');
+    await page.getByRole('button', { name: 'Save resume', exact: true }).click();
+    await page.getByText('Resume saved to your account. New analyses will use this version.').waitFor();
+    await page.getByRole('button', { name: 'Close preferences', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('[aria-label="ATS resume"]')?.value.startsWith('Fresh member'));
+    assert.equal(await page.getByText('Saved master resume matches financial reporting requirements.', { exact: true }).count(), 0);
+    await page.getByRole('button', { name: /^Leads/ }).click();
+    await page.getByRole('button', { name: 'Mark applied', exact: true }).click();
+    await page.getByText('No saved leads yet. Save a real posting below.').waitFor();
+    assert.equal(statusWrites.at(-1).notion_status, 'Applied');
+    await page.getByLabel('Role title', { exact: true }).fill('Verified Lead');
+    await page.getByLabel('Company', { exact: true }).fill('Verified Employer');
+    await page.getByLabel('Posting URL', { exact: true }).fill('https://example.com/careers/123');
+    await page.getByRole('button', { name: 'Save lead', exact: true }).click();
+    await page.getByText('Verified Lead', { exact: true }).waitFor();assert.equal(creations[0].notion_status, 'Not started');
+    await page.getByRole('button', { name: 'Discover', exact: true }).click();
+    await page.getByRole('button', { name: 'Generate search ideas', exact: true }).click();
+    await page.getByText('Research Finance Roles', { exact: true }).waitFor();
+    assert.equal(await page.getByText('98% Fit', { exact: true }).count(), 0);assert.equal(await page.getByRole('button', { name: 'Add as Lead', exact: true }).count(), 0);
+    assert.equal(fitCalls, 0);assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});

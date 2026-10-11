@@ -1,3 +1,4 @@
+import { APPLICATION_STATUSES } from '@/lib/application-validation';
 import { NextResponse } from 'next/server';
 import { getCustomStatuses, createCustomStatus, deleteCustomStatus, getApplications } from '@/lib/db';
 import { getSessionAccount } from '@/lib/session-account';
@@ -50,13 +51,14 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, color, category } = body;
 
-    if (!name || !name.trim()) {
+    if (typeof name !== 'string' || !name.trim()) {
       return NextResponse.json(
         { success: false, error: 'Status name is required' },
         { status: 400 }
       );
     }
 
+    if (category != null && !APPLICATION_STATUSES.includes(category)) return NextResponse.json({ success: false, error: 'Invalid status category.' }, { status: 400 });
     const trimmedName = canonicalStatusName(name);
     const resolvedCategory = category || getStatusCategory(trimmedName);
 

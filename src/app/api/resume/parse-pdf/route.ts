@@ -1,3 +1,4 @@
+import { getSessionAccount } from '@/lib/session-account';
 import { NextResponse } from 'next/server';
 import { extractText } from 'unpdf';
 
@@ -6,6 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    if (!await getSessionAccount()) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
 

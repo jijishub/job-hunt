@@ -1,3 +1,4 @@
+import { applicationValidationError } from '@/lib/application-validation';
 import { ANALYTICS_STAGES } from '@/lib/analytics-stages';
 import { getSessionAccount } from '@/lib/session-account';
 import { ownsApplication } from '@/lib/ownership';
@@ -33,6 +34,8 @@ export async function PUT(
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const body = await request.json();
+    const validationError = applicationValidationError(body);
+    if (validationError) return NextResponse.json({ success: false, error: validationError }, { status: 400 });
     if (body.analytics_stage != null && !ANALYTICS_STAGES.includes(body.analytics_stage)) return NextResponse.json({ success: false, error: 'Invalid analytics phase.' }, { status: 400 });
     if (body.not_proceeding != null && typeof body.not_proceeding !== 'boolean') return NextResponse.json({ success: false, error: 'Invalid Not Proceeding flag.' }, { status: 400 });
     if (Object.hasOwn(body, 'information') || Object.hasOwn(body, 'job_description')) { body.information = body.information ?? body.job_description; body.job_description = body.information; }
@@ -74,9 +77,7 @@ export async function PUT(
 
     let syncError: string | undefined;
     try {
-    const user = await getSessionAccount();
-    if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
-      await pushApplicationToNotion(updated, (message) => { syncError = message; });
+      if (user.role === 'admin' && user.notion_enabled) await pushApplicationToNotion(updated, (message) => { syncError = message; });
     } catch (notionErr) {
       console.warn('Notion push background warning:', notionErr);
     }

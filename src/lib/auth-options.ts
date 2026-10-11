@@ -42,8 +42,7 @@ export function getAuthOptions(req?: any): NextAuthOptions {
     process.env.GOOGLE_CLIENT_ID ||
     '972891016125-fvv60b8s3oqmgpp9ornq216in0ss4l0h.apps.googleusercontent.com';
   const googleClientSecret =
-    process.env.GOOGLE_CLIENT_SECRET ||
-    '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';
+    process.env.GOOGLE_CLIENT_SECRET || '';
 
   return {
     providers: [
@@ -138,7 +137,7 @@ export function getAuthOptions(req?: any): NextAuthOptions {
     session: {
       strategy: 'jwt',
     },
-    secret: process.env.NEXTAUTH_SECRET || 'job-hunt-prod-secret-9d7a2f1c8e4b6a3d5e2c7a1b9f4e8d2c',
+    secret: process.env.NEXTAUTH_SECRET,
   };
 }
 

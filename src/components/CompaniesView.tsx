@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Company } from '@/types/job';
 import {
   Building2,
@@ -10,6 +10,7 @@ import {
   Trash2,
   Globe,
   Briefcase,
+  Search,
 } from 'lucide-react';
 
 interface CompaniesViewProps {
@@ -26,6 +27,8 @@ export default function CompaniesView({
   onEditCompany,
   onDeleteCompany,
 }: CompaniesViewProps) {
+  const [query, setQuery] = useState('');
+  const matches = companies.filter(company => `${company.name} ${company.industry || ''} ${company.website || ''}`.toLowerCase().includes(query.trim().toLowerCase()));
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -46,6 +49,8 @@ export default function CompaniesView({
         </button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3"><label className="relative block w-full max-w-md"><Search aria-hidden="true" className="absolute left-3 top-2.5 h-4 w-4 text-[#736A6D]" /><input aria-label="Search companies" placeholder="Search company, industry or website" value={query} onChange={event => setQuery(event.target.value)} className="w-full rounded-xl border border-[#F1DDE9] bg-white py-2 pl-9 pr-3 text-sm" /></label><span className="text-xs text-[#736A6D]">{matches.length} of {companies.length} companies</span>{query && <button type="button" onClick={() => setQuery('')} className="text-xs font-semibold text-[#9D3C5E]">Clear search</button>}</div>
+
       {companies.length === 0 ? (
         <div className="bg-white p-12 rounded-2xl border border-[#F1DDE9] text-center flex flex-col items-center justify-center min-h-[300px]">
           <div className="w-12 h-12 rounded-2xl bg-[#FFF0F6] border border-[#F1DDE9] flex items-center justify-center text-[#FF7AB3] mb-3">
@@ -63,9 +68,9 @@ export default function CompaniesView({
             <span>Add Your First Company</span>
           </button>
         </div>
-      ) : (
+      ) : !matches.length ? <p role="status" className="rounded-xl border border-[#F1DDE9] bg-white p-6 text-sm text-[#736A6D]">No companies match your search.</p> : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-        {companies.map((company) => {
+        {matches.map((company) => {
           return (
             <div
               key={company.id}
