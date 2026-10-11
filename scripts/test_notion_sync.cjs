@@ -92,6 +92,30 @@ async function run() {
   await moduleObject.exports.pullApplicationsFromNotion();
   assert.equal(records.length, 1, 'Repeated pull must not duplicate a lead');
   assert.equal(records[0].notes, 'First part. Second part.', 'Pull must preserve all text chunks');
+  records = [{ ...adminApp, sync_status: 'SYNCED', information: 'Old description', job_description: 'Old description', notes: 'Old notes', priority: 'DREAM', work_model: 'REMOTE' }];
+  pages = [{ id: 'page-existing', properties: {
+    'Company Name': { title: [{ plain_text: 'ByteDance' }] },
+    Information: { rich_text: [{ plain_text: 'Job description. ' }, { text: { content: 'Requirements.' } }] },
+    Notes: { rich_text: [{ plain_text: 'Personal note. ' }, { text: { content: 'Follow up.' } }] },
+  } }];
+  await moduleObject.exports.pullApplicationsFromNotion();
+  assert.equal(records[0].information, 'Job description. Requirements.');
+  assert.equal(records[0].job_description, records[0].information);
+  assert.equal(records[0].notes, 'Personal note. Follow up.');
+  assert.equal(records[0].priority, 'DREAM', 'Missing Notion priority must preserve the local choice');
+  assert.equal(records[0].work_model, 'REMOTE', 'Missing Notion work model must preserve the local choice');
+  assert.equal(records[0].date_applied, adminApp.date_applied, 'Missing Notion date must not become today');
+  pages[0].properties.Information = { rich_text: [] };
+  pages[0].properties['Post Notes'] = { rich_text: [] };
+  await moduleObject.exports.pullApplicationsFromNotion();
+  assert.equal(records[0].information, '', 'An explicitly cleared description must stay empty');
+  assert.equal(records[0].job_description, '');
+  assert.equal(records[0].notes, '', 'Empty Post Notes must not fall back to stale legacy Notes');
+  records[0].information = records[0].job_description = 'Keep description';records[0].notes = 'Keep notes';
+  delete pages[0].properties.Information;delete pages[0].properties['Post Notes'];delete pages[0].properties.Notes;
+  await moduleObject.exports.pullApplicationsFromNotion();
+  assert.equal(records[0].information, 'Keep description', 'Missing text properties must not erase local content');
+  assert.equal(records[0].notes, 'Keep notes');
   console.log('Notion sync: comma normalization, failed-write retry, pull protection, accurate counts and owner/lead exclusions passed');
 }
 run().catch((error) => { console.error(error); process.exitCode = 1; });
