@@ -44,7 +44,7 @@ export default function SSOLandingView() {
                 <div>
                   <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#F1DDE9] text-[#9D3C5E] text-xs font-bold shadow-2xs backdrop-blur-sm">
                     <Sparkles className="w-3.5 h-3.5 text-[#FF7AB3]" />
-                    <span>Career Opportunity Platform</span>
+                    <span>Smart Career Opportunity Platform</span>
                   </div>
                 </div>
 
@@ -138,7 +138,7 @@ export default function SSOLandingView() {
               {/* Brand Title Header (Moved here per user request) */}
               <div className="mb-6 space-y-1">
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-[#4A3E44] tracking-tight">
-                  Job Hunt & Leads
+                  Job Hunt
                 </h1>
                 <p className="text-xs font-semibold text-[#9D3C5E]">
                   Career Pipeline & AI Suite
@@ -229,7 +229,7 @@ export default function SSOLandingView() {
 
               {/* Footnote */}
               <div className="mt-6 pt-5 border-t border-[#F1DDE9]/70 text-[11px] text-[#736A6D]/80">
-                Contact Administrator for access.
+                Contact administrator for access.
               </div>
             </div>
           </div>
