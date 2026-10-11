@@ -5,7 +5,6 @@ import { JobApplication, Company } from '@/types/job';
 import { pipelineAnalytics, isInternship } from '@/lib/analytics';
 import { analyticsPdf } from '@/lib/analytics-export';
 import { AnalyticsStage, DEFAULT_REJECTION_STATUSES } from '@/lib/analytics-stages';
-import CandidateProfileEditor from './CandidateProfileEditor';
 import RoleFitBadge from './RoleFitBadge';
 
 interface AnalyticsViewProps {
@@ -13,13 +12,12 @@ interface AnalyticsViewProps {
  companies: Company[];
  accountName: string;
  preferenceVersion: number;
- onRefresh: () => Promise<void>;
  onEditApp?: (app: JobApplication) => void;
 }
 const percent = (value: number | null) => value === null ? '—' : `${value}%`;
 const card = 'rounded-2xl border border-[#F1DDE9] bg-white p-5 shadow-xs';
 const button = 'rounded-xl border border-[#F1DDE9] bg-[#FFF0F6] px-3 py-2 text-xs font-semibold text-[#9D3C5E] disabled:opacity-50';
-export default function AnalyticsView({ applications, accountName, onRefresh, onEditApp, preferenceVersion }: AnalyticsViewProps) {
+export default function AnalyticsView({ applications, accountName, onEditApp, preferenceVersion }: AnalyticsViewProps) {
  const [mapping, setMapping] = useState<Record<string, AnalyticsStage>>({});
  const [rejectionStatuses, setRejectionStatuses] = useState<readonly string[]>(DEFAULT_REJECTION_STATUSES);
  useEffect(() => { fetch('/api/preferences').then(r=>r.json()).then(d=>{ if(d.success) { setMapping(d.data.analytics_status_stages || {}); setRejectionStatuses(d.data.analytics_rejection_statuses ?? DEFAULT_REJECTION_STATUSES); } }); }, [preferenceVersion]);
@@ -32,23 +30,6 @@ export default function AnalyticsView({ applications, accountName, onRefresh, on
  const signature = String(preferenceVersion) + ':' + scoped.map(app => `${app.id}:${app.updated_at}`).join('|');
  const currentInsight = insight?.scope === scope && insight.signature === signature ? insight : null;
  const scopeLabel = scope === 'INTERNSHIP' ? 'Internships' : scope === 'OTHER' ? 'Regular Employment' : 'All (combined)';
- async function analyzeUnassessed() {
-  setBusy('fits'); setMessage('');
-  const targets = scoped.filter(app => !app.role_fit && (app.information || app.job_description || '').trim().length >= 30);
-  let assessed = 0; let failed = 0; let lastError = '';
-  try {
-   for (const [index, app] of targets.entries()) {
-    setMessage(`Assessing ${index + 1} of ${targets.length}: ${app.role_title}`);
-    const response = await fetch('/api/role-fit', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: app.id}) });
-    const data = await response.json();
-    if (response.ok && data.success) assessed++; else { failed++; lastError = data.error || 'Assessment failed.'; }
-   }
-   await onRefresh();
-   const missing = scoped.filter(app => !app.role_fit && (app.job_description || '').trim().length < 30).length;
-   setMessage(`${assessed} assessed. ${missing} need job requirements.${failed ? ` ${failed} failed: ${lastError}` : ''}`);
-  } catch (error) { setMessage(error instanceof Error ? error.message : 'Fit assessment failed. Saved assessments are retained.'); }
-  finally { setBusy(''); }
- }
  async function analyzePipeline() {
   setBusy('insights'); setMessage('');
   try {
@@ -83,10 +64,11 @@ export default function AnalyticsView({ applications, accountName, onRefresh, on
     ].map(([label, value, detail]) => <div key={label} className={card}><p className="text-xs font-semibold text-[#736A6D]">{label}</p><p className="my-2 text-3xl font-bold text-[#9D3C5E]">{value}</p><p className="text-[11px] text-[#736A6D]">{detail}</p></div>)}
    </div>
    <section className={card}>
-    <div className="flex flex-wrap justify-between gap-2"><div><h3 className="font-bold text-sm">Role fit and conversion</h3><p className="text-xs text-[#736A6D] mt-1">{stats.assessed} assessed · {stats.unassessed} unassessed · {percent(stats.coverage)} coverage</p></div><button disabled={Boolean(busy) || !stats.unassessed} className={button} onClick={analyzeUnassessed}>{busy === 'fits' ? 'Assessing…' : 'Analyze unassessed roles'}</button></div>
+    <div><h3 className="font-bold text-sm">Role fit and conversion</h3><p className="text-xs text-[#736A6D] mt-1">{stats.assessed} assessed · {stats.unassessed} unassessed · {percent(stats.coverage)} coverage</p></div>
     <div className="overflow-x-auto mt-4"><table className="w-full text-xs text-left"><thead><tr className="border-b border-[#F1DDE9] text-[#736A6D]">{['Role fit','Tracked','Submitted','Screening','Offers','Rejections'].map(label=><th key={label} className="p-2">{label}</th>)}</tr></thead><tbody>{stats.fits.map(fit=><tr key={fit.value} className="border-b border-[#F1DDE9]/50"><td className="p-2 min-w-[200px]"><strong>{fit.label}</strong><p className="text-[11px] text-[#736A6D] mt-1">{fit.description}</p></td><td className="p-2">{fit.total}</td><td className="p-2">{fit.submitted}</td><td className="p-2">{fit.progressed} ({percent(fit.progressionRate)})</td><td className="p-2">{fit.offers} ({percent(fit.offerRate)})</td><td className="p-2">{fit.rejections} ({percent(fit.rejectionRate)})</td></tr>)}</tbody></table></div>
     <p className="mt-3 text-[11px] text-[#736A6D]">Rates use submitted roles in each fit group, as defined by your analytics mappings. Unassessed roles are kept separate. Small samples describe your recorded results and do not predict future outcomes.</p>
     <p className="mt-2 text-[11px] text-[#736A6D]">Rejections count current statuses selected in My preferences. A rejection after an interview still retains that interview progress.</p>
+    <p className="mt-2 text-[11px] text-[#736A6D]">Assess a role from its application using Reanalyze role fit. Review past roles before rating them against your current resume.</p>
 
    </section>
    <div className="grid gap-4 lg:grid-cols-2">

@@ -60,6 +60,25 @@ test('job JSON preserves structured descriptions, responsibilities and qualifica
  assert.throws(()=>parseJobImport(JSON.stringify({description:{overview:123}})),/must contain text/);
  assert.throws(()=>parseJobImport(JSON.stringify({candidate:{professional_summary:'Python developer',qualifications:['Python']}})),/Candidate\/profile JSON/);
 });
+
+test('salary displays group numeric database strings, retain zero and default to PHP',()=>{
+ const {formatSalaryRange}=loader()('src/lib/currencies.ts');
+ assert.equal(formatSalaryRange('60000.00','80000.00'),'PHP 60,000.00 – 80,000.00');
+ assert.equal(formatSalaryRange(50000.5,75000.75,'php'),'PHP 50,000.50 – 75,000.75');
+ assert.equal(formatSalaryRange(1200,2000,'USD'),'USD 1,200.00 – 2,000.00');
+ assert.equal(formatSalaryRange(0,undefined),'PHP 0.00');
+ assert.equal(formatSalaryRange(undefined,80000),'Up to PHP 80,000.00');
+ assert.equal(formatSalaryRange(null,'',null),'');assert.equal(formatSalaryRange(NaN,Infinity),'');
+});
+
+test('screening statuses map to screening without changing interview or rejection categories',()=>{
+ const {getStatusCategory}=loader()('src/lib/statuses.ts');
+ assert.equal(getStatusCategory('Screening Call'),'SCREENING');
+ assert.equal(getStatusCategory('Initial Interview'),'INTERVIEWING');
+ assert.equal(getStatusCategory('Technical Test'),'INTERVIEWING');
+ assert.equal(getStatusCategory('Screening - Not Accepted'),'REJECTED');
+ assert.equal(getStatusCategory('Screening - Rejected'),'REJECTED');
+});
 test('preferences validate fields and save only to the signed-in account',async()=>{
  const {validatePreferences}=loader()('src/lib/preferences.ts');assert.throws(()=>validatePreferences({work_models:['INVALID']}));assert.throws(()=>validatePreferences({salary_min:-1}));let saved;const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'member'})},'@/lib/db':{getCandidatePreferences:async()=>null,saveCandidatePreferences:async(owner,data)=>{saved={owner,data};}}})('src/app/api/preferences/route.ts');assert.equal((await (await route.GET()).json()).data.salary_currency,'PHP');const response=await route.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({owner:'friend',target_roles:['Developer','Developer'],portfolio_summary:'Built Python tools',work_models:['REMOTE']})}));assert.equal(response.status,200);assert.equal(saved.owner,'member');assert.deepEqual(saved.data.target_roles,['Developer']);assert.equal(saved.data.portfolio_summary,'Built Python tools');
 });

@@ -6,6 +6,7 @@ import React from 'react';
 import { JobApplication } from '@/types/job';
 import StatusBadge from './StatusBadge';
 import PriorityBadge from './PriorityBadge';
+import { formatSalaryRange } from '@/lib/currencies';
 import {
   Building2,
   ExternalLink,
@@ -69,6 +70,7 @@ export default function ApplicationTable({
                     day: 'numeric',
                   })
                 : '—';
+              const salary = formatSalaryRange(app.salary_min, app.salary_max, app.salary_currency);
 
               return (
                 <tr
@@ -93,15 +95,9 @@ export default function ApplicationTable({
                         {app.notes}
                       </span>
                     )}
-                    {app.salary_min || app.salary_max ? (
+                    {salary ? (
                       <span className="text-[11px] text-[#736A6D] block mt-0.5">
-                        {app.salary_currency}{' '}
-                        {[
-                          app.salary_min ? app.salary_min.toLocaleString() : '',
-                          app.salary_max ? `- ${app.salary_max.toLocaleString()}` : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
+                        {salary}
                       </span>
                     ) : null}
                   </td>
