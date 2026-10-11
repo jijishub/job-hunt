@@ -3,6 +3,7 @@
 import { CURRENCIES } from '@/lib/currencies';
 import { ANALYTICS_STAGES, STAGE_LABELS, AnalyticsStage } from '@/lib/analytics-stages';
 import CloseButton from './CloseButton';
+import CurrencyInput from './CurrencyInput';
 import { ROLE_FITS } from '@/lib/role-fit';
 import { parseJobImport, JOB_JSON_PROMPT } from '@/lib/job-import';
 import type { RoleFit, RoleFitAnalysis } from '@/types/job';
@@ -170,8 +171,8 @@ export default function ApplicationModal({
       setJobType(initialData.job_type || 'FULL_TIME');
       setWorkModel(initialData.work_model || 'ON_SITE');
       setLocation(initialData.location || '');
-      setSalaryMin(initialData.salary_min ? String(initialData.salary_min) : '');
-      setSalaryMax(initialData.salary_max ? String(initialData.salary_max) : '');
+      setSalaryMin(initialData.salary_min != null ? String(initialData.salary_min) : '');
+      setSalaryMax(initialData.salary_max != null ? String(initialData.salary_max) : '');
       setSalaryCurrency(initialData.salary_currency || 'PHP');
       setJobUrl(initialData.job_url || '');
       setContactName(initialData.contact_name || '');
@@ -556,12 +557,11 @@ export default function ApplicationModal({
               <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
                 Monthly salary minimum
               </label>
-              <div className="flex items-center gap-2">              <input
-                type="number"
-                placeholder="e.g. 120000"
+              <div className="flex items-center gap-2">              <CurrencyInput
+                placeholder="e.g. 120,000.00"
                 aria-label="Monthly salary minimum"
                 value={salaryMin}
-                onChange={(e) => setSalaryMin(e.target.value)}
+                onValueChange={setSalaryMin}
                 className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs text-[#4A3E44] transition"
               /><select aria-label="Salary currency" value={salaryCurrency} onChange={e=>setSalaryCurrency(e.target.value)} className="rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs">{CURRENCIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
             </div>
@@ -569,11 +569,11 @@ export default function ApplicationModal({
               <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
                 Max Salary ({salaryCurrency})
               </label>
-              <input
-                type="number"
-                placeholder="e.g. 160000"
+              <CurrencyInput
+                placeholder="e.g. 160,000.00"
+                aria-label="Monthly salary maximum"
                 value={salaryMax}
-                onChange={(e) => setSalaryMax(e.target.value)}
+                onValueChange={setSalaryMax}
                 className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs text-[#4A3E44] transition"
               />
             </div>

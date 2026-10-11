@@ -27,6 +27,20 @@ Configure `.env.local` with `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `GOOGLE_CLIENT_ID
 
 AI features use `AI_BASE_URL`, `AI_API_KEY`, and `AI_DEFAULT_MODEL`. Admin Notion sync uses `NOTION_API_KEY` and `NOTION_DATABASE_ID`. Keep credentials out of source control. Without PostgreSQL, local development uses the JSON fallback.
 
+## Fill missing company icons
+
+From PowerShell in this project:
+
+```powershell
+npm run company-icons
+```
+
+Requires the Codex CLI signed in (`codex login`) and the live `POSTGRES_URL` in `.env.local`. The command starts a new Codex research session with live web search, then downloads verified official logos and fills empty company icon fields. Existing icons are preserved, including icons added during the run. Uncertain matches are skipped. This uses your signed-in Codex account, separately from the app's AI API.
+
+Backups, sources and results are saved under `.data/company-icons/`. Preview missing companies without starting Codex or changing the database with `npm run company-icons:preview`.
+
+The job uses [Codex non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode).
+
 ## Verification and deployment
 
 ```sh
