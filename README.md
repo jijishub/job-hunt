@@ -2,8 +2,8 @@
   <img src="public/job-hunt%20official%20text.png" alt="Job Hunt" width="360" />
 </p>
 
-<p align="center"><strong>🌸 A clearer view of your next career move.</strong></p>
-<p align="center">Applications, leads, resumes, and analytics in one private workspace.</p>
+<p align="center"><strong>🌸 Keep the details. See the bigger picture.</strong></p>
+<p align="center">Your job search, thoughtfully organized—with room for both ambition and analytics.</p>
 <p align="center">
   <a href="https://jobhunt.jizellecasia.site">Open Job Hunt</a> ·
   <a href="#getting-started">Local setup</a> ·
@@ -12,21 +12,41 @@
 
 ---
 
-## The workspace
+## Meet Job Hunt
 
-| Area | What you can do |
+**Job Hunt is a personalized job application and leads platform** that brings application tracking, AI resume tools, interactive analytics, salary insights, and two-way Notion sync into one workspace.
+
+Save the roles that interest you, keep your notes close, and explore how your applications move through the hiring process. From your first internship to your next career move, your records grow into a picture you can actually learn from.
+
+*Blush pink, soft white, and practical details throughout. A workspace you can make your own.*
+
+### Why I built it
+
+I started by tracking my internship applications. As I moved into regular employment, I wanted to keep that history while giving my current search its own focus.
+
+The details are the part I get excited about: which roles reach interviews, how fit ratings compare with outcomes, and how salary offers line up with expectations. Job Hunt gives those questions a place to live.
+
+## ✧ Inside the workspace
+
+| Feature | What it brings to your search |
 | --- | --- |
-| Applications | Track roles in a table or board, with editable dates, statuses, descriptions, and personal notes. |
-| Companies | Reuse company profiles and logos across applications and leads. |
-| Leads | Save real postings, generate search keywords, and choose LinkedIn, JobStreet, Indeed, or Google Jobs. |
-| Resume & AI | Keep a master resume and request ATS matching or role-fit assessments when needed. |
-| Analytics | Explore progress, fit conversion, offers, rejections, and monthly activity; export aggregate PDF reports. |
-| Salary insights | Record expected salary and actual base-pay offers; compare matching currencies and pay periods. |
-| Preferences | Set targets, your default job-type view, and analytics status mappings for your account. |
+| **Your application pipeline** | Switch between a table and board; keep job descriptions, personal notes, dates, and hiring stages together. |
+| **A home for promising leads** | Save real postings and generate search keywords, then choose where to explore: LinkedIn, JobStreet, Indeed, or Google Jobs. |
+| **AI when you need it** | Use your master resume for ATS matching and role-fit assessments, with explanations you can review. |
+| **Analytics you can explore** | Follow submissions, interviews, offers, and rejections. Click charts to review their records and export an aggregate PDF report. |
+| **Salary expectations, made visible** | Compare actual offers with what you asked for, including median amounts and offer gaps within the same currency and pay period. |
+| **A view that grows with you** | Keep internships and regular employment together or separate. Save your default view, targets, and analytics mappings. |
+| **Companies worth remembering** | Reuse company profiles and logos across applications and leads. |
+| **Connected, personal records** | Sign in with Google to access your own data; administrator tools add two-way Notion sync and account management. |
 
-Google sign-in keeps each account's records separate. Members use the cloud database; the administrator also has two-way Notion sync and account management.
+### From a lead to an insight
 
-New applications default to **Not started** and today's date, both editable. Role-fit analysis runs only when requested. Leads remain separate until promoted, and AI discovery generates search ideas to research rather than confirmed vacancies.
+1. **Find a role.** Explore search keywords or save a posting you already have.
+2. **Keep the context.** Add the description, your notes, and your salary expectation.
+3. **Track what happens.** Update hiring stages and record an actual offer when it arrives.
+4. **Explore your progress.** Review the patterns in Analytics and decide what to try next.
+
+New applications start at **Not started** with today's date; both are editable. Role-fit analysis runs when you request it. AI discovery provides search ideas to research, and leads stay separate until you mark them applied. Salary comparisons pair the same application with matching currency and pay period.
 
 ## Built with
 
@@ -81,4 +101,5 @@ The icon job requires a signed-in Codex CLI and `POSTGRES_URL` in `.env.local`. 
 
 ---
 
-<p align="center">🤍 Created by <a href="https://jizellecasia.site">Jizelle Casia</a> · <a href="https://coolsymbol.com">♡</a></p>
+<p align="center">🤍 A personal project, built for a very real job search.</p>
+<p align="center">Created by <a href="https://jizellecasia.site">Jizelle Casia</a> · <a href="https://jobhunt.jizellecasia.site">Visit Job Hunt</a></p>
