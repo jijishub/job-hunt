@@ -44,15 +44,15 @@ export default function SSOLandingView() {
                 <div>
                   <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#F1DDE9] text-[#9D3C5E] text-xs font-bold shadow-2xs backdrop-blur-sm">
                     <Sparkles className="w-3.5 h-3.5 text-[#FF7AB3]" />
-                    <span>Aim High with Precision • Career Opportunity Platform</span>
+                    <span>Career Opportunity Platform</span>
                   </div>
                 </div>
 
                 {/* Headline and Narrative */}
                 <h2 className="text-3xl sm:text-4xl lg:text-[44px] font-extrabold text-[#4A3E44] tracking-tight leading-[1.15]">
-                  Track Applications.<br />
+                  Aim with<br />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF7AB3] to-[#9D3C5E]">
-                    Supercharge with AI.
+                   High Precision.
                   </span>
                 </h2>
                 <p className="text-sm sm:text-base text-[#736A6D] leading-relaxed">
