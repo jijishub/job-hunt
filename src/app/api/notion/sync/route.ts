@@ -11,7 +11,7 @@ export async function GET() {
   try {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
-    if (!user.notion_enabled) return NextResponse.json({ configured: false, success: false, error: 'Notion sync is unavailable for this account.' }, { status: 403 });
+    if (user.role !== 'admin' || !user.notion_enabled) return NextResponse.json({ configured: false, success: false, error: 'Notion sync is unavailable for this account.' }, { status: 403 });
     const config = getNotionConfig();
     const test = await testNotionConnection();
     return NextResponse.json({
@@ -31,7 +31,7 @@ export async function POST() {
   try {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
-    if (!user.notion_enabled) return NextResponse.json({ configured: false, success: false, error: 'Notion sync is unavailable for this account.' }, { status: 403 });
+    if (user.role !== 'admin' || !user.notion_enabled) return NextResponse.json({ configured: false, success: false, error: 'Notion sync is unavailable for this account.' }, { status: 403 });
     const result = await performTwoWaySync();
     const apps = await getApplications();
     const comps = await getCompanies();

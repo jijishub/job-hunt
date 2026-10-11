@@ -42,8 +42,7 @@ export function getAuthOptions(req?: any): NextAuthOptions {
     process.env.GOOGLE_CLIENT_ID ||
     '972891016125-fvv60b8s3oqmgpp9ornq216in0ss4l0h.apps.googleusercontent.com';
   const googleClientSecret =
-    process.env.GOOGLE_CLIENT_SECRET ||
-    'YOUR_GOOGLE_CLIENT_SECRET';
+    process.env.GOOGLE_CLIENT_SECRET || '';
 
   return {
     providers: [
@@ -138,7 +137,7 @@ export function getAuthOptions(req?: any): NextAuthOptions {
     session: {
       strategy: 'jwt',
     },
-    secret: process.env.NEXTAUTH_SECRET || 'YOUR_NEXTAUTH_SECRET',
+    secret: process.env.NEXTAUTH_SECRET,
   };
 }
 

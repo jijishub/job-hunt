@@ -1,17 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import jsPDF from 'jspdf';
 import ATSExportReport from './ATSExportReport';
 import { getReportPageCuts } from '@/lib/report-pagination';
 import { captureReport } from '@/lib/report-capture';
 import { JobApplication } from '@/types/job';
-import { AIModelId, AVAILABLE_AI_MODELS, ResumeAnalysisResult } from '@/lib/ai';
+import { AIModelId, AVAILABLE_AI_MODELS, ResumeAnalysisResult } from '@/lib/ai-types';
 import {
   Sparkles,
   FileText,
+  RefreshCw,
   Briefcase,
   CheckCircle2,
   AlertCircle,
@@ -20,28 +20,28 @@ import {
   Zap,
   Brain,
   Crown,
-  RefreshCw,
   TrendingUp,
   Tag,
   MessageSquare,
   HelpCircle,
-  Upload,
-  FileCheck,
   Download,
 } from 'lucide-react';
 
 interface ResumeAnalyzerViewProps {
   applications: JobApplication[];
   initialSelectedAppId?: string | null;
+  preferenceVersion?: number;
+  onOpenPreferences: () => void;
 }
 
 export default function ResumeAnalyzerView({
   applications,
   initialSelectedAppId,
+  preferenceVersion = 0,
+  onOpenPreferences,
 }: ResumeAnalyzerViewProps) {
   const { data: session } = useSession();
-  const isAdmin = (session?.user as any)?.role === 'admin' || session?.user?.email === 'jizellecasia@gmail.com' || session?.user?.email === 'jizelle.casia@gmail.com';
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const isAdmin = (session?.user as any)?.role === 'admin';
 
   // Model selection
   const [selectedModel, setSelectedModel] = useState<AIModelId>('luna');
@@ -56,12 +56,7 @@ export default function ResumeAnalyzerView({
   // Loading & Result states
   const [isLoading, setIsLoading] = useState(false);
   const [isPortfolioImporting, setIsPortfolioImporting] = useState(false);
-  const [isPdfUploading, setIsPdfUploading] = useState(false);
-  const [uploadedPdfInfo, setUploadedPdfInfo] = useState<{
-    filename: string;
-    fileSize: number;
-    totalPages: number;
-  } | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [result, setResult] = useState<ResumeAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,6 +72,20 @@ export default function ResumeAnalyzerView({
   // Active sub-tab in results
   const [activeResultTab, setActiveResultTab] = useState<'overview' | 'keywords' | 'bullets' | 'pitch'>('overview');
 
+  useEffect(() => {
+    const controller = new AbortController();
+    setProfileLoading(true); setResult(null);
+    fetch('/api/profile', { signal: controller.signal }).then(r => r.json()).then(data => {
+      if (!data.success) throw new Error(data.error);
+      setResumeText(data.resumeText || '');
+    }).catch(err => { if (err.name !== 'AbortError') setError(err.message); })
+      .finally(() => { if (!controller.signal.aborted) setProfileLoading(false); });
+    return () => controller.abort();
+  }, [preferenceVersion]);
+
+  const analysisVersion = useRef(0);
+  useEffect(() => { analysisVersion.current++; setResult(null); }, [resumeText, jobTitle, companyName, jobDescription, selectedModel, preferenceVersion]);
+
   // Pre-load from selected app if provided
   useEffect(() => {
     if (selectedAppId) {
@@ -84,78 +93,11 @@ export default function ResumeAnalyzerView({
       if (app) {
         setJobTitle(app.role_title || '');
         setCompanyName(app.company_name || '');
-        const details = [
-          app.location ? `Location: ${app.location} (${app.work_model || 'Remote'})` : '',
-          app.notes ? `Role Notes & Requirements:\n${app.notes}` : '',
-          app.job_url ? `Job Posting Link: ${app.job_url}` : '',
-        ]
-          .filter(Boolean)
-          .join('\n\n');
-        setJobDescription(details || `${app.role_title} position at ${app.company_name}.`);
+        setJobDescription(app.information || app.job_description || '');
+        setResult(null);
       }
     }
   }, [selectedAppId, applications]);
-
-  // Process PDF File and extract text (PDF Acceptance Only)
-  const processPdfFile = async (file: File) => {
-    if (!file) return;
-
-    // Strictly validate PDF
-    const isPdfExt = file.name.toLowerCase().endsWith('.pdf');
-    const isPdfMime = file.type === 'application/pdf' || file.type === 'application/x-pdf';
-    if (!isPdfExt && !isPdfMime) {
-      setError('Only PDF files (.pdf) are accepted. Please upload a PDF resume.');
-      return;
-    }
-
-    setIsPdfUploading(true);
-    setError(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const res = await fetch('/api/resume/parse-pdf', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to extract text from PDF');
-      }
-
-      setResumeText(data.text);
-      setUploadedPdfInfo({
-        filename: data.filename || file.name,
-        fileSize: data.fileSize || file.size,
-        totalPages: data.totalPages || 1,
-      });
-      if (data.text) {
-        const saved = await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resumeText: data.text }) });
-        if (!saved.ok) throw new Error('Resume extracted, but saving it to your account failed.');
-      }
-      if (typeof window !== 'undefined' && data.text) {
-        localStorage.setItem(`candidate_resume_text:${(session?.user as any)?.id || 'signed-out'}`, data.text);
-        localStorage.setItem(`candidate_resume_name:${(session?.user as any)?.id || 'signed-out'}`, data.filename || file.name);
-      }
-    } catch (err: any) {
-      console.error('PDF upload error:', err);
-      setError(`PDF Import failed: ${err.message}. You can manually paste resume text below.`);
-    } finally {
-      setIsPdfUploading(false);
-    }
-  };
-
-  // Handle PDF Resume Upload from file input
-  const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      processPdfFile(file);
-    }
-    // Reset input so re-uploading the same file works
-    e.target.value = '';
-  };
 
   // Auto-import candidate portfolio/bio from jizellecasia.vercel.app
   const handleAutoImportPortfolio = async () => {
@@ -167,29 +109,8 @@ export default function ResumeAnalyzerView({
       const p = data.profile || data.data;
 
       if (data.success && p) {
-        const formatted = `Candidate Name: ${p.name || 'Jizelle Casia'}
-Headline: ${p.headline || 'Forward-Deployed Engineer'}
-Portfolio: ${p.portfolioUrl || 'https://jizellecasia.vercel.app'}
-
-Bio:
-${p.bio || ''}
-
-Technical Skills:
-${p.skills?.join(', ') || 'React, TypeScript, Next.js, PostgreSQL, Docker, Python'}
-
-Education:
-${p.education?.school || 'Polytechnic University of the Philippines'} - ${p.education?.major || 'BS Information Technology'} (${p.education?.honors || 'Cum Laude'})
-GPA: ${p.education?.gpa || '1.35'}
-${p.education?.description || ''}
-
-Projects:
-${p.projects?.map((proj: any) => `• ${proj.title} (${proj.role}): Tech Stack: ${proj.techStack}`).join('\n') || 'Full-Stack Portfolio and AI Web Apps'}
-
-Experience Highlights:
-${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (${exp.location})`).join('\n') || 'Forward-Deployed Engineer at GDS Capital'}`;
-
-        setResumeText(formatted);
-        setUploadedPdfInfo(null);
+        setResumeText(JSON.stringify(p, null, 2));
+        setResult(null);
       } else {
         throw new Error('Failed to retrieve portfolio profile data');
       }
@@ -202,18 +123,15 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
 
   const handleAnalyze = async () => {
     if (!resumeText.trim()) {
-      setError(
-        isAdmin
-          ? 'Please upload your resume PDF, paste text, or click "Auto-Import Portfolio" before analyzing.'
-          : 'Please upload your candidate resume PDF or paste resume text before analyzing.'
-      );
+      setError('Save your master resume in My preferences before analyzing.');
       return;
     }
-    if (!jobDescription.trim() && !jobTitle.trim()) {
-      setError('Please provide target job details or select an existing job application.');
+    if (jobDescription.trim().length < 30) {
+      setError('Add the actual job requirements (at least 30 characters).');
       return;
     }
 
+    const version = analysisVersion.current;
     setIsLoading(true);
     setError(null);
 
@@ -222,15 +140,17 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          resumeText,
+          resumeText: isAdmin ? resumeText : undefined,
+          applicationId: selectedAppId || undefined,
           jobTitle,
           companyName,
-          jobDescription: jobDescription || `${jobTitle} at ${companyName}`,
+          jobDescription,
           model: selectedModel,
         }),
       });
 
       const json = await res.json();
+      if (version !== analysisVersion.current) return;
       if (json.success && json.data) {
         setResult(json.data);
         setActiveResultTab('overview');
@@ -239,7 +159,7 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'An unexpected error occurred during AI resume analysis.');
+      if (version === analysisVersion.current) setError(err.message || 'An unexpected error occurred during AI resume analysis.');
     } finally {
       setIsLoading(false);
     }
@@ -323,6 +243,7 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-[#4A3E44]">AI Resume & ATS Matcher</h1>
+              <p className="text-[11px] text-[#736A6D]">Scores are AI estimates, separate from employer ATS results and application outcomes.</p>
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FFF0F6] text-[#9D3C5E] border border-[#F1DDE9]">
                   AI Powered
                 </span>
@@ -383,95 +304,14 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Form Inputs (5 cols) */}
         <div className="lg:col-span-5 space-y-5">
-          {/* Resume Input Card */}
-          <div className="bg-white rounded-2xl p-5 border border-[#F1DDE9] shadow-xs space-y-3">
-            {/* Hidden native PDF file input (Strictly .pdf acceptance only) */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,application/pdf"
-              onChange={handlePdfUpload}
-              className="hidden"
-            />
-
+          <div className="bg-white rounded-2xl p-5 border border-[#F1DDE9] space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="text-xs font-bold text-[#4A3E44] uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-[#FF7AB3]" />
-                <span>Candidate Resume / Profile *</span>
-              </label>
-
-              {/* Auto-Import Portfolio: ONLY shown for Admin (Jizelle Casia) */}
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={handleAutoImportPortfolio}
-                  disabled={isPortfolioImporting}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl bg-white text-[#4A3E44] hover:bg-[#FAF7F9] border border-[#F1DDE9] transition disabled:opacity-50"
-                  title="Fetch live bio, tech stack, and projects from jizellecasia.vercel.app (Admin only)"
-                >
-                  <RefreshCw className={`w-3 h-3 ${isPortfolioImporting ? 'animate-spin' : ''}`} />
-                  <span>{isPortfolioImporting ? 'Syncing...' : '⚡ Auto-Import Portfolio'}</span>
-                </button>
-              )}
+              <h2 className="text-sm font-bold text-[#4A3E44]">Master resume</h2>
+              <button type="button" onClick={onOpenPreferences} className="rounded-xl px-3 py-2 text-xs font-semibold bg-[#FFF0F6] text-[#9D3C5E]">My preferences</button>
             </div>
-
-            {/* Uploaded PDF Info Badge */}
-            {uploadedPdfInfo && (
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 animate-in fade-in">
-                <div className="flex items-center gap-2 truncate">
-                  <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="font-semibold truncate">{uploadedPdfInfo.filename}</span>
-                  <span className="text-[10px] text-emerald-600 shrink-0">
-                    ({(uploadedPdfInfo.fileSize / 1024).toFixed(1)} KB • {uploadedPdfInfo.totalPages}{' '}
-                    {uploadedPdfInfo.totalPages === 1 ? 'page' : 'pages'})
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUploadedPdfInfo(null);
-                    setResumeText('');
-                  }}
-                  className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 ml-2 shrink-0 cursor-pointer"
-                  title="Remove uploaded resume"
-                >
-                  Remove
-                </button>
-              </div>
-            )}
-
-            <textarea
-              rows={8}
-              value={resumeText}
-              onChange={(e) => setResumeText(e.target.value)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                const file = e.dataTransfer.files?.[0];
-                if (file) processPdfFile(file);
-              }}
-              placeholder={
-                isAdmin
-                  ? "Paste candidate credentials, or click 'Auto-Import Portfolio' (or 'Upload Resume PDF' on the right)..."
-                  : "Paste candidate credentials, or click 'Upload Resume PDF' on the right (drag & drop PDF also supported)..."
-              }
-              className="w-full p-3 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] focus:ring-2 focus:ring-[#FF7AB3]/20 text-xs font-mono text-[#4A3E44] placeholder-stone-400 resize-y leading-relaxed"
-            />
-            <div className="flex items-center justify-between text-[11px] text-[#736A6D]">
-              <span>{resumeText.length} characters</span>
-              {resumeText && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setResumeText('');
-                    setUploadedPdfInfo(null);
-                  }}
-                  className="hover:text-rose-600 transition"
-                >
-                  Clear text
-                </button>
-              )}
-            </div>
+            <p className="text-xs text-[#736A6D]">{profileLoading ? 'Loading your saved resume?' : resumeText ? 'Uses the resume saved in My preferences.' : 'Save your resume in My preferences to begin.'}</p>
+            <textarea aria-label="ATS resume" rows={8} value={resumeText} readOnly={!isAdmin} onChange={e => { setResumeText(e.target.value); setResult(null); }} className="w-full p-3 rounded-xl border border-[#F1DDE9] text-xs text-[#4A3E44]" />
+            {isAdmin && <button type="button" disabled={isPortfolioImporting} onClick={handleAutoImportPortfolio} className="rounded-xl px-3 py-2 text-xs font-semibold border border-[#F1DDE9] text-[#9D3C5E]">{isPortfolioImporting ? 'Loading portfolio?' : 'Use live portfolio for this match'}</button>}
           </div>
 
           {/* Target Job Card */}
@@ -490,6 +330,7 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
                   Select from Tracked Opportunities:
                 </label>
                 <select
+                  aria-label="ATS tracked opportunity"
                   value={selectedAppId}
                   onChange={(e) => setSelectedAppId(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-[#FAF7F9] transition"
@@ -532,9 +373,10 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
                 Job Description & Requirements *
               </label>
               <textarea
+                aria-label="ATS job requirements"
                 rows={6}
                 value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
+                onChange={(e) => { setJobDescription(e.target.value); setSelectedAppId(''); setResult(null); }}
                 placeholder="Paste key responsibilities, required qualifications, and tech stack from the job post..."
                 className="w-full p-3 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] focus:ring-2 focus:ring-[#FF7AB3]/20 text-xs text-[#4A3E44] placeholder-stone-400 resize-y leading-relaxed"
               />
@@ -566,35 +408,10 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
               </div>
               <h3 className="text-base font-bold text-[#4A3E44]">Ready for AI Resume Analysis</h3>
               <p className="text-xs text-[#736A6D] max-w-md mt-1.5 leading-relaxed">
-                {isAdmin ? (
-                  <>
-                    Upload a <strong>PDF resume</strong> or click <strong>&quot;Auto-Import Portfolio&quot;</strong> on the left, select a target job opportunity, and hit <strong>&quot;Run AI ATS Match&quot;</strong> to get an ATS compatibility score, missing keywords, and tailored recruiter pitches!
-                  </>
-                ) : (
-                  <>
-                    Upload your <strong>resume PDF</strong> (or paste your credentials) on the left, pick a target job opportunity, and hit <strong>&quot;Run AI ATS Match&quot;</strong> to get an ATS compatibility score, missing keywords, and custom interview pitch!
-                  </>
-                )}
+                Select a role with actual job requirements, then run a match when you want one. Manage your master resume in My preferences.
               </p>
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#FF7AB3] to-[#9D3C5E] hover:from-[#ff6aa8] hover:to-[#8c3553] text-white text-xs font-bold shadow-xs transition cursor-pointer"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>📄 Upload Resume PDF</span>
-                </button>
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={handleAutoImportPortfolio}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#FAF7F9] hover:bg-[#FCE7F3] border border-[#F1DDE9] text-xs font-bold text-[#9D3C5E] transition cursor-pointer"
-                  >
-                    <span>⚡ Auto-Import Portfolio</span>
-                  </button>
-                )}
-              </div>
+              <button type="button" onClick={onOpenPreferences} className="mt-5 rounded-xl bg-[#FFF0F6] px-4 py-2 text-xs font-semibold text-[#9D3C5E]">Manage master resume</button>
+
             </div>
           )}
 

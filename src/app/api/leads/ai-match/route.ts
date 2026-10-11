@@ -1,10 +1,18 @@
+import { getSessionAccount } from '@/lib/session-account';
+import { candidateEvidence } from '@/lib/candidate-evidence';
 import { NextResponse } from 'next/server';
 import { matchLeadsWithProfile, AIModelId } from '@/lib/ai';
 
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
+    const user = await getSessionAccount();
+    if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const body = await request.json();
-    const { profileText, leads, model } = body;
+    const evidence = await candidateEvidence(user);
+    const profileText = evidence.text;
+    const { leads, model } = body;
 
     if (!profileText || !profileText.trim()) {
       return NextResponse.json(

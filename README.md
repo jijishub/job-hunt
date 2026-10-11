@@ -1,4 +1,4 @@
-﻿# Job Hunt & Leads Hub
+<p align="center"><img src="public/job-hunt%20official%20text.png" alt="Job Hunt" width="360" /></p>
 
 A private job application tracker with a separate leads pipeline, resume analysis, role-fit assessment, and application analytics.
 
@@ -9,8 +9,9 @@ A private job application tracker with a separate leads pipeline, resume analysi
 - Table and board views with job descriptions, personal notes, salary, and application history.
 - Member statuses: Not started, Applied, Interview, Accepted, and Not Proceeding, with custom options. New entries default to Not started; admin accounts retain detailed Notion stages.
 - Preferences for target roles, work models, job types, currency, resume text, and analytics phase mappings.
-- Resume PDF analysis, portfolio evidence for the admin, and AI assessments against saved job descriptions.
-- Analytics for all applications, regular employment, or internships, with PDF reports.
+- A master resume in My preferences, used by member AI tools. Admin ATS matching can also use the live portfolio. Role-fit assessment runs only when requested.
+- Interactive pastel charts for phase progress, fit conversion, current outcomes, and monthly submissions. Analytics show sample sizes and inferred phases, separate internships and regular employment, and export PDF reports.
+- Company search and a short Guide tab for members.
 - Leads stay separate until promoted. See [lead feed behavior](references/leads-feed-explained.txt).
 - Google sign-in and account ownership checks. Notion integration and user management are admin features.
 
@@ -23,9 +24,11 @@ npm install
 npm run dev
 ```
 
-Configure `.env.local` with `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `POSTGRES_URL`. Set `ADMIN_EMAIL` to the administrator email; this project uses `jizelle.casia@gmail.com`.
+Configure `.env.local` with `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `POSTGRES_URL`. Set `ADMIN_EMAIL` to the administrator email.
 
-AI features use `AI_BASE_URL`, `AI_API_KEY`, and `AI_DEFAULT_MODEL`. Admin Notion sync uses `NOTION_API_KEY` and `NOTION_DATABASE_ID`. Keep credentials out of source control. Without PostgreSQL, local development uses the JSON fallback.
+AI features use `AI_BASE_URL`, `AI_API_KEY`, and `AI_DEFAULT_MODEL`. Admin Notion sync uses `NOTION_API_KEY` and `NOTION_DATABASE_ID`; webhook sync also requires `NOTION_WEBHOOK_SECRET`. Keep credentials out of source control. Without PostgreSQL, local development uses the JSON fallback.
+
+Leads must come from actual postings. AI discovery provides unverified search ideas, not confirmed vacancies or application records.
 
 ## Fill missing company icons
 

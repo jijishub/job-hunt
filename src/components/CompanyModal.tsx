@@ -64,6 +64,7 @@ export default function CompanyModal({
   const [industry, setIndustry] = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (initialData) {
@@ -106,7 +107,9 @@ export default function CompanyModal({
     setIsSubmitting(true);
     try {
       const finalLogo = selectedEmoji ? `emoji:${selectedEmoji}` : logoUrl;
+      setError('');
       await onSave({
+        id: initialData?.id,
         name: name.trim(),
         website: website.trim() || undefined,
         logo_url: finalLogo || undefined,
@@ -114,7 +117,7 @@ export default function CompanyModal({
       });
       onClose();
     } catch (err) {
-      console.error(err);
+      setError(err instanceof Error ? err.message : 'Could not save company.');
     } finally {
       setIsSubmitting(false);
     }
@@ -281,6 +284,7 @@ export default function CompanyModal({
             >
               Cancel
             </button>
+            {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
             <button
               type="submit"
               disabled={isSubmitting || !name.trim()}

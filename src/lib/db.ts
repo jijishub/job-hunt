@@ -347,7 +347,7 @@ export async function getOrCreateCompany(
     await initPostgresSchema(sql);
     const existing = await sql`SELECT * FROM companies WHERE LOWER(name) = LOWER(${trimmedName}) LIMIT 1;`;
     if (existing.length > 0) {
-      if (logo_url && logo_url !== existing[0].logo_url) {
+      if (created_by && existing[0].created_by === created_by && logo_url && logo_url !== existing[0].logo_url) {
         await sql`UPDATE companies SET logo_url = ${logo_url}, updated_at = NOW() WHERE id = ${existing[0].id};`;
         existing[0].logo_url = logo_url;
       }
@@ -374,7 +374,7 @@ export async function getOrCreateCompany(
     (c) => c.name.toLowerCase() === trimmedName.toLowerCase()
   );
   if (existing) {
-    if (logo_url && logo_url !== existing.logo_url) {
+    if (created_by && existing.created_by === created_by && logo_url && logo_url !== existing.logo_url) {
       existing.logo_url = logo_url;
       existing.updated_at = new Date().toISOString();
       writeLocalDb(db);

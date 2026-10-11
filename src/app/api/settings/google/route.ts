@@ -1,3 +1,4 @@
+import { getSessionAccount } from '@/lib/session-account';
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
@@ -5,6 +6,9 @@ import path from 'path';
 const ENV_PATH = path.join(process.cwd(), '.env.local');
 
 export async function GET(req: Request) {
+  const user = await getSessionAccount();
+  if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
+  if (user.role !== 'admin') return NextResponse.json({ success: false, error: 'Admin access required.' }, { status: 403 });
   try {
     const origin = req.headers.get('origin') || req.headers.get('host') || 'http://localhost:3000';
     const baseUrl = origin.startsWith('http') ? origin : `http://${origin}`;
@@ -31,6 +35,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const user = await getSessionAccount();
+  if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
+  if (user.role !== 'admin') return NextResponse.json({ success: false, error: 'Admin access required.' }, { status: 403 });
   try {
     const body = await req.json();
     const clientId = (body.clientId || '').trim();

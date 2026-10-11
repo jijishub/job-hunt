@@ -1,9 +1,10 @@
 import { JobApplication } from '@/types/job';
-import { pipelineAnalytics, isInternship } from './analytics';
+import { pipelineAnalytics, isInternship, uniqueApplications } from './analytics';
 import { AnalyticsStage, DEFAULT_REJECTION_STATUSES } from './analytics-stages';
 import { ROLE_FITS } from './role-fit';
 
 export async function analyticsPdf(applications: JobApplication[], accountName: string, scope: string, aiSummary?: string, mapping: Record<string, AnalyticsStage> = {}, rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES) {
+  applications = uniqueApplications(applications);
   const { default: jsPDF } = await import('jspdf');
   const pdf = new jsPDF(); const stats = pipelineAnalytics(applications, mapping, rejectionStatuses);
   const rose = '#9D3C5E', ink = '#4A3E44', muted = '#736A6D', pink = '#FFF0F6';
@@ -27,17 +28,18 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   const section = (title: string) => { room(20); y += 6; pdf.setDrawColor('#F1DDE9'); pdf.line(17, y - 3, 193, y - 3); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(12); pdf.setTextColor(rose); pdf.text(title, 17, y + 3); y += 13; };
   text(`${accountName} - Job search analytics`, 17);
   text('A snapshot of your targeting, progress and recorded outcomes.', 10, muted); y += 4;
-  const cards = [['Tracked roles', String(stats.total)], ['Submitted', String(stats.submitted)], ['Screening', percent(stats.progressionRate)], ['Acceptance / offer', percent(stats.offerRate)]];
+  const cards = [['Tracked roles', String(stats.total)], ['Submitted', String(stats.submitted)], ['Progression', percent(stats.progressionRate)], ['Acceptance / offer', percent(stats.offerRate)]];
   room(28);
   cards.forEach(([label, value], i) => { const x = 17 + i * 45; pdf.setFillColor(pink); pdf.roundedRect(x, y, 41, 25, 3, 3, 'F'); pdf.setTextColor(muted); pdf.setFontSize(8); pdf.text(label, x + 3, y + 6); pdf.setTextColor(rose); pdf.setFontSize(19); pdf.setFont('helvetica', 'bold'); pdf.text(value, x + 3, y + 18); });
   y += 33; text(`Assessed: ${stats.assessed} | Unassessed: ${stats.unassessed} | Fit coverage: ${percent(stats.coverage)}`, 9, muted);
   text(`Not submitted / leads: ${stats.leads} | Submitted in last 30 days: ${stats.recent}`, 9, muted);
   text(`Rejections: ${stats.rejections} | Rejection rate: ${percent(stats.rejectionRate)} of submitted applications`, 9, muted);
-  section('Recorded progression');
-  for (const stage of stats.funnel) { room(15); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(ink); pdf.text(stage.label, 17, y); pdf.text(String(stage.count), 193, y, { align: 'right' }); pdf.setFillColor('#F5F0F3'); pdf.roundedRect(17, y + 3, 176, 3, 1, 1, 'F'); const width=stats.submitted?176*stage.count/stats.submitted:0; if(width){pdf.setFillColor('#FF7AB3');pdf.roundedRect(17,y+3,width,3,1,1,'F');} y += 14; }
+  section('Reached or passed');
+  text('Pink: recorded phase. Lavender: inferred from a later phase; not evidence of an interview.', 9, muted);
+  for (const stage of stats.funnel) { room(15); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(ink); pdf.text(stage.label, 17, y); pdf.text(`${stage.count} (${stage.recorded} recorded / ${stage.inferred} inferred)`, 193, y, { align: 'right' }); pdf.setFillColor('#F5F0F3'); pdf.roundedRect(17, y + 3, 176, 3, 1, 1, 'F'); const width=stats.submitted?176*stage.count/stats.submitted:0; if(width){pdf.setFillColor('#C8BCE8');pdf.roundedRect(17,y+3,width,3,1,1,'F');const recordedWidth=176*stage.recorded/stats.submitted;if(recordedWidth){pdf.setFillColor('#FF7AB3');pdf.rect(17,y+3,recordedWidth,3,'F');}} y += 14; }
   room(90); section('Role fit and conversion');
   const columns=[17,73,97,122,148,173];
-  const tableHeader=()=>{room(12);pdf.setFillColor(rose);pdf.rect(17,y,176,9,'F');pdf.setTextColor('#FFFFFF');pdf.setFontSize(8);['Role fit','Tracked','Submitted','Screening','Offers','Rejections'].forEach((label,i)=>pdf.text(label,columns[i]+2,y+6));y+=12;};
+  const tableHeader=()=>{room(12);pdf.setFillColor(rose);pdf.rect(17,y,176,9,'F');pdf.setTextColor('#FFFFFF');pdf.setFontSize(8);['Role fit','Tracked','Submitted','Progressed','Offers','Rejections'].forEach((label,i)=>pdf.text(label,columns[i]+2,y+6));y+=12;};
   tableHeader();
   stats.fits.forEach((fit,i)=>{room(17);pdf.setFillColor(i%2? '#FFFFFF':pink);pdf.rect(17,y-3,176,13,'F');pdf.setTextColor(ink);pdf.setFontSize(8);[fit.label,String(fit.total),String(fit.submitted),`${fit.progressed} (${percent(fit.progressionRate)})`,`${fit.offers} (${percent(fit.offerRate)})`,`${fit.rejections} (${percent(fit.rejectionRate)})`].forEach((value,j)=>pdf.text(value,columns[j]+2,y+3));y+=17;});
   text('Conversion rates use submitted roles within each fit group. Unassessed roles remain separate.', 9, muted);
@@ -46,6 +48,11 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   text(['ON_SITE','HYBRID','REMOTE'].map(model => `${model.replace('_',' ')}: ${applications.filter(app=>app.work_model===model).length}`).join(' | '));
   section('Preference alignment');
   text(stats.preferenceAlignment.map(item=>`${item.label}: ${item.count}`).join(' | '));
+  section('Current outcomes');
+  stats.outcomes.forEach(item => { room(13); pdf.setTextColor(ink); pdf.setFontSize(9); pdf.text(`${item.label}: ${item.count}`,17,y); if(item.count && stats.total){pdf.setFillColor(item.color);pdf.rect(70,y-3,100*item.count/stats.total,4,'F');} y+=10; });
+  section('Submitted by month');
+  room(50); const max=Math.max(1,...stats.activity.map(item=>item.count)); stats.activity.forEach((item,index)=>{const x=17+index*14.5,h=30*item.count/max;pdf.setFillColor('#A8CCF0');if(h)pdf.rect(x,y+30-h,10,h,'F');pdf.setFontSize(7);pdf.setTextColor(ink);pdf.text(String(item.count),x+5,y+26-h,{align:'center'});pdf.text(item.label,x+5,y+35,{align:'center'});}); y+=43;
+  text(`Only valid submission dates through ${stats.asOf}. Missing: ${stats.quality.missingDates}; invalid: ${stats.quality.invalidDates}; future: ${stats.quality.futureDates}.`,9,muted);
   section('Suggested focus'); stats.recommendations.forEach((item,i)=>text(`${i+1}. ${item}`));
   if(aiSummary){section('AI interpretation');text(aiSummary);}
   section('How to read this report');

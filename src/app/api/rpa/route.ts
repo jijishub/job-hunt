@@ -1,6 +1,10 @@
+import { getSessionAccount } from '@/lib/session-account';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
+  const user = await getSessionAccount();
+  if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
+  if (user.role !== 'admin') return NextResponse.json({ success: false, error: 'Admin access required.' }, { status: 403 });
   const { searchParams } = new URL(request.url);
   const platform = searchParams.get('platform') || 'bytedance';
 

@@ -1,12 +1,75 @@
 ﻿const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');const os=require('node:os');const Module=require('node:module');const ts=require('typescript');
 const ROOT=path.resolve(__dirname,'..');
 function loader(overrides={}){
- if(overrides['@/lib/db']) overrides['@/lib/db']={getCandidatePreferences:async()=>null,...overrides['@/lib/db']};
+ if(overrides['@/lib/db']) overrides['@/lib/db']={getCandidatePreferences:async()=>null,getCandidateProfile:async()=> 'Saved member master resume',...overrides['@/lib/db']};
  const cache=new Map();
  function load(file){const filename=path.resolve(ROOT,file);if(cache.has(filename))return cache.get(filename).exports;const m=new Module(filename,module);m.filename=filename;m.paths=Module._nodeModulePaths(path.dirname(filename));cache.set(filename,m);const original=m.require.bind(m);m.require=id=>{if(Object.hasOwn(overrides,id))return overrides[id];const target=id.startsWith('@/')?path.join(ROOT,'src',id.slice(2)):id.startsWith('.')?path.resolve(path.dirname(filename),id):null;if(target){if(target.endsWith('.json'))return original(target);if(fs.existsSync(target+'.ts'))return load(target+'.ts');}return original(id);};m._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,filename);return m.exports;}
  return load;
 }
 const sample=(values={})=>({id:'app',company_name:'Example',role_title:'Engineer',status:'APPLIED',owner:'user_ji',priority:'MEDIUM',job_type:'FULL_TIME',work_model:'ON_SITE',salary_currency:'PHP',sync_status:'SYNCED',created_at:'2026-10-10T00:00:00Z',updated_at:'2026-10-10T00:00:00Z',...values});
+
+test('charts partition unique records, distinguish inferred interviews, and exclude invalid activity dates',()=>{
+ const {pipelineAnalytics,applicationDay}=loader()('src/lib/analytics.ts');
+ const rows=[sample({id:'offer',status:'ACCEPTED',role_fit:'STRONG',date_applied:'2026-10-12'}),sample({id:'offer',status:'APPLIED',updated_at:'2026-10-09'}),sample({id:'lead',status:'LEAD',role_fit:'POSSIBLE'}),sample({id:'rejected',status:'REJECTED',notion_status:'Not Accepted',date_applied:'2026-09-13',role_fit:'WEAK',stage_history:[{status:'INTERVIEWING',notion_status:'Final Interview'}]}),sample({id:'invalid',date_applied:'2026-02-30'}),sample({id:'future',date_applied:'2026-10-13'}),sample({id:'missing'}),sample({id:'old',date_applied:'2026-09-12'})];
+ const stats=pipelineAnalytics(rows,{},undefined,new Date('2026-10-12T05:00:00Z'));
+ assert.equal(stats.total,7); assert.equal(stats.submitted,6);assert.equal(stats.quality.duplicateRecords,1);
+ assert.equal(stats.fits.reduce((n,f)=>n+f.total,0),stats.total);assert.equal(stats.outcomes.reduce((n,o)=>n+o.count,0),stats.total);
+ assert.equal(stats.fits.reduce((n,f)=>n+f.submitted,0),stats.submitted);
+ assert.deepEqual(stats.funnel[3],{label:'Final interview',phase:'FINAL',count:2,recorded:1,inferred:1});
+ assert.equal(stats.recent,2);assert.equal(stats.activity.at(-1).count,1);assert.equal(stats.activity.at(-2).count,2);
+ assert.equal(stats.quality.missingDates,1);assert.equal(stats.quality.invalidDates,1);assert.equal(stats.quality.futureDates,1);
+ assert.equal(applicationDay('2026-10-11T18:00:00Z'),'2026-10-12');assert.equal(applicationDay('2026-02-30'),null);
+ assert.equal(stats.fits[1].offerRate,null);assert.equal(pipelineAnalytics([]).coverage,null);
+ const closed=pipelineAnalytics([sample({status:'REJECTED',notion_status:'Rejected'})]);assert.equal(closed.outcomes.find(o=>o.key==='OTHER_CLOSED').count,1);assert.equal(closed.rejections,0);
+});
+
+test('member AI uses the saved master resume and ATS uses requirements, never personal notes',async()=>{
+ const member={id:'member',email:'member@example.com',role:'member'};let input,profile='Master version 1';
+ const app=sample({id:'mine',owner:'member',information:'Build Python APIs and maintain reliable SQL databases.',notes:'Private interview feedback, not job requirements.'});
+ const load=loader({'@/lib/session-account':{getSessionAccount:async()=>member},'@/lib/db':{getCandidateProfile:async id=>{assert.equal(id,'member');return profile;},getApplicationById:async()=>app,getApplications:async()=>[app,sample({owner:'other',id:'foreign',status:'ACCEPTED'})]},'@/lib/portfolio-evidence':{portfolioEvidence:async()=>{throw Error('Member accessed admin portfolio');}},'@/lib/ai':{analyzeResumeWithGemini:async data=>{input=data;return {};},generateTailoredLeads:async data=>{input=data;return [];},matchLeadsWithProfile:async data=>{input=data;return [];},generateLeadPitch:async data=>{input=data;return {};},callGeminiJSON:async(system,data)=>{input=JSON.parse(data);return {summary:'Grounded interpretation',nextSteps:['Review targeting']};}}});
+ const request=data=>new Request('http://local',{method:'POST',body:JSON.stringify(data)});
+ const ats=load('src/app/api/ai/analyze/route.ts');assert.equal((await ats.POST(request({applicationId:'mine',resumeText:'Forged stale resume',jobDescription:'Wrong requirement'}))).status,200);assert.equal(input.resumeText,profile);assert.equal(input.jobDescription,app.information);assert.equal(input.jobDescription.includes(app.notes),false);
+ profile='Master version 2';const pipeline=load('src/app/api/analytics/analyze/route.ts');assert.equal((await pipeline.POST(request({owner:'other',stats:{total:999}}))).status,200);assert.equal(input.total,1);assert.equal(input.candidate.resume,profile);assert.equal(input.candidate.source,'master_resume');
+ for(const [path,body] of [['generate',{targetRole:'Developer'}],['ai-match',{leads:[{id:'x',title:'Developer',company_name:'Example'}]}],['pitch',{leadTitle:'Developer',companyName:'Example'}]]){assert.equal((await load('src/app/api/leads/'+path+'/route.ts').POST(request({...body,profileText:'Forged'}))).status,200);assert.equal(input.profileText,profile);}
+ profile='';assert.equal((await pipeline.POST(request({}))).status,422);
+ assert.equal((await ats.POST(request({jobDescription:'Job title only'}))).status,400);
+});
+
+test('admin evidence prefers master resume and only falls back to the live portfolio',async()=>{
+ let profile='Master resume',calls=0;
+ const {candidateEvidence}=loader({'@/lib/db':{getCandidateProfile:async()=>profile},'@/lib/portfolio-evidence':{portfolioEvidence:async()=>{calls++;return 'Published portfolio';}}})('src/lib/candidate-evidence.ts');
+ const admin={id:'admin',email:'jizelle.casia@gmail.com',role:'admin'};
+ assert.equal((await candidateEvidence(admin)).source,'master_resume');assert.equal(calls,0);profile='';assert.equal((await candidateEvidence(admin)).source,'portfolio');assert.equal(calls,1);assert.equal((await candidateEvidence({...admin,role:'member'})).source,'missing');assert.equal(calls,1);
+});
+
+test('ATS preserves a zero score and rejects missing scores instead of inventing 75 percent',async()=>{
+ const savedFetch=global.fetch, savedKey=process.env.AI_API_KEY;let result={matchScore:0,summary:'No relevant experience.'};
+ try{process.env.AI_API_KEY='unit-test-key';global.fetch=async()=>new Response(JSON.stringify({choices:[{message:{content:JSON.stringify(result)}}]}));
+  const {analyzeResumeWithGemini}=loader()('src/lib/ai.ts');const args={resumeText:'Unrelated resume',jobDescription:'Required engineering experience.'};
+  assert.equal((await analyzeResumeWithGemini(args)).matchScore,0);result={summary:'Incomplete response'};await assert.rejects(()=>analyzeResumeWithGemini(args),/invalid resume assessment/);
+ }finally{global.fetch=savedFetch;if(savedKey===undefined)delete process.env.AI_API_KEY;else process.env.AI_API_KEY=savedKey;}
+});
+
+test('admin endpoints reject members and all AI/PDF tools require authentication',async()=>{
+ let user={id:'member',email:'member@example.com',role:'member',notion_enabled:true};
+ const load=loader({'@/lib/session-account':{getSessionAccount:async()=>user},'@/lib/notion':{},'@/lib/ai':{},'@/lib/db':{}});
+ for(const path of ['settings/google','rpa','portfolio','notion/sync']){const route=load('src/app/api/'+path+'/route.ts');assert.equal((await route.GET(new Request('http://local'))).status,403);if(route.POST)assert.equal((await route.POST(new Request('http://local',{method:'POST'}))).status,403);}
+ user=null;
+ for(const path of ['ai/analyze','analytics/analyze','leads/generate','leads/ai-match','leads/pitch','resume/parse-pdf'])assert.equal((await load('src/app/api/'+path+'/route.ts').POST(new Request('http://local',{method:'POST'}))).status,401);
+ const previous=process.env.NOTION_WEBHOOK_SECRET;delete process.env.NOTION_WEBHOOK_SECRET;
+ try{assert.equal((await load('src/app/api/notion/webhook/route.ts').POST(new Request('http://local',{method:'POST'}))).status,503);}finally{if(previous!==undefined)process.env.NOTION_WEBHOOK_SECRET=previous;}
+});
+
+test('company edits preserve IDs and cannot mutate another creator’s shared company',async()=>{
+ const me={id:'member',email:'member@example.com',role:'member'};let writes=[];
+ const own={id:'own',created_by:'member',name:'Before'},foreign={id:'foreign',created_by:'other',name:'Shared'};
+ const route=loader({'@/lib/session-account':{getSessionAccount:async()=>me},'@/lib/notion':{},'@/lib/db':{getCompanies:async()=>[own,foreign],getApplications:async()=>[sample({owner:'member',company_id:'foreign'})],deleteCompany:async()=>{throw Error('Unexpected shared company deletion');},getOrCreateCompany:async()=>foreign,updateCompany:async(id,data)=>{writes.push({id,data});return {...own,...data};}}})('src/app/api/companies/route.ts');
+ const req=body=>new Request('http://local',{method:'POST',body:JSON.stringify(body)});
+ assert.equal((await route.POST(req({id:'own',name:'After',website:'https://example.com',industry:'Finance'}))).status,201);assert.equal(writes[0].id,'own');assert.equal(writes[0].data.website,'https://example.com');
+ assert.equal((await route.POST(req({id:'foreign',name:'Hijacked'}))).status,403);assert.equal((await route.POST(req({name:'Shared',logo_url:'Forged logo',industry:'Changed'}))).status,201);assert.equal(writes.length,1);
+ assert.equal((await route.DELETE(new Request('http://local/api/companies?id=foreign',{method:'DELETE'}))).status,403);
+ const {applicationValidationError}=loader()('src/lib/application-validation.ts');assert.match(applicationValidationError({status:'MADE_UP'}),/Invalid status/);assert.match(applicationValidationError({salary_min:-1}),/nonnegative/);assert.match(applicationValidationError({job_url:'javascript:alert(1)'}),/http/);assert.equal(applicationValidationError({salary_min:0,status:'LEAD'}),null);
+});
 
 test('ownership isolates admins and members by exact account identity',()=>{
  const {ownsApplication}=loader()('src/lib/ownership.ts');const me={id:'user_ji',email:'ji@example.com',role:'admin'};assert.ok(ownsApplication({owner:'user_ji'},me));assert.ok(ownsApplication({owner:'JI@example.com'},me));assert.ok(ownsApplication({owner:'admin'},me));assert.equal(ownsApplication({owner:'user_friend'},me),false);assert.equal(ownsApplication({owner:'ji'},me),false);assert.equal(ownsApplication({owner:'admin'},{id:'user_friend',email:'friend@example.com',role:'member'}),false);
@@ -89,7 +152,7 @@ test('legacy admin email configuration resolves to the actual email',()=>{const 
 
 test('custom analytics mappings and explicit phases preserve Not Proceeding progress',()=>{
  const {pipelineAnalytics}=loader()('src/lib/analytics.ts');
- const rows=[sample({notion_status:'Not Proceeding',status:'WITHDRAWN',analytics_stage:'INTERVIEW',not_proceeding:true}),sample({notion_status:'Company test',status:'APPLIED'}),sample({notion_status:'Accepted - Not Proceeding',status:'OFFER',not_proceeding:true})];
+ const rows=[sample({notion_status:'Not Proceeding',status:'WITHDRAWN',analytics_stage:'INTERVIEW',not_proceeding:true}),sample({id:'test',notion_status:'Company test',status:'APPLIED'}),sample({id:'offer',notion_status:'Accepted - Not Proceeding',status:'OFFER',not_proceeding:true})];
  const before=pipelineAnalytics(rows);assert.equal(before.funnel[1].count,2);assert.equal(before.funnel[4].count,1);
  const configured=pipelineAnalytics(rows,{'company test':'SCREENING','accepted - not proceeding':'OFFER'});assert.equal(configured.funnel[1].count,3);assert.equal(configured.funnel[2].count,2);assert.equal(configured.funnel[4].count,1);assert.equal(configured.funnel[1].label,'Screening');
  const overridden=pipelineAnalytics([sample({notion_status:'Company test',status:'APPLIED'})],{'company test':'NOT_SUBMITTED'});assert.equal(overridden.submitted,0);

@@ -44,14 +44,21 @@ export async function POST(request: Request) {
   try {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
-    const { name, logo_url, website, industry, created_by } = await request.json();
-    if (!name || !name.trim()) {
+    const { id, name, logo_url, website, industry } = await request.json();
+    if (typeof name !== 'string' || !name.trim()) {
       return NextResponse.json({ success: false, error: 'Company name is required' }, { status: 400 });
     }
 
-    const company = await getOrCreateCompany(name, logo_url, website, user.id);
-    if (industry) {
-      await updateCompany(company.id, { industry });
+    const ownsCompany = (company: { created_by?: string }) => company.created_by === user.id
+      || company.created_by?.toLowerCase() === user.email.toLowerCase() || (user.id === 'user_ji' && !company.created_by);
+    let company;
+    if (id) {
+      const existing = (await getCompanies()).find(item => item.id === id);
+      if (!existing || !ownsCompany(existing)) return NextResponse.json({ success: false, error: 'This shared company can only be edited by its creator.' }, { status: 403 });
+      company = await updateCompany(id, { name: name.trim(), logo_url, website, industry });
+    } else {
+      company = await getOrCreateCompany(name, logo_url, website, user.id);
+      if (ownsCompany(company)) company = await updateCompany(company.id, { logo_url, website, industry }) || company;
     }
 
     return NextResponse.json({ success: true, data: company }, { status: 201 });
@@ -72,7 +79,7 @@ export async function DELETE(request: Request) {
     const company = (await getCompanies()).find(company => company.id === id);
     const apps = (await getApplications()).filter(app => app.company_id === id);
     if (!company || apps.some(app => !ownsApplication(app, user))
-      || (!apps.length && company.created_by !== user.id && company.created_by !== user.email && !(user.id === 'user_ji' && !company.created_by))) {
+      || (company.created_by !== user.id && company.created_by?.toLowerCase() !== user.email.toLowerCase() && !(user.id === 'user_ji' && !company.created_by))) {
       return NextResponse.json({ success: false, error: 'This company is shared or belongs to another account.' }, { status: 403 });
     }
     await deleteCompany(id);

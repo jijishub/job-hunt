@@ -28,7 +28,7 @@
     "rpa:bossjob": "node scripts/bossjob_sync.cjs",
     "rpa:bossjob:prepare": "node scripts/bossjob_sync.cjs --prepare",
     "test:pipeline": "node --test scripts/test_pipeline.cjs",
-    "test:pipeline:ui": "node --test scripts/test_pipeline_ui.cjs",
+    "test:pipeline:ui": "node --test scripts/test_pipeline_ui.cjs scripts/test_rejections_ui.cjs scripts/test_board_ui.cjs scripts/test_member_ui.cjs",
     "rpa:appficiency": "node scripts/appficiency_apply.cjs",
     "rpa:appficiency:prepare": "node scripts/appficiency_apply.cjs --prepare"
   },

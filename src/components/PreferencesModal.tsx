@@ -58,7 +58,7 @@ export default function PreferencesModal({ isOpen, onClose, onSaved }: { isOpen:
               return <tr key={status.name} className="border-t border-[#F1DDE9]"><td className="p-2">{status.name}</td><td><select aria-label={'Analytics phase for '+status.name} value={stage} onChange={e=>setStage(e.target.value as AnalyticsStage)} className="m-1 rounded-lg border p-1">{ANALYTICS_STAGES.map(value=><option key={value} value={value}>{STAGE_LABELS[value]}</option>)}</select></td><td><input aria-label={'Count '+status.name+' as screening'} type="checkbox" checked={rank>=2} onChange={e=>setStage(e.target.checked?(rank>=2?stage:'SCREENING'):'SUBMITTED')} /></td><td><input aria-label={'Count '+status.name+' as acceptance or offer'} type="checkbox" checked={rank>=5} onChange={e=>setStage(e.target.checked?'OFFER':'INTERVIEW')} /></td><td><input aria-label={'Count '+status.name+' as rejection'} type="checkbox" checked={countRejection} onChange={e=>setPreferences({...preferences,analytics_rejection_statuses:e.target.checked?[...new Set([...rejectionStatuses.map(name=>name.trim().toLowerCase()),rejectionKey])]:rejectionStatuses.filter(name=>name.trim().toLowerCase()!==rejectionKey)})} /></td></tr>;
             })}</tbody></table></div>
           </section>
-          <CandidateProfileEditor />
+          <CandidateProfileEditor onSaved={onSaved} />
           {message && <p role="status" className="text-[#9D3C5E]">{message}</p>}
           <button type="submit" disabled={busy} className="rounded-xl bg-[#FF7AB3] px-4 py-2 font-semibold text-white disabled:opacity-50">{busy ? 'Saving…' : 'Save preferences'}</button>
         </form>

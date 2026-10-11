@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { ResumeAnalysisResult } from '@/lib/ai';
+import { ResumeAnalysisResult } from '@/lib/ai-types';
 import {
   CheckCircle2,
   AlertCircle,

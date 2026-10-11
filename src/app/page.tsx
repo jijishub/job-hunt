@@ -20,6 +20,7 @@ import ApplicationTable from '@/components/ApplicationTable';
 import ApplicationBoard from '@/components/ApplicationBoard';
 import CompaniesView from '@/components/CompaniesView';
 import AnalyticsView from '@/components/AnalyticsView';
+import GuideView from '@/components/GuideView';
 import JobLeadsView from '@/components/JobLeadsView';
 import ApplicationDetailModal from '@/components/ApplicationDetailModal';
 import ApplicationModal from '@/components/ApplicationModal';
@@ -36,6 +37,7 @@ import {
   Compass,
   BarChart3,
   Sparkles,
+  BookOpen,
 } from 'lucide-react';
 
 export default function JobHuntDashboard() {
@@ -45,7 +47,7 @@ export default function JobHuntDashboard() {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
 
-  const [activeView, setActiveView] = useState<'table' | 'board' | 'companies' | 'leads' | 'analytics' | 'resume'>('table');
+  const [activeView, setActiveView] = useState<'table' | 'board' | 'companies' | 'leads' | 'analytics' | 'resume' | 'guide'>('table');
   const [resumeTargetAppId, setResumeTargetAppId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -225,6 +227,7 @@ export default function JobHuntDashboard() {
   const handleDeleteApplication = async (id: string) => {
     const res = await fetch(`/api/applications/${id}`, { method: 'DELETE' });
     const result = await res.json();
+    if (!res.ok || !result.success) throw new Error(result.error || 'Could not delete application.');
     if (result.success) {
       setApplications((prev) => prev.filter((a) => a.id !== id));
       if (selectedApp?.id === id) {
@@ -282,9 +285,8 @@ export default function JobHuntDashboard() {
       body: JSON.stringify(payload),
     });
     const result = await res.json();
-    if (result.success) {
-      await fetchData();
-    }
+    if (!result.success) throw new Error(result.error || 'Could not save company.');
+    await fetchData();
   };
 
   const handleDeleteCompany = async (id: string) => {
@@ -564,6 +566,7 @@ export default function JobHuntDashboard() {
                 <Sparkles className="w-4 h-4 text-[#FF7AB3]" />
                 <span>AI Resume & ATS</span>
               </button>
+              <button onClick={() => setActiveView('guide')} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition sm:text-sm ${activeView === 'guide' ? 'bg-[#FFF0F6] text-[#9D3C5E]' : 'text-[#736A6D] hover:bg-[#FAF7F9]'}`}><BookOpen className="h-4 w-4 text-[#FF7AB3]" /><span>Guide</span></button>
             </div>
 
             <div className="flex items-center gap-2 px-3 py-1.5 bg-[#FAF7F9] rounded-xl text-xs text-[#736A6D] font-medium border border-[#F1DDE9] whitespace-nowrap ml-auto">
@@ -757,7 +760,7 @@ export default function JobHuntDashboard() {
             onDeleteCompany={handleDeleteCompany}
           />
         ) : activeView === 'leads' ? (
-          <JobLeadsView
+          <JobLeadsView onOpenPreferences={() => setIsPreferencesOpen(true)}
             companies={companies}
             onAddToTracker={handleSaveApplication}
             existingApplications={personalApplications}
@@ -775,9 +778,9 @@ export default function JobHuntDashboard() {
           />
         ) : activeView === 'analytics' ? (
           <AnalyticsView applications={personalApplications} companies={filteredCompanies} accountName={currentUser?.name || 'My account'} preferenceVersion={preferenceVersion} onEditApp={app => { setEditingApp(app); setIsAppModalOpen(true); }} />
-        ) : activeView === 'resume' ? (
-          <ResumeAnalyzerView
-            applications={filteredApplications}
+        ) : activeView === 'guide' ? <GuideView onOpenPreferences={() => setIsPreferencesOpen(true)} onNavigate={setActiveView} /> : activeView === 'resume' ? (
+          <ResumeAnalyzerView preferenceVersion={preferenceVersion} onOpenPreferences={() => setIsPreferencesOpen(true)}
+            applications={personalApplications}
             initialSelectedAppId={resumeTargetAppId}
           />
         ) : null}
