@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCustomStatuses, createCustomStatus, deleteCustomStatus, getApplications } from '@/lib/db';
 import { getSessionAccount } from '@/lib/session-account';
 import { ownsApplication } from '@/lib/ownership';
-import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, getStatusCategory, StatusOption } from '@/lib/statuses';
+import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, getStatusCategory, canonicalStatusName, StatusOption } from '@/lib/statuses';
 
 export async function GET() {
   try {
@@ -12,7 +12,7 @@ export async function GET() {
     const custom = (await getCustomStatuses()).filter(c => c.owner === user.id || (!c.owner && user.role === 'admin'));
     const customOptions: StatusOption[] = custom.map((c) => ({
       id: c.id,
-      name: c.name,
+      name: canonicalStatusName(c.name),
       color: c.color || 'default',
       category: c.category || getStatusCategory(c.name),
       isCustom: true,
@@ -20,12 +20,17 @@ export async function GET() {
 
     // Merge: SEEDED first, then custom ones that don't duplicate seeded names
     const seenNames = new Set(seeded.map((s) => s.name.toLowerCase()));
-    const filteredCustom = customOptions.filter((c) => !seenNames.has(c.name.toLowerCase()));
+    const filteredCustom = customOptions.filter((c) => {
+      const key = c.name.toLowerCase();
+      if (seenNames.has(key)) return false;
+      seenNames.add(key); return true;
+    });
 
     const allStatuses = [...seeded, ...filteredCustom];
     const known = new Set(allStatuses.map(status => status.name.toLowerCase()));
     for (const app of (await getApplications()).filter(app => ownsApplication(app, user))) {
-      for (const name of [app.notion_status, ...(app.stage_history || []).map(stage => stage.notion_status)]) {
+      for (const rawName of [app.notion_status, ...(app.stage_history || []).map(stage => stage.notion_status)]) {
+        const name = rawName ? canonicalStatusName(rawName) : undefined;
         if (name && !known.has(name.toLowerCase())) { allStatuses.push({ id: name, name, color: 'default', category: getStatusCategory(name), isCustom: true }); known.add(name.toLowerCase()); }
       }
     }
@@ -52,7 +57,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const trimmedName = name.trim();
+    const trimmedName = canonicalStatusName(name);
     const resolvedCategory = category || getStatusCategory(trimmedName);
 
     const created = await createCustomStatus({

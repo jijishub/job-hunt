@@ -1,4 +1,5 @@
-import { reachedStage, AnalyticsStage } from './analytics-stages';
+import { reachedStage, AnalyticsStage, DEFAULT_REJECTION_STATUSES } from './analytics-stages';
+import { applicationStatusLabel, canonicalStatusName } from './statuses';
 import { JobApplication } from '@/types/job';
 import { ROLE_FITS } from './role-fit';
 
@@ -12,20 +13,27 @@ export function isSubmitted(app: JobApplication) {
   }
   return true;
 }
-export function pipelineAnalytics(applications: JobApplication[], mapping: Record<string, AnalyticsStage> = {}) {
+export function isRejection(app: JobApplication, rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES) {
+  const label = canonicalStatusName(app.notion_status?.trim() || applicationStatusLabel(app.status)).toLowerCase();
+  return rejectionStatuses.some(status => canonicalStatusName(status).toLowerCase() === label);
+}
+export function pipelineAnalytics(applications: JobApplication[], mapping: Record<string, AnalyticsStage> = {}, rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES) {
   const rank = (app: JobApplication) => reachedStage(app, mapping);
   const submitted = applications.filter(app => rank(app) >= 1);
   const progressed = (app: JobApplication) => rank(app) >= 2;
   const interviewed = (app: JobApplication) => rank(app) >= 3;
   const finalRound = (app: JobApplication) => rank(app) >= 4;
   const offered = (app: JobApplication) => rank(app) >= 5;
+  const rejected = (app: JobApplication) => isRejection(app, rejectionStatuses);
+  const rejections = submitted.filter(rejected).length;
   const rate = (count: number, denominator: number) => denominator ? Math.round(count / denominator * 100) : null;
   const fits = ROLE_FITS.map(fit => {
     const tracked = applications.filter(app => app.role_fit === fit.value);
     const sent = tracked.filter(app => rank(app) >= 1);
     const responses = sent.filter(progressed).length;
     const offers = sent.filter(offered).length;
-    return { ...fit, total: tracked.length, submitted: sent.length, progressed: responses, offers, progressionRate: rate(responses, sent.length), offerRate: rate(offers, sent.length) };
+    const rejections = sent.filter(rejected).length;
+    return { ...fit, total: tracked.length, submitted: sent.length, progressed: responses, offers, rejections, progressionRate: rate(responses, sent.length), offerRate: rate(offers, sent.length), rejectionRate: rate(rejections, sent.length) };
   });
   const funnel = [
     { label: 'Submitted', count: submitted.length },
@@ -44,5 +52,5 @@ export function pipelineAnalytics(applications: JobApplication[], mapping: Recor
   else recommendations.push('Screening progress is recorded. Review your introduction, salary expectations, and transferable skills before the next round.');
   if (assessed < applications.length) recommendations.push(`Assess the ${applications.length - assessed} unrated roles before comparing fit-based conversion.`);
   if (fits.some(fit => fit.submitted > 0 && fit.submitted < 5)) recommendations.push('Fit groups have small samples. Treat their conversion rates as observations, not predictions.');
-  return { preferenceAlignment, total: applications.length, submitted: submitted.length, leads: applications.length - submitted.length, assessed, unassessed: applications.length - assessed, coverage: rate(assessed, applications.length), recent, funnel, fits, recommendations, progressionRate: rate(funnel[1].count, submitted.length), offerRate: rate(funnel[4].count, submitted.length) };
+  return { preferenceAlignment, total: applications.length, submitted: submitted.length, leads: applications.length - submitted.length, assessed, unassessed: applications.length - assessed, coverage: rate(assessed, applications.length), recent, funnel, fits, recommendations, rejections, rejectionRate: rate(rejections, submitted.length), progressionRate: rate(funnel[1].count, submitted.length), offerRate: rate(funnel[4].count, submitted.length) };
 }

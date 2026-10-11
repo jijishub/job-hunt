@@ -56,7 +56,7 @@ export default function SSOLandingView() {
                   </span>
                 </h2>
                 <p className="text-sm sm:text-base text-[#736A6D] leading-relaxed">
-                  A private, high-precision career command center featuring two-way live Notion synchronization, Luna 5.6 & Antigravity AI ATS resume scanning, and smart lead discovery.
+                  A private career command center featuring two-way live Notion synchronization, Luna 5.6 & Antigravity AI ATS resume scanning, and smart lead discovery.
                 </p>
               </div>
 
@@ -126,9 +126,6 @@ export default function SSOLandingView() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 pt-1 text-xs text-[#736A6D]">
-              <span>Admin: <strong className="text-[#4A3E44]">jizellecasia@gmail.com</strong></span>
-            </div>
           </div>
 
           {/* Right Column: Google SSO Sign-in Card */}
@@ -231,10 +228,11 @@ export default function SSOLandingView() {
               {/* Footnote */}
               <div className="mt-6 pt-5 border-t border-[#F1DDE9]/70 text-[11px] text-[#736A6D]/80">
                 Contact administrator for access.
-              </div>
-              <div className="mt-6 pt-5 border-t border-[#F1DDE9]/70 text-[11px] text-[#736A6D]/80">
+                <div className="mt-6 pt-5 text-[11px] text-[#736A6D]/80">
                 Admin: <b>jizelle.casia@gmail.com</b>
               </div>
+              </div>
+
             </div>
           </div>
 

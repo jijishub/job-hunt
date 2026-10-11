@@ -51,6 +51,15 @@ test('members can read their own account record but cannot list or modify other 
 test('job JSON imports only validated draft fields and rejects candidate data',()=>{
  const {parseJobImport}=loader()('src/lib/job-import.ts');const job=parseJobImport(JSON.stringify({job:{title:'Developer',company:{name:'Example'},qualifications:['Python','SQL'],location:'Makati',work_model:'On-site',employment_type:'Full-time',salary:{min:25000,max:35000,currency:'php'},owner:'friend',status:'ACCEPTED'}}));assert.equal(job.role_title,'Developer');assert.equal(job.work_model,'ON_SITE');assert.equal(job.salary_currency,'PHP');assert.match(job.job_description,/SQL/);assert.equal(job.owner,undefined);assert.equal(job.status,undefined);assert.throws(()=>parseJobImport('{bad'));assert.throws(()=>parseJobImport(JSON.stringify({candidate:{name:'Person'}})));assert.throws(()=>parseJobImport(JSON.stringify({title:'Dev',salary_min:50,salary_max:10})));assert.throws(()=>parseJobImport(JSON.stringify({title:'Dev',job_url:'javascript:alert(1)'})));
 });
+
+test('job JSON preserves structured descriptions, responsibilities and qualifications',()=>{
+ const {parseJobImport}=loader()('src/lib/job-import.ts');
+ const job=parseJobImport(JSON.stringify({job_title:'AI Forward Deployed Engineer',company:'Globe Telecom',location:'Taguig, National Capital Region, Philippines',workplace_type:'On-site',employment_type:'Full-time',description:{overview:'Build enterprise AI applications.',key_responsibilities:['Integrate models with business systems.','Measure reliability.']},qualifications:{required:['Python','SQL'],preferred:'Experience deploying AI services.'},notes:'Candidate notes must stay separate.'}));
+ assert.equal(job.role_title,'AI Forward Deployed Engineer');assert.equal(job.work_model,'ON_SITE');assert.equal(job.job_type,'FULL_TIME');assert.match(job.job_description,/Overview:\nBuild enterprise AI applications\./);assert.match(job.job_description,/Key responsibilities:\n- Integrate models/);assert.match(job.job_description,/Qualifications:\nRequired:\n- Python\n- SQL/);assert.equal(job.notes,undefined);
+ const bullets=parseJobImport(JSON.stringify({description:['Build APIs.','Support users.'],responsibilities:['Review deployments.'],requirements:'Experience with Python.'}));assert.match(bullets.job_description,/- Build APIs\.\n- Support users\./);assert.match(bullets.job_description,/Responsibilities:\n- Review deployments\./);assert.match(bullets.job_description,/Qualifications:\nExperience with Python\./);
+ assert.throws(()=>parseJobImport(JSON.stringify({description:{overview:123}})),/must contain text/);
+ assert.throws(()=>parseJobImport(JSON.stringify({candidate:{professional_summary:'Python developer',qualifications:['Python']}})),/Candidate\/profile JSON/);
+});
 test('preferences validate fields and save only to the signed-in account',async()=>{
  const {validatePreferences}=loader()('src/lib/preferences.ts');assert.throws(()=>validatePreferences({work_models:['INVALID']}));assert.throws(()=>validatePreferences({salary_min:-1}));let saved;const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'member'})},'@/lib/db':{getCandidatePreferences:async()=>null,saveCandidatePreferences:async(owner,data)=>{saved={owner,data};}}})('src/app/api/preferences/route.ts');assert.equal((await (await route.GET()).json()).data.salary_currency,'PHP');const response=await route.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({owner:'friend',target_roles:['Developer','Developer'],portfolio_summary:'Built Python tools',work_models:['REMOTE']})}));assert.equal(response.status,200);assert.equal(saved.owner,'member');assert.deepEqual(saved.data.target_roles,['Developer']);assert.equal(saved.data.portfolio_summary,'Built Python tools');
 });
@@ -66,6 +75,30 @@ test('custom analytics mappings and explicit phases preserve Not Proceeding prog
  const configured=pipelineAnalytics(rows,{'company test':'SCREENING','accepted - not proceeding':'OFFER'});assert.equal(configured.funnel[1].count,3);assert.equal(configured.funnel[2].count,2);assert.equal(configured.funnel[4].count,1);assert.equal(configured.funnel[1].label,'Screening');
  const overridden=pipelineAnalytics([sample({notion_status:'Company test',status:'APPLIED'})],{'company test':'NOT_SUBMITTED'});assert.equal(overridden.submitted,0);
  const {validatePreferences}=loader()('src/lib/preferences.ts');assert.equal(validatePreferences({analytics_status_stages:{'Company Test':'SCREENING'}}).analytics_status_stages['company test'],'SCREENING');assert.throws(()=>validatePreferences({analytics_status_stages:{anything:'MADE_UP'}}));
+});
+
+test('rejections use selected current statuses and preserve reached phases',()=>{
+ const {pipelineAnalytics}=loader()('src/lib/analytics.ts');
+ const apps=[
+  sample({id:'declined',role_fit:'STRONG',notion_status:'Not Accepted',status:'REJECTED',stage_history:[{status:'INTERVIEWING',notion_status:'Final Interview',at:'2026-10-10'}]}),
+  sample({id:'future',role_fit:'POSSIBLE',notion_status:'Rejected',status:'REJECTED'}),
+  sample({id:'withdrawn',notion_status:'Not Proceeding',status:'WITHDRAWN'}),
+  sample({id:'duplicate',notion_status:'Repeated',status:'REJECTED'}),
+  sample({id:'no-interns',notion_status:'Not Accepting Interns',status:'REJECTED'}),
+  sample({id:'now-accepted',notion_status:'Accepted',status:'ACCEPTED',stage_history:[{status:'REJECTED',notion_status:'Not Accepted',at:'2026-10-10'}]}),
+ ];
+ const before=pipelineAnalytics(apps);assert.equal(before.rejections,1);assert.equal(before.rejectionRate,25);assert.equal(before.fits[0].rejections,1);assert.equal(before.fits[0].rejectionRate,100);assert.equal(before.funnel[3].count,2);
+ const selected=pipelineAnalytics(apps,{},['NOT ACCEPTED','Rejected','not accepted']);assert.equal(selected.rejections,2);assert.equal(selected.rejectionRate,50);assert.equal(selected.fits[1].rejections,1);assert.equal(selected.funnel[3].count,before.funnel[3].count);
+ assert.equal(pipelineAnalytics(apps,{},[]).rejections,0);assert.equal(pipelineAnalytics([]).rejectionRate,null);
+ const {validatePreferences}=loader()('src/lib/preferences.ts');assert.deepEqual(validatePreferences({}).analytics_rejection_statuses,['Not Accepted']);assert.deepEqual(validatePreferences({analytics_rejection_statuses:['Rejected','rejected','Not Accepted']}).analytics_rejection_statuses,['rejected','not accepted']);assert.deepEqual(validatePreferences({analytics_rejection_statuses:[]}).analytics_rejection_statuses,[]);assert.throws(()=>validatePreferences({analytics_rejection_statuses:'Rejected'}));
+});
+
+test('legacy withdrawal labels cannot reappear as a live status option',async()=>{
+ const {getStatusCategory,canonicalStatusName,SEEDED_STATUS_OPTIONS}=loader()('src/lib/statuses.ts');assert.equal(canonicalStatusName(' Do not Proceed '),'Not Proceeding');assert.equal(getStatusCategory('Do not Proceed'),'WITHDRAWN');assert.equal(getStatusCategory('Not Proceeding'),'WITHDRAWN');assert.equal(SEEDED_STATUS_OPTIONS.some(status=>/^do not proceed$/i.test(status.name)),false);
+ const app=sample({notion_status:'Not Proceeding',status:'WITHDRAWN',stage_history:[{status:'WITHDRAWN',notion_status:'Do not Proceed',at:'2026-10-10'}]});
+ const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',email:'ji@example.com',role:'admin'})},'@/lib/db':{getApplications:async()=>[app],getCustomStatuses:async()=>[{id:'legacy',name:'Do not Proceed',owner:'user_ji',category:'WITHDRAWN'}]}})('src/app/api/statuses/route.ts');
+ const statuses=(await(await route.GET()).json()).data;assert.equal(statuses.filter(status=>status.name==='Not Proceeding').length,1);assert.equal(statuses.some(status=>/^do not proceed$/i.test(status.name)),false);
+ const {validatePreferences}=loader()('src/lib/preferences.ts');assert.equal(validatePreferences({analytics_status_stages:{'Do not Proceed':'INTERVIEW'}}).analytics_status_stages['not proceeding'],'INTERVIEW');
 });
 
 test('member status defaults and custom options are isolated from admin stages', async () => {

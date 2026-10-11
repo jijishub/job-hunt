@@ -54,7 +54,7 @@ vm.runInNewContext(compiled, {
   exports: moduleObject.exports, module: moduleObject, process: { env: {} },
   console: { ...console, error: () => {} },
   require: (name) => name === '@notionhq/client' ? { Client }
-    : name === './db' ? db : name === './statuses' ? { getStatusCategory: (name) => name === 'Inquiry' ? 'LEAD' : 'APPLIED' } : require(name),
+    : name === './db' ? db : name === './statuses' ? { canonicalStatusName: name => name.trim().toLowerCase() === 'do not proceed' ? 'Not Proceeding' : name.trim(), getStatusCategory: (name) => name === 'Inquiry' ? 'LEAD' : name === 'Not Proceeding' ? 'WITHDRAWN' : 'APPLIED' } : require(name),
 });
 async function run() {
   records = [{ ...adminApp }, { ...adminApp, id: 'member-app', owner: 'member_1' },
@@ -116,6 +116,16 @@ async function run() {
   await moduleObject.exports.pullApplicationsFromNotion();
   assert.equal(records[0].information, 'Keep description', 'Missing text properties must not erase local content');
   assert.equal(records[0].notes, 'Keep notes');
+  pages[0].properties['Application Status'] = { select: { name: 'Do not Proceed' } };
+  await moduleObject.exports.pullApplicationsFromNotion();
+  assert.equal(records[0].notion_status, 'Not Proceeding');
+  assert.equal(records[0].status, 'WITHDRAWN');
+  failWrites = false;
+  for (const notion_status of [undefined, 'Do not Proceed', 'Not Proceeding']) {
+    const withdrawn = { ...adminApp, status: 'WITHDRAWN', notion_status };
+    assert.equal(await moduleObject.exports.pushApplicationToNotion(withdrawn), 'page-existing');
+    assert.equal(calls.at(-1).properties['Application Status'].select.name, 'Not Proceeding');
+  }
   console.log('Notion sync: comma normalization, failed-write retry, pull protection, accurate counts and owner/lead exclusions passed');
 }
 run().catch((error) => { console.error(error); process.exitCode = 1; });

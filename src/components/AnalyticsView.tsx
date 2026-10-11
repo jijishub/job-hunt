@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { JobApplication, Company } from '@/types/job';
 import { pipelineAnalytics, isInternship } from '@/lib/analytics';
 import { analyticsPdf } from '@/lib/analytics-export';
-import { AnalyticsStage } from '@/lib/analytics-stages';
+import { AnalyticsStage, DEFAULT_REJECTION_STATUSES } from '@/lib/analytics-stages';
 import CandidateProfileEditor from './CandidateProfileEditor';
 import RoleFitBadge from './RoleFitBadge';
 
@@ -21,10 +21,11 @@ const card = 'rounded-2xl border border-[#F1DDE9] bg-white p-5 shadow-xs';
 const button = 'rounded-xl border border-[#F1DDE9] bg-[#FFF0F6] px-3 py-2 text-xs font-semibold text-[#9D3C5E] disabled:opacity-50';
 export default function AnalyticsView({ applications, accountName, onRefresh, onEditApp, preferenceVersion }: AnalyticsViewProps) {
  const [mapping, setMapping] = useState<Record<string, AnalyticsStage>>({});
- useEffect(() => { fetch('/api/preferences').then(r=>r.json()).then(d=>{ if(d.success) setMapping(d.data.analytics_status_stages || {}); }); }, [preferenceVersion]);
+ const [rejectionStatuses, setRejectionStatuses] = useState<readonly string[]>(DEFAULT_REJECTION_STATUSES);
+ useEffect(() => { fetch('/api/preferences').then(r=>r.json()).then(d=>{ if(d.success) { setMapping(d.data.analytics_status_stages || {}); setRejectionStatuses(d.data.analytics_rejection_statuses ?? DEFAULT_REJECTION_STATUSES); } }); }, [preferenceVersion]);
  const [scope, setScope] = useState('ALL');
  const scoped = useMemo(() => applications.filter(app => scope === 'INTERNSHIP' ? isInternship(app) : scope === 'OTHER' ? !isInternship(app) : true), [applications, scope]);
- const stats = useMemo(() => pipelineAnalytics(scoped, mapping), [scoped, mapping]);
+ const stats = useMemo(() => pipelineAnalytics(scoped, mapping, rejectionStatuses), [scoped, mapping, rejectionStatuses]);
  const [busy, setBusy] = useState('');
  const [message, setMessage] = useState('');
  const [insight, setInsight] = useState<{summary: string; nextSteps: string[]; scope: string; signature: string} | null>(null);
@@ -59,7 +60,7 @@ export default function AnalyticsView({ applications, accountName, onRefresh, on
  }
  async function exportPdf() {
   setBusy('pdf'); setMessage('');
-  try { const pdf = await analyticsPdf(scoped, accountName, scopeLabel, currentInsight ? currentInsight.summary+'\n'+currentInsight.nextSteps.join('\n') : undefined, mapping); pdf.save('my-job-search-analytics.pdf'); }
+  try { const pdf = await analyticsPdf(scoped, accountName, scopeLabel, currentInsight ? currentInsight.summary+'\n'+currentInsight.nextSteps.join('\n') : undefined, mapping, rejectionStatuses); pdf.save('my-job-search-analytics.pdf'); }
   catch (error) { setMessage(error instanceof Error ? error.message : 'PDF export failed.'); }
   finally { setBusy(''); }
  }
@@ -72,18 +73,20 @@ export default function AnalyticsView({ applications, accountName, onRefresh, on
      <button disabled={Boolean(busy)} className={button} onClick={exportPdf}>{busy === 'pdf' ? 'Exporting…' : 'Export PDF'}</button>
     </div>
    </div>
-   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+   <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
     {[
      ['Tracked roles', stats.total, `${stats.leads} not submitted / leads`],
      ['Submitted', stats.submitted, `${stats.recent} submitted in the last 30 days`],
      ['Screening progression', percent(stats.progressionRate), `${stats.funnel[1].count} reached screening`],
      ['Offers', stats.funnel[4].count, `${percent(stats.offerRate)} of submitted applications`],
+     ['Rejections', stats.rejections, `${percent(stats.rejectionRate)} of submitted applications`],
     ].map(([label, value, detail]) => <div key={label} className={card}><p className="text-xs font-semibold text-[#736A6D]">{label}</p><p className="my-2 text-3xl font-bold text-[#9D3C5E]">{value}</p><p className="text-[11px] text-[#736A6D]">{detail}</p></div>)}
    </div>
    <section className={card}>
     <div className="flex flex-wrap justify-between gap-2"><div><h3 className="font-bold text-sm">Role fit and conversion</h3><p className="text-xs text-[#736A6D] mt-1">{stats.assessed} assessed · {stats.unassessed} unassessed · {percent(stats.coverage)} coverage</p></div><button disabled={Boolean(busy) || !stats.unassessed} className={button} onClick={analyzeUnassessed}>{busy === 'fits' ? 'Assessing…' : 'Analyze unassessed roles'}</button></div>
-    <div className="overflow-x-auto mt-4"><table className="w-full text-xs text-left"><thead><tr className="border-b border-[#F1DDE9] text-[#736A6D]">{['Role fit','Tracked','Submitted','Screening','Offers'].map(label=><th key={label} className="p-2">{label}</th>)}</tr></thead><tbody>{stats.fits.map(fit=><tr key={fit.value} className="border-b border-[#F1DDE9]/50"><td className="p-2 min-w-[200px]"><strong>{fit.label}</strong><p className="text-[11px] text-[#736A6D] mt-1">{fit.description}</p></td><td className="p-2">{fit.total}</td><td className="p-2">{fit.submitted}</td><td className="p-2">{fit.progressed} ({percent(fit.progressionRate)})</td><td className="p-2">{fit.offers} ({percent(fit.offerRate)})</td></tr>)}</tbody></table></div>
+    <div className="overflow-x-auto mt-4"><table className="w-full text-xs text-left"><thead><tr className="border-b border-[#F1DDE9] text-[#736A6D]">{['Role fit','Tracked','Submitted','Screening','Offers','Rejections'].map(label=><th key={label} className="p-2">{label}</th>)}</tr></thead><tbody>{stats.fits.map(fit=><tr key={fit.value} className="border-b border-[#F1DDE9]/50"><td className="p-2 min-w-[200px]"><strong>{fit.label}</strong><p className="text-[11px] text-[#736A6D] mt-1">{fit.description}</p></td><td className="p-2">{fit.total}</td><td className="p-2">{fit.submitted}</td><td className="p-2">{fit.progressed} ({percent(fit.progressionRate)})</td><td className="p-2">{fit.offers} ({percent(fit.offerRate)})</td><td className="p-2">{fit.rejections} ({percent(fit.rejectionRate)})</td></tr>)}</tbody></table></div>
     <p className="mt-3 text-[11px] text-[#736A6D]">Rates use submitted roles in each fit group, as defined by your analytics mappings. Unassessed roles are kept separate. Small samples describe your recorded results and do not predict future outcomes.</p>
+    <p className="mt-2 text-[11px] text-[#736A6D]">Rejections count current statuses selected in My preferences. A rejection after an interview still retains that interview progress.</p>
 
    </section>
    <div className="grid gap-4 lg:grid-cols-2">

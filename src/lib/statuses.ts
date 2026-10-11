@@ -8,7 +8,7 @@ export interface StatusOption {
   isCustom?: boolean;
 }
 
-// Exactly 15 seeded statuses matching Notion database
+// Default statuses matching the Notion database.
 export const MEMBER_STATUS_OPTIONS: StatusOption[] = [
   { id: 'member_not_started', name: 'Not started', color: 'gray', category: 'LEAD' },
   { id: 'member_applied', name: 'Applied', color: 'yellow', category: 'APPLIED' },
@@ -29,7 +29,7 @@ export const SEEDED_STATUS_OPTIONS: StatusOption[] = [
   { id: 'applied_with_moa', name: 'Applied - With MOA', color: 'yellow', category: 'APPLIED' },
   { id: 'applied_no_moa', name: 'Applied - No MOA', color: 'purple', category: 'APPLIED' },
   { id: 'not_accepting_interns', name: 'Not Accepting Interns', color: 'red', category: 'REJECTED' },
-  { id: 'do_not_proceed', name: 'Do not Proceed', color: 'red', category: 'WITHDRAWN' },
+  { id: 'not_proceeding', name: 'Not Proceeding', color: 'red', category: 'WITHDRAWN' },
   { id: 'interview_not_accepted', name: 'Interview - Not Accepted', color: 'gray', category: 'REJECTED' },
   { id: 'not_accepted', name: 'Not Accepted', color: 'gray', category: 'REJECTED' },
   { id: 'repeated', name: 'Repeated', color: 'gray', category: 'REJECTED' },
@@ -44,8 +44,12 @@ export function applicationStatusLabel(status?: ApplicationStatus): string {
   return status ? labels[status] || 'Not started' : 'Not started';
 }
 
+export function canonicalStatusName(statusName: string): string {
+  return statusName.trim().toLowerCase() === 'do not proceed' ? 'Not Proceeding' : statusName.trim();
+}
+
 export function getStatusCategory(statusName: string): ApplicationStatus {
-  const lower = statusName.toLowerCase().trim();
+  const lower = canonicalStatusName(statusName).toLowerCase();
 
   // Exact matches
   const match = [...MEMBER_STATUS_OPTIONS, ...SEEDED_STATUS_OPTIONS].find((s) => s.name.toLowerCase() === lower);
@@ -59,7 +63,7 @@ export function getStatusCategory(statusName: string): ApplicationStatus {
   if (lower.includes('applied') || lower.includes('submitted')) return 'APPLIED';
   if (lower.includes('lead') || lower.includes('inquiry') || lower.includes('not started') || lower.includes('wishlist')) return 'LEAD';
   if (lower.includes('not accepted') || lower.includes('reject') || lower.includes('repeated')) return 'REJECTED';
-  if (lower.includes('withdraw') || lower.includes('do not proceed') || lower.includes('drop')) return 'WITHDRAWN';
+  if (lower.includes('withdraw') || lower.includes('not proceeding') || lower.includes('drop')) return 'WITHDRAWN';
 
   return 'APPLIED';
 }
@@ -165,7 +169,7 @@ export function getStatusStyle(statusName: string): StatusStyle {
     };
   }
 
-  if (lower === 'not accepting interns' || lower === 'do not proceed') {
+  if (lower === 'not accepting interns' || lower === 'not proceeding' || lower === 'do not proceed') {
     return {
       bg: 'bg-rose-50',
       text: 'text-rose-800',

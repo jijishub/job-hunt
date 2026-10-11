@@ -57,7 +57,8 @@ The parent job downloads validated images and performs guarded database writes i
 Company metadata:\n${JSON.stringify(companies.map(({ id, name, website, industry }) => ({ id, name, website, industry })), null, 2)}`;
 
   await new Promise((resolve, reject) => {
-    const child = spawn('codex', codexCommand(directory), {
+    const cliPath = require.resolve('@openai/codex/bin/codex.js');
+    const child = spawn(process.execPath, [cliPath, ...codexCommand(directory)], {
       cwd: ROOT, windowsHide: true, stdio: ['pipe', 'inherit', 'inherit'],
     });
     child.on('error', error => reject(new Error(error.code === 'ENOENT'
