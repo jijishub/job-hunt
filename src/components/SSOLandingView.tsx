@@ -229,7 +229,7 @@ export default function SSOLandingView() {
 
               {/* Footnote */}
               <div className="mt-6 pt-5 border-t border-[#F1DDE9]/70 text-[11px] text-[#736A6D]/80">
-                Job Hunt & Leads • Precision Opportunity Tracking
+                Contact Administrator for access.
               </div>
             </div>
           </div>
