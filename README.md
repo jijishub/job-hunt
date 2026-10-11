@@ -7,7 +7,7 @@ A private job application tracker with a separate leads pipeline, resume analysi
 ## Features
 
 - Table and board views with job descriptions, personal notes, salary, and application history.
-- Member defaults: Applied, Interview, Accepted, and Not Proceeding, with custom options. Admin accounts retain detailed Notion stages.
+- Member statuses: Not started, Applied, Interview, Accepted, and Not Proceeding, with custom options. New entries default to Not started; admin accounts retain detailed Notion stages.
 - Preferences for target roles, work models, job types, currency, resume text, and analytics phase mappings.
 - Resume PDF analysis, portfolio evidence for the admin, and AI assessments against saved job descriptions.
 - Analytics for all applications, regular employment, or internships, with PDF reports.

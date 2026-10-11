@@ -10,6 +10,7 @@ export interface StatusOption {
 
 // Exactly 15 seeded statuses matching Notion database
 export const MEMBER_STATUS_OPTIONS: StatusOption[] = [
+  { id: 'member_not_started', name: 'Not started', color: 'gray', category: 'LEAD' },
   { id: 'member_applied', name: 'Applied', color: 'yellow', category: 'APPLIED' },
   { id: 'member_interview', name: 'Interview', color: 'blue', category: 'INTERVIEWING' },
   { id: 'member_accepted', name: 'Accepted', color: 'green', category: 'ACCEPTED' },
@@ -17,9 +18,9 @@ export const MEMBER_STATUS_OPTIONS: StatusOption[] = [
 ];
 
 export const SEEDED_STATUS_OPTIONS: StatusOption[] = [
+  { id: 'not_started', name: 'Not started', color: 'gray', category: 'LEAD' },
   { id: 'accepted', name: 'Accepted', color: 'green', category: 'ACCEPTED' },
   { id: 'accepted_not_proceeding', name: 'Accepted - Not Proceeding', color: 'purple', category: 'OFFER' },
-  { id: 'not_started', name: 'Not started', color: 'gray', category: 'LEAD' },
   { id: 'initial_interview', name: 'Initial Interview', color: 'orange', category: 'INTERVIEWING' },
   { id: 'technical_interview', name: 'Technical Interview', color: 'brown', category: 'INTERVIEWING' },
   { id: 'interview_task', name: 'Interview Task', color: 'purple', category: 'INTERVIEWING' },
@@ -33,6 +34,15 @@ export const SEEDED_STATUS_OPTIONS: StatusOption[] = [
   { id: 'not_accepted', name: 'Not Accepted', color: 'gray', category: 'REJECTED' },
   { id: 'repeated', name: 'Repeated', color: 'gray', category: 'REJECTED' },
 ];
+
+export function applicationStatusLabel(status?: ApplicationStatus): string {
+  const labels: Record<ApplicationStatus, string> = {
+    LEAD: 'Not started', APPLIED: 'Applied', SCREENING: 'Screening',
+    INTERVIEWING: 'Interview', OFFER: 'Offer received', ACCEPTED: 'Accepted',
+    REJECTED: 'Not Accepted', WITHDRAWN: 'Not Proceeding',
+  };
+  return status ? labels[status] || 'Not started' : 'Not started';
+}
 
 export function getStatusCategory(statusName: string): ApplicationStatus {
   const lower = statusName.toLowerCase().trim();
