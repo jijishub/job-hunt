@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { JobApplication, UserAccount, ApplicationStatus, Company } from '@/types/job';
-import { GeneratedLead } from '@/lib/ai-types';
+import JobDiscoveryHub from './JobDiscoveryHub';
 import StatusBadge from './StatusBadge';
 import PriorityBadge from './PriorityBadge';
-import { Search, Plus, ExternalLink, Sparkles, Building2, MapPin, Trash2, ArrowRight } from 'lucide-react';
+import { Search, Plus, ExternalLink, Sparkles, Building2, MapPin, Trash2, ArrowRight, Compass, BookmarkCheck } from 'lucide-react';
 
 interface JobLeadsViewProps {
   onAddToTracker: (data: Partial<JobApplication>) => Promise<void>;
@@ -22,9 +22,6 @@ const input = 'w-full rounded-xl border border-[#F1DDE9] bg-white px-3 py-2 text
 export default function JobLeadsView({ onAddToTracker, existingApplications, currentUser, companies = [], onUpdateStatus, onDeleteApplication, onSelectLead, onNavigateToResume }: JobLeadsViewProps) {
   const [tab, setTab] = useState('saved');
   const [query, setQuery] = useState('');
-  const [target, setTarget] = useState(currentUser?.industry && currentUser.industry !== 'General' ? currentUser.industry : '');
-  const [location, setLocation] = useState('Philippines');
-  const [ideas, setIdeas] = useState<GeneratedLead[]>([]);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
   const [title, setTitle] = useState('');
@@ -46,17 +43,14 @@ export default function JobLeadsView({ onAddToTracker, existingApplications, cur
       setTitle(''); setCompany(''); setUrl(''); setNotes(''); setMessage('Lead saved.');
     });
   }
-  async function scout(event: React.FormEvent) {
-    event.preventDefault();
-    await action('scout', async () => {
-      const response = await fetch('/api/leads/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetRole: target, industry: currentUser?.industry, locationPreference: location, count: 6 }) });
-      const data = await response.json();
-      if (!response.ok || !data.success || !Array.isArray(data.data)) throw new Error(data.error || 'Search ideas could not be generated.');
-      setIdeas(data.data);
-    });
-  }
+  const quickAdd = <form onSubmit={saveLead} className="rounded-2xl border border-[#F1DDE9] bg-white p-5 space-y-3"><h3 className="font-bold flex gap-2"><Plus className="h-4 w-4 text-[#FF7AB3]" />Quick Add a real lead</h3>
+    <datalist id="lead-company-options">{companies.map(company => <option key={company.id} value={company.name} />)}</datalist>
+    <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs">Role title<input required value={title} onChange={e => setTitle(e.target.value)} className={input} /></label><label className="text-xs">Company<input required list="lead-company-options" placeholder="Select or type company" value={company} onChange={e => setCompany(e.target.value)} className={input} /></label></div>
+    <label className="block text-xs">Posting URL<input type="url" value={url} onChange={e => setUrl(e.target.value)} className={input} placeholder="https://" /></label>
+    <label className="block text-xs">Personal notes<textarea value={notes} onChange={e => setNotes(e.target.value)} className={input} rows={3} /></label><button disabled={Boolean(busy)} className={button}>{busy === 'save' ? 'Saving...' : 'Save lead'}</button>
+  </form>;
   return <div className="space-y-5">
-    <nav className="flex gap-2"><button className={button} aria-pressed={tab === 'saved'} onClick={() => { setTab('saved'); setMessage(''); }}>Saved leads ({leads.length})</button><button className={button} aria-pressed={tab === 'discover'} onClick={() => { setTab('discover'); setMessage(''); }}>Discover</button></nav>
+    <nav aria-label="Lead views" className="flex flex-wrap gap-2 border-b border-[#F1DDE9] pb-3">{[{ key: 'saved', label: `Saved leads (${leads.length})`, Icon: BookmarkCheck }, { key: 'discover', label: 'Discover', Icon: Compass }].map(({ key, label, Icon }) => <button key={key} type="button" className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${tab === key ? 'bg-[#FF7AB3] text-white shadow-xs' : 'border border-[#F1DDE9] bg-white text-[#736A6D] hover:bg-[#FAF7F9]'}`} aria-pressed={tab === key} onClick={() => { setTab(key); setMessage(''); }}><Icon className="h-3.5 w-3.5" />{label}</button>)}</nav>
     {message && <p role="status" className="rounded-xl bg-[#FFF0F6] p-3 text-sm text-[#9D3C5E]">{message}</p>}
     {tab === 'saved' ? <>
       <label className="flex items-center gap-2"><Search className="h-4 w-4 text-[#FF7AB3]" /><input aria-label="Search saved leads" value={query} onChange={e => setQuery(e.target.value)} className={input} placeholder="Search role or company" /></label>
@@ -96,19 +90,11 @@ export default function JobLeadsView({ onAddToTracker, existingApplications, cur
         </div>
       </article>)}</div>
       {!shown.length && <p className="text-sm text-[#736A6D]">{leads.length ? 'No leads match your search.' : 'No saved leads yet. Save a real posting below.'}</p>}
-      <form onSubmit={saveLead} className="rounded-2xl border border-[#F1DDE9] bg-white p-5 space-y-3"><h3 className="font-bold flex gap-2"><Plus className="h-4 w-4 text-[#FF7AB3]" />Quick Add a real lead</h3>
-        <datalist id="lead-company-options">{companies.map(company => <option key={company.id} value={company.name} />)}</datalist>
-        <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs">Role title<input required value={title} onChange={e => setTitle(e.target.value)} className={input} /></label><label className="text-xs">Company<input required list="lead-company-options" placeholder="Select or type company" value={company} onChange={e => setCompany(e.target.value)} className={input} /></label></div>
-        <label className="block text-xs">Posting URL<input type="url" value={url} onChange={e => setUrl(e.target.value)} className={input} placeholder="https://?" /></label>
-        <label className="block text-xs">Personal notes<textarea value={notes} onChange={e => setNotes(e.target.value)} className={input} rows={3} /></label><button disabled={Boolean(busy)} className={button}>{busy === 'save' ? 'Saving?' : 'Save lead'}</button>
-      </form>
-    </> : <>
-      <form onSubmit={scout} className="rounded-2xl border border-[#F1DDE9] bg-white p-5 space-y-3"><h3 className="font-bold flex gap-2"><Sparkles className="h-4 w-4 text-[#FF7AB3]" />Search ideas</h3><p className="text-xs text-[#736A6D]">Suggestions are not verified vacancies. Open a search, confirm a real posting, then save its URL with Quick Add.</p>
-        <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs">Target role<input value={target} onChange={e => setTarget(e.target.value)} className={input} placeholder="Role or keywords" /></label><label className="text-xs">Location<input value={location} onChange={e => setLocation(e.target.value)} className={input} /></label></div>
-        <div className="flex flex-wrap gap-2">{[['LinkedIn', 'https://www.linkedin.com/jobs/search/?keywords='], ['JobStreet', 'https://www.jobstreet.com.ph/jobs?keywords='], ['Indeed', 'https://ph.indeed.com/jobs?q='], ['Google Jobs', 'https://www.google.com/search?ibp=htl;jobs&q=']].map(([label, base]) => <a key={label} href={base + encodeURIComponent(target + ' ' + location)} target="_blank" rel="noreferrer" className={button}>{label}<ExternalLink className="ml-1 inline h-3 w-3" /></a>)}</div>
-        <button disabled={Boolean(busy)} className={button}>{busy === 'scout' ? 'Generating?' : 'Generate search ideas'}</button>
-      </form>
-      <div className="grid gap-4 md:grid-cols-2">{ideas.map((idea, index) => <article key={idea.id || index} className="rounded-2xl border border-[#F1DDE9] bg-white p-5 space-y-2"><h3 className="font-bold">{idea.title}</h3><p className="text-sm text-[#736A6D]">Employer to research: {idea.company_name}</p><p className="text-xs text-[#736A6D]">{idea.description}</p><p className="text-xs text-[#9D3C5E]">{idea.ai_verdict}</p><a className={button + ' inline-block'} href={'https://www.google.com/search?ibp=htl;jobs&q=' + encodeURIComponent(idea.company_name + ' ' + idea.title + ' jobs')} target="_blank" rel="noreferrer">Search on Google Jobs <ExternalLink className="inline h-3 w-3" /></a></article>)}</div>
-    </>}
+      {quickAdd}
+    </> : null}
+    <div hidden={tab !== 'discover'} className="space-y-5">
+      <JobDiscoveryHub key={currentUser?.id || 'signed-out'} currentUser={currentUser} />
+      {tab === 'discover' && quickAdd}
+    </div>
   </div>;
 }

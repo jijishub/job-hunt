@@ -4,6 +4,7 @@ import { OFFER_PAY_PERIODS } from './salary-offers';
 export const APPLICATION_STATUSES = ['LEAD', 'APPLIED', 'SCREENING', 'INTERVIEWING', 'OFFER', 'ACCEPTED', 'REJECTED', 'WITHDRAWN'] as const;
 
 export function applicationValidationError(body: Record<string, unknown>) {
+  if (body.ensure_company != null && typeof body.ensure_company !== 'boolean') return 'Invalid company creation flag.';
   const options: Record<string, readonly string[]> = {
     status: APPLICATION_STATUSES, priority: ['LOW', 'MEDIUM', 'HIGH', 'DREAM'],
     job_type: ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERNSHIP'], work_model: ['REMOTE', 'HYBRID', 'ON_SITE'],

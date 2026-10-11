@@ -344,11 +344,13 @@ export async function getOrCreateCompany(
   website?: string,
   created_by?: string
 ): Promise<Company> {
-  const trimmedName = name.trim();
+  const trimmedName = name.trim().replace(/\s+/g, ' ');
+  const companyKey = trimmedName.toLowerCase();
+  if (!trimmedName) throw new Error('Company name is required.');
   const sql = getPostgresClient();
   if (sql) {
     await initPostgresSchema(sql);
-    const existing = await sql`SELECT * FROM companies WHERE LOWER(name) = LOWER(${trimmedName}) LIMIT 1;`;
+    const existing = await sql`SELECT * FROM companies WHERE LOWER(BTRIM(REGEXP_REPLACE(name, '[[:space:]]+', ' ', 'g'))) = ${companyKey} ORDER BY created_at, id LIMIT 1;`;
     if (existing.length > 0) {
       if (created_by && existing[0].created_by === created_by && logo_url && logo_url !== existing[0].logo_url) {
         await sql`UPDATE companies SET logo_url = ${logo_url}, updated_at = NOW() WHERE id = ${existing[0].id};`;
@@ -363,18 +365,28 @@ export async function getOrCreateCompany(
       (website
         ? `https://www.google.com/s2/favicons?domain=${website.replace(/^https?:\/\//, '')}&sz=128`
         : undefined);
-    const inserted = await sql`
+    // Serialize creations for the same name, then re-check inside the lock.
+    // Random IDs keep company renames independent of future name reuse.
+    const result = await sql.transaction([
+      sql`SELECT pg_advisory_xact_lock(hashtext(${companyKey}));`,
+      sql`
       INSERT INTO companies (id, name, logo_url, website, created_by, created_at, updated_at)
-      VALUES (${newId}, ${trimmedName}, ${resolvedLogo || null}, ${website || null}, ${created_by || null}, ${now}, ${now})
-      ON CONFLICT (name) DO UPDATE SET updated_at = NOW()
+      SELECT ${newId}, ${trimmedName}, ${resolvedLogo || null}, ${website || null}, ${created_by || null}, ${now}, ${now}
+      WHERE NOT EXISTS (SELECT 1 FROM companies WHERE LOWER(BTRIM(REGEXP_REPLACE(name, '[[:space:]]+', ' ', 'g'))) = ${companyKey})
+      ON CONFLICT DO NOTHING
       RETURNING *;
-    `;
-    return inserted[0] as Company;
+    `,
+    ], { isolationLevel: 'ReadCommitted' });
+    const inserted = result[1];
+    if (inserted[0]) return inserted[0] as Company;
+    const reused = await sql`SELECT * FROM companies WHERE LOWER(BTRIM(REGEXP_REPLACE(name, '[[:space:]]+', ' ', 'g'))) = ${companyKey} ORDER BY created_at, id LIMIT 1;`;
+    if (!reused[0]) throw new Error('Company could not be created. Please try saving again.');
+    return reused[0] as Company;
   }
 
   const db = readLocalDb();
   const existing = db.companies.find(
-    (c) => c.name.toLowerCase() === trimmedName.toLowerCase()
+    (c) => c.name.trim().replace(/\s+/g, ' ').toLowerCase() === companyKey
   );
   if (existing) {
     if (created_by && existing.created_by === created_by && logo_url && logo_url !== existing.logo_url) {

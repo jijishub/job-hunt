@@ -8,6 +8,30 @@ function loader(overrides={}){
 }
 const sample=(values={})=>({id:'app',company_name:'Example',role_title:'Engineer',status:'APPLIED',owner:'user_ji',priority:'MEDIUM',job_type:'FULL_TIME',work_model:'ON_SITE',salary_currency:'PHP',sync_status:'SYNCED',created_at:'2026-10-10T00:00:00Z',updated_at:'2026-10-10T00:00:00Z',...values});
 
+test('search links keep keywords separate from location and use JobStreet keyword paths',()=>{
+ const {JOB_SEARCH_PLATFORMS,jobSearchUrl}=loader()('src/lib/job-search-links.ts');
+ assert.equal(JOB_SEARCH_PLATFORMS.length,4);
+ assert.equal(jobSearchUrl('jobstreet',' Hospitality Management ','Metro Manila'),'https://ph.jobstreet.com/hospitality-management-jobs');
+ assert.equal(jobSearchUrl('jobstreet','C++ / C#'),'https://ph.jobstreet.com/c%2B%2B-%2F-c%23-jobs');
+ const linkedin=new URL(jobSearchUrl('linkedin','AI & Automation','Las Piñas'));
+ assert.equal(linkedin.searchParams.get('keywords'),'AI & Automation');assert.equal(linkedin.searchParams.get('location'),'Las Piñas');
+ const indeed=new URL(jobSearchUrl('indeed','Front Office Associate','Metro Manila'));
+ assert.equal(indeed.searchParams.get('q'),'Front Office Associate');assert.equal(indeed.searchParams.get('l'),'Metro Manila');
+ const google=new URL(jobSearchUrl('google','Reservations Associate','Philippines'));
+ assert.equal(google.searchParams.get('q'),'Reservations Associate Philippines jobs');assert.equal(google.searchParams.get('ibp'),'htl;jobs');
+});
+
+test('AI keyword generation supports role-only ideas without inventing salary or choosing a platform',async()=>{
+ const previousFetch=global.fetch;const previousKey=process.env.AI_API_KEY;
+ try{
+  process.env.AI_API_KEY='test-key';let prompt;
+  global.fetch=async(_url,options)=>{prompt=JSON.parse(options.body);return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({leads:[{id:'keyword',title:' Front Office Associate ',description:'Search entry-level hotel roles',salary_range:'invented'},{title:'   '},null]})}}]}));};
+  const {generateTailoredLeads}=loader()('src/lib/ai.ts');const ideas=await generateTailoredLeads({profileText:'Hotel front office internship',targetRole:'Hospitality Management',locationPreference:'Philippines'});
+  assert.equal(ideas.length,1);assert.equal(ideas[0].title,'Front Office Associate');assert.equal(ideas[0].company_name,'');assert.equal(ideas[0].salary_range,undefined);
+  assert.match(prompt.messages[0].content,/Do not require an employer name/);assert.match(prompt.messages[0].content,/user's choice/);assert.match(prompt.messages[1].content,/Hotel front office internship/);
+ }finally{global.fetch=previousFetch;if(previousKey===undefined)delete process.env.AI_API_KEY;else process.env.AI_API_KEY=previousKey;}
+});
+
 test('charts partition unique records, distinguish inferred interviews, and exclude invalid activity dates',()=>{
  const {pipelineAnalytics,applicationDay}=loader()('src/lib/analytics.ts');
  const rows=[sample({id:'offer',status:'ACCEPTED',role_fit:'STRONG',date_applied:'2026-10-12'}),sample({id:'offer',status:'APPLIED',updated_at:'2026-10-09'}),sample({id:'lead',status:'LEAD',role_fit:'POSSIBLE'}),sample({id:'rejected',status:'REJECTED',notion_status:'Not Accepted',date_applied:'2026-09-13',role_fit:'WEAK',stage_history:[{status:'INTERVIEWING',notion_status:'Final Interview'}]}),sample({id:'invalid',date_applied:'2026-02-30'}),sample({id:'future',date_applied:'2026-10-13'}),sample({id:'missing'}),sample({id:'old',date_applied:'2026-09-12'})];
@@ -88,6 +112,62 @@ test('application APIs scope reads, ignore forged owner, and enforce new default
  const routes=load('src/app/api/applications/route.ts');const result=await (await routes.GET()).json();assert.deepEqual(result.data.map(app=>app.id),['app']);
  const response=await routes.POST(new Request('http://local/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:'New',role_title:'Engineer',owner:'user_friend'})}));assert.equal(response.status,201);assert.equal(created.owner,'user_ji');assert.equal(created.notion_status,'Not started');assert.equal(created.status,'LEAD');assert.equal(created.work_model,'ON_SITE');assert.equal(created.salary_currency,'PHP');
  const id=load('src/app/api/applications/[id]/route.ts');assert.equal((await id.GET(new Request('http://local'),{params:Promise.resolve({id:'friend'})})).status,404);assert.equal((await id.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({status:'ACCEPTED'})}),{params:Promise.resolve({id:'friend'})})).status,404);assert.equal((await id.DELETE(new Request('http://local',{method:'DELETE'}),{params:Promise.resolve({id:'friend'})})).status,404);user=null;assert.equal((await routes.GET()).status,401);
+});
+
+test('saving JSON-imported drafts creates and links companies once, including Not started roles',async()=>{
+ const original=process.cwd(),directory=fs.mkdtempSync(path.join(os.tmpdir(),'job-import-companies-')),env={POSTGRES_URL:process.env.POSTGRES_URL,DATABASE_URL:process.env.DATABASE_URL,VERCEL:process.env.VERCEL};
+ try{
+  for(const key of Object.keys(env))delete process.env[key];process.chdir(directory);
+  let user={id:'member',email:'member@example.com',role:'member',notion_enabled:false};
+  const load=loader({'@/lib/session-account':{getSessionAccount:async()=>user},'@/lib/notion':{pushApplicationToNotion:async()=>{throw Error('Member must not write to Notion');}}});
+  const db=load('src/lib/db.ts'),route=load('src/app/api/applications/route.ts'),companyRoute=load('src/app/api/companies/route.ts');
+  const imported=load('src/lib/job-import.ts').parseJobImport(JSON.stringify({job_title:'Reservations Associate',company:'  City   Garden Hotel  ',description:'Handle hotel reservations.'}));
+  const post=body=>route.POST(new Request('http://local',{method:'POST',body:JSON.stringify(body)}));
+  assert.equal((await db.getCompanies()).length,0);
+  const first=await post({...imported,ensure_company:true,owner:'forged'});assert.equal(first.status,201);const firstApp=(await first.json()).data;
+  assert.equal(firstApp.status,'LEAD');assert.ok(firstApp.company_id);assert.equal(firstApp.owner,'member');assert.equal(firstApp.company_name,'City Garden Hotel');assert.equal(firstApp.ensure_company,undefined);
+  const second=(await (await post({...imported,company_name:'CITY GARDEN HOTEL',ensure_company:true})).json()).data;
+  assert.equal(second.company_id,firstApp.company_id);assert.equal((await db.getCompanies()).length,1);
+  const visible=(await (await companyRoute.GET(new Request('http://local'))).json()).data;
+  assert.equal(visible.length,1);assert.equal(visible[0].applicationCount,2);
+  const edit=load('src/app/api/applications/[id]/route.ts');
+  const edited=await edit.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({ensure_company:true,company_name:'New Import Company'})}),{params:Promise.resolve({id:firstApp.id})});
+  const editedApp=(await edited.json()).data;assert.equal(editedApp.status,'LEAD');assert.notEqual(editedApp.company_id,firstApp.company_id);assert.equal(editedApp.ensure_company,undefined);assert.equal((await db.getCompanies()).length,2);
+  await post({...imported,company_name:'Quick Add Lead Only'});assert.equal((await db.getCompanies()).length,2);
+  assert.equal((await post({...imported,ensure_company:'true'})).status,400);
+  user={id:'other',email:'other@example.com',role:'member'};
+  assert.equal((await edit.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({ensure_company:true,company_name:'Unauthorized'})}),{params:Promise.resolve({id:firstApp.id})})).status,404);
+  assert.equal((await db.getCompanies()).length,2);
+ }finally{process.chdir(original);for(const [key,value]of Object.entries(env)){if(value===undefined)delete process.env[key];else process.env[key]=value;}fs.rmSync(directory,{recursive:true,force:true});}
+});
+
+test('concurrent Postgres company creation reuses case and whitespace variants without overwriting shared data',async()=>{
+ const previous=process.env.POSTGRES_URL;let inserts=0;
+ try{
+  process.env.POSTGRES_URL='postgres://test-only';
+  const rows=new Map([['legacy',{id:'legacy',name:'  Legacy   Company  ',created_by:'other',logo_url:'original-logo'}]]);
+  let transactionTail=Promise.resolve();
+  const sql=(strings,...values)=>{
+   const query=strings.join('?');
+   const execute=async()=>{
+   if(query.includes('SELECT * FROM companies'))return [...rows.values()].filter(row=>row.name.trim().replace(/\s+/g,' ').toLowerCase()===values[0]);
+   if(query.includes('INSERT INTO companies')){inserts++;assert.match(query,/WHERE NOT EXISTS/);const [id,name,logo_url,website,created_by]=values;if([...rows.values()].some(row=>row.name.trim().replace(/\s+/g,' ').toLowerCase()===values.at(-1)))return [];const row={id,name,logo_url,website,created_by};rows.set(id,row);return [row];}
+   if(query.includes('UPDATE companies'))throw Error('Shared company was modified');
+   return [];
+   };return {query,then:(resolve,reject)=>execute().then(resolve,reject)};
+  };
+  sql.transaction=(queries,options)=>{
+   if(!queries[0].query.includes('pg_advisory_xact_lock'))return Promise.all(queries);
+   assert.equal(options.isolationLevel,'ReadCommitted');
+   const result=transactionTail.then(async()=>{const output=[];for(const query of queries)output.push(await query);return output;});transactionTail=result.then(()=>{},()=>{});return result;
+  };
+  const db=loader({'@neondatabase/serverless':{neon:()=>sql}})('src/lib/db.ts');
+  const legacy=await db.getOrCreateCompany('legacy company','replacement',undefined,'member');assert.equal(legacy.id,'legacy');assert.equal(legacy.logo_url,'original-logo');assert.equal(inserts,0);
+  const created=await Promise.all([db.getOrCreateCompany(' New   Company ',undefined,undefined,'member'),db.getOrCreateCompany('NEW COMPANY',undefined,undefined,'other')]);
+  assert.equal(created[0].id,created[1].id);assert.equal(rows.size,2);assert.equal(inserts,2);assert.equal(created[0].created_by,'member');
+  rows.get(created[0].id).name='Renamed Company';
+  const reusedName=await db.getOrCreateCompany('New Company',undefined,undefined,'member');assert.notEqual(reusedName.id,created[0].id);assert.equal(rows.size,3);
+ }finally{if(previous===undefined)delete process.env.POSTGRES_URL;else process.env.POSTGRES_URL=previous;}
 });
 test('role-fit AI validates evidence, protects manual ratings, and rejects foreign records',async()=>{
  let app=sample({role_fit:'STRONG',role_fit_source:'manual'});let raw={fit:'WEAK',explanation:'Missing requirements',strengths:['Python'],gaps:['SQL']};let calls=0;let writes=0;
