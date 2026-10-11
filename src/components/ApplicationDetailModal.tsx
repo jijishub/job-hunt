@@ -8,7 +8,6 @@ import { JobApplication } from '@/types/job';
 import StatusBadge from './StatusBadge';
 import PriorityBadge from './PriorityBadge';
 import {
-  X,
   ExternalLink,
   Calendar,
   DollarSign,
@@ -55,9 +54,9 @@ export default function ApplicationDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[#F1DDE9] max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="h-28 bg-gradient-to-r from-[#FFB8CA] via-[#FCE7F3] to-[#FFF0F6] relative">
-          <CloseButton onClick={onClose} />
+      <div role="dialog" aria-modal="true" aria-label="Application details" className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[#F1DDE9] max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="h-28 shrink-0 bg-gradient-to-r from-[#FFB8CA] via-[#FCE7F3] to-[#FFF0F6] relative">
+          <CloseButton onClick={onClose} className="absolute right-3 top-3" />
         </div>
 
         <div className="px-7 pt-0 pb-4 relative flex items-end justify-between border-b border-[#F1DDE9]">
@@ -275,7 +274,6 @@ export default function ApplicationDetailModal({
             <Clock className="w-3.5 h-3.5" />
             Last updated {new Date(app.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
-          <CloseButton onClick={onClose} />
         </div>
       </div>
     </div>

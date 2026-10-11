@@ -76,3 +76,10 @@ test('member status defaults and custom options are isolated from admin stages',
  user={id:'admin',role:'admin'};const admin=await (await route.GET()).json();assert.ok(admin.data.some(s=>s.name==='Technical Interview'));assert.ok(admin.data.some(s=>s.name==='Admin old'));assert.equal(admin.data.some(s=>s.name==='My review'),false);
  user=null;assert.equal((await route.GET()).status,401);assert.equal((await route.POST(new Request('http://local',{method:'POST',body:'{}'}))).status,401);
 });
+
+test('removed preset lead feed stays empty for every authenticated account', async () => {
+ let user={id:'admin',role:'admin'};
+ const route=loader({'@/lib/session-account':{getSessionAccount:async()=>user}})('src/app/api/leads/route.ts');
+ for(const role of ['admin','member']){user={id:role,role};const response=await route.GET(new Request('http://local/api/leads?role=admin&q=React&source=LinkedIn'));assert.equal(response.status,200);const result=await response.json();assert.deepEqual(result.data,[]);assert.equal(result.portfolioConnected,false);assert.equal(result.matchedProfile,undefined);}
+ user=null;assert.equal((await route.GET()).status,401);
+});
