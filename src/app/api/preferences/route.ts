@@ -5,7 +5,7 @@ import { validatePreferences, EMPTY_PREFERENCES } from '@/lib/preferences';
 export async function GET() {
   const user = await getSessionAccount();
   if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
-  return NextResponse.json({ success: true, data: await getCandidatePreferences(user.id) || EMPTY_PREFERENCES });
+  return NextResponse.json({ success: true, data: { ...EMPTY_PREFERENCES, ...await getCandidatePreferences(user.id) } });
 }
 export async function PUT(request: Request) {
   const user = await getSessionAccount();

@@ -2,6 +2,7 @@
 
 import { ownsApplication } from '@/lib/ownership';
 import { isInternship } from '@/lib/analytics';
+import { DefaultView, DEFAULT_VIEWS } from '@/lib/preferences';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
@@ -56,6 +57,7 @@ export default function JobHuntDashboard() {
   // Filter and Search States
   const [searchQuery, setSearchQuery] = useState('');
   const [jobTypeFilter, setJobTypeFilter] = useState('ALL');
+  const [defaultView, setDefaultView] = useState<DefaultView>('ALL');
   const [roleFitFilter, setRoleFitFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [notionStatusFilter, setNotionStatusFilter] = useState<string>('ALL');
@@ -66,6 +68,19 @@ export default function JobHuntDashboard() {
 
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [preferenceVersion, setPreferenceVersion] = useState(0);
+
+  useEffect(() => {
+    setDefaultView('ALL'); setJobTypeFilter('ALL');
+    if (authStatus !== 'authenticated' || !currentUser?.id) return;
+    const controller = new AbortController();
+    fetch('/api/preferences', { signal: controller.signal }).then(response => response.json()).then(data => {
+      if (!data.success || controller.signal.aborted) return;
+      const saved = data.data.default_view;
+      const view: DefaultView = DEFAULT_VIEWS.some(option => option.value === saved) ? saved : 'ALL';
+      setDefaultView(view); setJobTypeFilter(view);
+    }).catch(error => { if (error.name !== 'AbortError') console.error('Could not load default view.'); });
+    return () => controller.abort();
+  }, [authStatus, currentUser?.id]);
 
   // Modals
   const [selectedApp, setSelectedApp] = useState<JobApplication | null>(null);
@@ -760,7 +775,7 @@ export default function JobHuntDashboard() {
             onDeleteCompany={handleDeleteCompany}
           />
         ) : activeView === 'leads' ? (
-          <JobLeadsView onOpenPreferences={() => setIsPreferencesOpen(true)}
+          <JobLeadsView
             companies={companies}
             onAddToTracker={handleSaveApplication}
             existingApplications={personalApplications}
@@ -777,7 +792,7 @@ export default function JobHuntDashboard() {
             }}
           />
         ) : activeView === 'analytics' ? (
-          <AnalyticsView applications={personalApplications} companies={filteredCompanies} accountName={currentUser?.name || 'My account'} preferenceVersion={preferenceVersion} onEditApp={app => { setEditingApp(app); setIsAppModalOpen(true); }} />
+          <AnalyticsView applications={personalApplications} companies={filteredCompanies} accountName={currentUser?.name || 'My account'} preferenceVersion={preferenceVersion} defaultScope={defaultView} onEditApp={app => { setEditingApp(app); setIsAppModalOpen(true); }} />
         ) : activeView === 'guide' ? <GuideView onOpenPreferences={() => setIsPreferencesOpen(true)} onNavigate={setActiveView} /> : activeView === 'resume' ? (
           <ResumeAnalyzerView preferenceVersion={preferenceVersion} onOpenPreferences={() => setIsPreferencesOpen(true)}
             applications={personalApplications}
@@ -786,7 +801,10 @@ export default function JobHuntDashboard() {
         ) : null}
       </main>
 
-      <PreferencesModal isOpen={isPreferencesOpen} onClose={() => setIsPreferencesOpen(false)} onSaved={() => setPreferenceVersion(version => version + 1)} />
+      <PreferencesModal isOpen={isPreferencesOpen} isAdmin={currentUser?.role === 'admin'} onClose={() => setIsPreferencesOpen(false)} onSaved={preferences => {
+        setPreferenceVersion(version => version + 1);
+        if (preferences) { const view = preferences.default_view || 'ALL'; setDefaultView(view); setJobTypeFilter(view); }
+      }} />
 
       {/* Application Details Modal */}
       <ApplicationDetailModal

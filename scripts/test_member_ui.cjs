@@ -19,7 +19,7 @@ test('members can use Guide, master resume, company search, charts, ATS and real
     ];
     const companies = [{ id: 'finance', name: 'Finance Company', created_by: 'member', industry: 'Finance', website: 'https://example.com', applicationCount: 13 }, { id: 'travel', name: 'Travel Company', created_by: 'member', industry: 'Tourism', applicationCount: 0 }, { id: 'foreign', name: 'Other Private Company', created_by: 'other' }];
     let profile = 'Member master resume: financial reporting and business analysis.';
-    let fitCalls = 0, atsCalls = [], creations = [], statusWrites = [], preferences = { target_companies: [], target_roles: [], preferred_locations: [], work_models: [], job_types: [], salary_currency: 'PHP', dealbreakers: '', portfolio_summary: '' };
+    let fitCalls = 0, atsCalls = [], creations = [], statusWrites = [], companyWrites = [], preferences = { target_companies: [], target_roles: [], preferred_locations: [], work_models: [], job_types: [], salary_currency: 'PHP', dealbreakers: '', portfolio_summary: '' };
     await page.route('**/api/**', async route => {
       const request = route.request(), pathname = new URL(request.url()).pathname, method = request.method();
       let data = { success: true, data: [] };
@@ -27,7 +27,10 @@ test('members can use Guide, master resume, company search, charts, ATS and real
       else if (pathname === '/api/users') data = { success: true, data: [user] };
       else if (pathname === '/api/profile') { if (method === 'PUT') profile = request.postDataJSON().resumeText; data = { success: true, resumeText: profile }; }
       else if (pathname === '/api/preferences') { if (method === 'PUT') preferences = request.postDataJSON(); data = { success: true, data: preferences }; }
-      else if (pathname === '/api/companies') data = { success: true, data: companies };
+      else if (pathname === '/api/companies') {
+        if (method === 'POST') { const body = request.postDataJSON(); companyWrites.push(body); const company = companies.find(company => company.id === body.id); Object.assign(company, body); data = { success: true, data: company }; }
+        else data = { success: true, data: companies };
+      }
       else if (pathname === '/api/statuses') data = { success: true, data: [{ id: 'not-started', name: 'Not started', category: 'LEAD' }, { id: 'applied', name: 'Applied', category: 'APPLIED' }] };
       else if (pathname === '/api/applications') {
         if (method === 'POST') { const app = { ...base, ...request.postDataJSON(), id: 'new' }; creations.push(app); apps.push(app); data = { success: true, data: app }; }
@@ -40,11 +43,13 @@ test('members can use Guide, master resume, company search, charts, ATS and real
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(data) });
     });
     await page.goto(process.env.PIPELINE_TEST_URL || 'http://localhost:3100');
+    await page.waitForFunction(() => document.querySelector('[aria-label="Application type"]')?.value === 'ALL');
     await page.getByRole('button', { name: 'Guide', exact: true }).click();
     await page.getByRole('heading', { name: 'Your quick-start guide' }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Notion settings', exact: true }).count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Sync Notion', exact: true }).count(), 0);
     await page.getByRole('button', { name: 'My preferences', exact: true }).last().click();
+    assert.equal(await page.getByLabel('Default view', { exact: true }).inputValue(), 'ALL');
     await page.getByLabel('Account resume text').fill('Updated member master resume with financial reporting experience.');
     await page.getByRole('button', { name: 'Save resume', exact: true }).click();
     await page.getByText('Resume saved to your account. New analyses will use this version.').waitFor();
@@ -53,6 +58,23 @@ test('members can use Guide, master resume, company search, charts, ATS and real
     await page.getByLabel('Search companies').fill('tourism');
     await page.getByText('Travel Company', { exact: true }).waitFor();
     assert.equal(await page.getByText('Finance Company', { exact: true }).count(), 0);
+    await page.getByTitle('Edit Company', { exact: true }).click();
+    const companyDialog = page.getByRole('dialog', { name: 'Edit Company', exact: true });
+    await companyDialog.waitFor();
+    for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 600 }]) {
+      await page.setViewportSize(viewport);
+      const bounds = await companyDialog.boundingBox();
+      assert.ok(bounds.y >= 15 && bounds.y + bounds.height <= viewport.height - 15);
+      const saveBounds = await companyDialog.getByRole('button', { name: 'Save Changes', exact: true }).boundingBox();
+      assert.ok(saveBounds.y >= 0 && saveBounds.y + saveBounds.height <= viewport.height);
+      assert.ok(await companyDialog.locator('form > div').first().evaluate(node => node.scrollHeight > node.clientHeight));
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+    }
+    await companyDialog.getByPlaceholder('e.g. Design, FinTech, Developer Tools').fill('Tourism and travel');
+    await companyDialog.getByRole('button', { name: 'Save Changes', exact: true }).click();
+    await companyDialog.waitFor({ state: 'hidden' });
+    assert.equal(companyWrites[0].id, 'travel');assert.equal(companyWrites[0].industry, 'Tourism and travel');
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByLabel('Search companies').fill('no such company');
     await page.getByText('No companies match your search.').waitFor();
     await page.getByRole('button', { name: 'Analytics', exact: true }).click();
@@ -89,6 +111,18 @@ test('members can use Guide, master resume, company search, charts, ATS and real
     await page.waitForFunction(() => document.querySelector('[aria-label="ATS resume"]')?.value.startsWith('Fresh member'));
     assert.equal(await page.getByText('Saved master resume matches financial reporting requirements.', { exact: true }).count(), 0);
     await page.getByRole('button', { name: /^Leads/ }).click();
+    assert.equal(await page.getByText('Your lead workspace', { exact: true }).count(), 0);
+    assert.equal(await page.getByLabel('Company', { exact: true }).getAttribute('list'), 'lead-company-options');
+    assert.ok(await page.locator('#lead-company-options option[value="Finance Company"]').count());
+    const writesBeforeCancel = statusWrites.length;
+    page.once('dialog', dialog => dialog.dismiss());
+    await page.getByRole('button', { name: 'Mark applied', exact: true }).click();
+    assert.equal(statusWrites.length, writesBeforeCancel);
+    await page.getByText('Saved Finance Lead', { exact: true }).waitFor();
+    page.once('dialog', async dialog => {
+      assert.match(dialog.message(), /Saved Finance Lead at Finance Company/);
+      await dialog.accept();
+    });
     await page.getByRole('button', { name: 'Mark applied', exact: true }).click();
     await page.getByText('No saved leads yet. Save a real posting below.').waitFor();
     assert.equal(statusWrites.at(-1).notion_status, 'Applied');

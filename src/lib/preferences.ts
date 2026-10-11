@@ -1,7 +1,14 @@
 import { AnalyticsStage, ANALYTICS_STAGES, DEFAULT_REJECTION_STATUSES } from './analytics-stages';
 import { canonicalStatusName } from './statuses';
 import { JobType, WorkModel } from '@/types/job';
+export type DefaultView = 'ALL' | 'INTERNSHIP' | 'OTHER';
+export const DEFAULT_VIEWS: { value: DefaultView; label: string }[] = [
+  { value: 'ALL', label: 'All job types' },
+  { value: 'INTERNSHIP', label: 'Internships only' },
+  { value: 'OTHER', label: 'Exclude internships' },
+];
 export interface PersonalPreferences {
+  default_view?: DefaultView;
   target_companies: string[];
   target_roles: string[];
   preferred_locations: string[];
@@ -14,10 +21,12 @@ export interface PersonalPreferences {
   analytics_status_stages?: Record<string, AnalyticsStage>;
   analytics_rejection_statuses?: string[];
 }
-export const EMPTY_PREFERENCES: PersonalPreferences = { target_companies: [], target_roles: [], preferred_locations: [], work_models: [], job_types: [], salary_currency: 'PHP', dealbreakers: '', portfolio_summary: '', analytics_rejection_statuses: [...DEFAULT_REJECTION_STATUSES] };
+export const EMPTY_PREFERENCES: PersonalPreferences = { default_view: 'ALL', target_companies: [], target_roles: [], preferred_locations: [], work_models: [], job_types: [], salary_currency: 'PHP', dealbreakers: '', portfolio_summary: '', analytics_rejection_statuses: [...DEFAULT_REJECTION_STATUSES] };
 export function validatePreferences(raw: unknown): PersonalPreferences {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Preferences must be an object.');
   const value = raw as Record<string, unknown>;
+  const default_view = value.default_view ?? 'ALL';
+  if (!DEFAULT_VIEWS.some(option => option.value === default_view)) throw new Error('Choose a valid default view.');
   const list = (key: string) => {
     const entries = value[key] ?? [];
     if (!Array.isArray(entries) || entries.length > 50 || !entries.every(item => typeof item === 'string' && item.length <= 200)) throw new Error(`${key} must have at most 50 short text entries.`);
@@ -35,5 +44,5 @@ export function validatePreferences(raw: unknown): PersonalPreferences {
   if (value.salary_min != null && (typeof value.salary_min !== 'number' || !Number.isFinite(value.salary_min) || value.salary_min < 0)) throw new Error('Minimum salary must be a nonnegative number.');
   const currency = value.salary_currency ?? 'PHP'; if (typeof currency !== 'string' || !/^[a-z]{3}$/i.test(currency)) throw new Error('Use a three-letter currency such as PHP.');
   for (const key of ['dealbreakers', 'portfolio_summary']) if (value[key] != null && (typeof value[key] !== 'string' || (value[key] as string).length > 12000)) throw new Error(`${key} must be text under 12,000 characters.`);
-  return { analytics_status_stages, analytics_rejection_statuses, target_companies: list('target_companies'), target_roles: list('target_roles'), preferred_locations: list('preferred_locations'), work_models: work as WorkModel[], job_types: jobs as JobType[], salary_min: value.salary_min as number | undefined, salary_currency: currency.toUpperCase(), dealbreakers: (value.dealbreakers as string || '').trim(), portfolio_summary: (value.portfolio_summary as string || '').trim() };
+  return { default_view: default_view as DefaultView, analytics_status_stages, analytics_rejection_statuses, target_companies: list('target_companies'), target_roles: list('target_roles'), preferred_locations: list('preferred_locations'), work_models: work as WorkModel[], job_types: jobs as JobType[], salary_min: value.salary_min as number | undefined, salary_currency: currency.toUpperCase(), dealbreakers: (value.dealbreakers as string || '').trim(), portfolio_summary: (value.portfolio_summary as string || '').trim() };
 }

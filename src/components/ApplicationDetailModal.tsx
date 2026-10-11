@@ -220,6 +220,8 @@ export default function ApplicationDetailModal({
               </div>
             </div>
 
+            {app.offer_amount != null && <div className="pt-2 border-t border-[#F1DDE9]/60"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#736A6D]">Job offer</span><p className="text-xs font-medium text-[#4A3E44]">{formatSalaryRange(app.offer_amount, undefined, app.offer_currency)} / {(app.offer_pay_period || 'MONTHLY').toLowerCase()}</p></div>}
+
             {(app.contact_name || app.contact_email) && (
               <div className="pt-2 border-t border-[#F1DDE9]/60">
                 <span className="text-[11px] font-semibold text-[#736A6D] uppercase tracking-wider block mb-1">

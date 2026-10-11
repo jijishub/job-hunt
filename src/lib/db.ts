@@ -203,6 +203,9 @@ async function initPostgresSchema(sql: any) {
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS not_proceeding BOOLEAN DEFAULT FALSE;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS stage_history JSONB;`;
     await sql`ALTER TABLE applications ALTER COLUMN salary_currency SET DEFAULT 'PHP';`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS offer_amount NUMERIC;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS offer_currency TEXT DEFAULT 'PHP';`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS offer_pay_period TEXT DEFAULT 'MONTHLY';`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS role_fit TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS role_fit_source TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS role_fit_analysis JSONB;`;
@@ -556,7 +559,7 @@ export async function createApplication(
     const inserted = await sql`
       INSERT INTO applications (
         id, company_id, company_name, company_logo, role_title, analytics_stage, not_proceeding, job_description, role_fit, role_fit_source, role_fit_analysis, stage_history, status, notion_status, service, information, priority,
-        job_type, work_model, location, salary_min, salary_max, salary_currency,
+        job_type, work_model, location, salary_min, salary_max, salary_currency, offer_amount, offer_currency, offer_pay_period,
         job_url, source, owner, contact_name, contact_email, date_applied, follow_up_date, notes,
         notion_page_id, last_synced_at, sync_status, created_at, updated_at
       ) VALUES (
@@ -564,7 +567,7 @@ export async function createApplication(
         ${newApp.role_title}, ${newApp.analytics_stage || null}, ${newApp.not_proceeding || false}, ${newApp.job_description || null}, ${newApp.role_fit || null}, ${newApp.role_fit_source || null}, ${JSON.stringify(newApp.role_fit_analysis || null)}::jsonb, ${JSON.stringify(newApp.stage_history || [])}::jsonb, ${newApp.status}, ${newApp.notion_status || null}, ${newApp.service || null}, ${newApp.information || null},
         ${newApp.priority}, ${newApp.job_type},
         ${newApp.work_model}, ${newApp.location || null}, ${newApp.salary_min || null},
-        ${newApp.salary_max || null}, ${newApp.salary_currency}, ${newApp.job_url || null},
+        ${newApp.salary_max || null}, ${newApp.salary_currency}, ${newApp.offer_amount ?? null}, ${newApp.offer_currency || 'PHP'}, ${newApp.offer_pay_period || 'MONTHLY'}, ${newApp.job_url || null},
         ${newApp.source || 'DIRECT'}, ${newApp.owner || 'admin'},
         ${newApp.contact_name || null}, ${newApp.contact_email || null},
         ${newApp.date_applied || null}, ${newApp.follow_up_date || null},
@@ -683,6 +686,9 @@ export async function updateApplication(
         salary_min = ${merged.salary_min || null},
         salary_max = ${merged.salary_max || null},
         salary_currency = ${merged.salary_currency || 'PHP'},
+        offer_amount = ${merged.offer_amount ?? null},
+        offer_currency = ${merged.offer_currency || 'PHP'},
+        offer_pay_period = ${merged.offer_pay_period || 'MONTHLY'},
         job_url = ${merged.job_url || null},
         source = ${merged.source || 'DIRECT'},
         owner = ${merged.owner || current.owner || 'admin'},

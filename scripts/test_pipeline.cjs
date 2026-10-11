@@ -95,8 +95,61 @@ test('role-fit AI validates evidence, protects manual ratings, and rejects forei
  const request=body=>new Request('http://local',{method:'POST',body:JSON.stringify(body)});
  assert.equal((await route.POST(request({id:'app'}))).status,200);assert.equal(calls,0);app={...app,owner:'user_friend'};assert.equal((await route.POST(request({id:'app',force:true}))).status,404);app=sample();assert.equal((await route.POST(request({id:'app'}))).status,422);app={...app,job_description:'Experience building Python services with SQL databases.'};raw={fit:'INVENTED'};assert.equal((await route.POST(request({id:'app'}))).status,502);assert.equal(writes,0);raw={fit:'POSSIBLE',explanation:'Python transfers; SQL is missing.',strengths:['Python'],gaps:['SQL']};const data=await (await route.POST(request({id:'app'}))).json();assert.equal(data.application.role_fit,'POSSIBLE');assert.equal(data.application.role_fit_source,'ai');assert.equal(writes,1);raw=new DOMException('timeout','TimeoutError');const timedOut=await route.POST(request({id:'app'}));assert.equal(timedOut.status,502);assert.match((await timedOut.json()).error,/leave this role unassessed/);assert.equal(writes,1);
 });
-test('PDF export produces a readable multi-page personal report',async()=>{
- const {analyticsPdf}=loader()('src/lib/analytics-export.ts');const rows=Array.from({length:35},(_,i)=>sample({id:String(i),role_title:`Engineer ${i}`,role_fit:'STRONG'}));const pdf=await analyticsPdf(rows,'Jizelle Casia','All my roles');assert.ok(pdf.getNumberOfPages()>1);const {extractText}=require('unpdf');const result=await extractText(new Uint8Array(pdf.output('arraybuffer')),{mergePages:true});assert.match(result.text,/Jizelle Casia/);assert.match(result.text,/Role fit and conversion/);assert.match(result.text,/Engineer 34/);assert.match(result.text,/Unassessed: 0/);
+test('salary offer statistics use recorded amounts, retain zero, and separate currencies and pay periods',()=>{
+ const {pipelineAnalytics}=loader()('src/lib/analytics.ts');
+ const rows=[sample({id:'zero',offer_amount:0}),sample({id:'one',offer_amount:50000}),sample({id:'two',offer_amount:'70000.00',status:'WITHDRAWN'}),sample({id:'two',offer_amount:1000,updated_at:'2026-10-01'}),sample({id:'three',offer_amount:90000}),sample({id:'annual',offer_amount:840000,offer_pay_period:'ANNUAL'}),sample({id:'usd',offer_amount:2000,offer_currency:'USD'}),sample({id:'advertised',salary_min:40000,salary_max:80000}),sample({id:'blank',offer_amount:null}),sample({id:'invalid',offer_amount:-1})];
+ const stats=pipelineAnalytics(rows);assert.equal(stats.salaryOffers.count,6);assert.equal(stats.salaryOffers.missing,3);
+ const monthly=stats.salaryOffers.groups.find(group=>group.key==='PHP:MONTHLY');assert.equal(monthly.count,4);assert.equal(monthly.median,60000);assert.equal(monthly.min,0);assert.equal(monthly.max,90000);
+ assert.equal(stats.salaryOffers.groups.find(group=>group.key==='PHP:ANNUAL').median,840000);assert.equal(stats.salaryOffers.groups.find(group=>group.key==='USD:MONTHLY').median,2000);
+ assert.equal(pipelineAnalytics([]).salaryOffers.count,0);assert.deepEqual(pipelineAnalytics([]).salaryOffers.groups,[]);
+});
+
+test('offer API validates, normalizes, edits and clears only the signed-in application',async()=>{
+ let saved;const load=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',role:'member'})},'@/lib/notion':{},'@/lib/db':{getCompanies:async()=>[],createApplication:async data=>(saved={...sample(),...data}),getApplicationById:async()=>saved,updateApplication:async(id,data)=>(saved={...saved,...data})}});
+ const req=body=>new Request('http://local',{method:'POST',body:JSON.stringify(body)});const route=load('src/app/api/applications/route.ts');
+ assert.equal((await route.POST(req({role_title:'Engineer',company_name:'Example',status:'LEAD',offer_amount:'65000.50',offer_currency:'php',offer_pay_period:'MONTHLY'}))).status,201);assert.equal(saved.offer_amount,65000.5);assert.equal(saved.offer_currency,'PHP');
+ const edit=load('src/app/api/applications/[id]/route.ts');const params={params:Promise.resolve({id:'app'})};
+ assert.equal((await edit.PUT(req({notes:'Updated note'}),params)).status,200);assert.equal(saved.offer_amount,65000.5);
+ for(const body of [{offer_amount:-1},{offer_amount:false},{offer_amount:'NaN'},{offer_currency:'INVALID'},{offer_pay_period:'DAILY'}])assert.equal((await edit.PUT(req(body),params)).status,400);
+ assert.equal((await edit.PUT(req({offer_amount:''}),params)).status,200);assert.equal(saved.offer_amount,null);
+});
+
+test('local offer persistence survives promotion, Notion-style updates and explicit clearing',async()=>{
+ const original=process.cwd(),directory=fs.mkdtempSync(path.join(os.tmpdir(),'job-offers-')),env={POSTGRES_URL:process.env.POSTGRES_URL,DATABASE_URL:process.env.DATABASE_URL,VERCEL:process.env.VERCEL};
+ try {for(const key of Object.keys(env))delete process.env[key];process.chdir(directory);const db=loader()('src/lib/db.ts');const lead=await db.createApplication(sample({status:'LEAD',offer_amount:0,offer_currency:'PHP',offer_pay_period:'MONTHLY'}));await db.updateApplication(lead.id,{status:'APPLIED'});await db.updateApplication(lead.id,{status:'WITHDRAWN',notes:'Notion changed notes',sync_status:'SYNCED'});const restored=await db.getApplicationById(lead.id);assert.equal(restored.offer_amount,0);assert.equal(restored.offer_currency,'PHP');assert.equal(restored.offer_pay_period,'MONTHLY');await db.updateApplication(lead.id,{offer_amount:null});assert.equal((await db.getApplicationById(lead.id)).offer_amount,null);
+ } finally {process.chdir(original);for(const [key,value]of Object.entries(env)){if(value===undefined)delete process.env[key];else process.env[key]=value;}fs.rmSync(directory,{recursive:true,force:true});}
+});
+
+test('offer PDF contains distributions and medians without company/application lists',async()=>{
+ const {analyticsPdf}=loader()('src/lib/analytics-export.ts');const rows=[sample({id:'one',role_title:'PRIVATE_OFFER_ROLE',company_name:'PRIVATE_OFFER_COMPANY',offer_amount:60000}),sample({id:'two',offer_amount:80000}),sample({id:'usd',offer_amount:1200,offer_currency:'USD',offer_pay_period:'HOURLY'})];const pdf=await analyticsPdf(rows,'Member','All roles');assert.equal(pdf.getNumberOfPages(),4);
+ const {extractText}=require('unpdf');const text=(await extractText(new Uint8Array(pdf.output('arraybuffer')),{mergePages:true})).text;assert.match(text,/Recorded salary offers/);assert.match(text,/PHP 70,000.00/);assert.match(text,/USD \/ Hourly/);assert.doesNotMatch(text,/PRIVATE_OFFER/);
+ fs.writeFileSync(path.join(ROOT,'.data','salary-offer-report-preview.pdf'),Buffer.from(pdf.output('arraybuffer')));
+});
+
+test('PDF stays compact for 500 applications and includes targets and AI without individual records or resume',async()=>{
+ const {analyticsPdf}=loader()('src/lib/analytics-export.ts');
+ const rows=Array.from({length:500},(_,i)=>sample({id:String(i),company_name:'Private Employer '+i,role_title:`Private Role ${i}`,role_fit:'STRONG',notes:'PRIVATE_APPLICATION_NOTES',information:'PRIVATE_JOB_DESCRIPTION',role_fit_analysis:{explanation:'PRIVATE_FIT_EXPLANATION'}}));
+ const targets={target_roles:['Solutions Architect'],target_companies:['Target Employer'],preferred_locations:['Las Piñas'],work_models:['REMOTE'],job_types:['FULL_TIME'],salary_min:60000,salary_currency:'PHP',dealbreakers:'Daytime schedule',portfolio_summary:'PRIVATE_RESUME_CONTENT',resumeText:'PRIVATE_RESUME_CONTENT'};
+ const insight={summary:'Recorded progress suggests reviewing targeting.',nextSteps:['Review relevant role requirements.']};
+ const pdf=await analyticsPdf(rows,'Jizelle Casia','All my roles',insight,{},undefined,targets);
+ const smaller=await analyticsPdf(rows.slice(0,35),'Jizelle Casia','All my roles',insight,{},undefined,targets);
+ assert.equal(pdf.getNumberOfPages(),3);assert.equal(smaller.getNumberOfPages(),3);
+ const {extractText}=require('unpdf');const result=await extractText(new Uint8Array(pdf.output('arraybuffer')),{mergePages:true});
+ for(const expected of ['Jizelle Casia','500','Role fit and conversion','Unassessed: 0','Target Employer','Solutions Architect','Las Pinas','PHP 60,000.00','Daytime schedule',insight.summary,insight.nextSteps[0]])assert.ok(result.text.includes(expected),expected);
+ assert.doesNotMatch(result.text,/Private Employer|Private Role|PRIVATE_|Application details/);
+ fs.mkdirSync(path.join(ROOT,'.data'),{recursive:true});fs.writeFileSync(path.join(ROOT,'.data','analytics-report-preview.pdf'),Buffer.from(pdf.output('arraybuffer')));
+});
+
+test('PDF handles empty analytics and paginates long insights without losing content',async()=>{
+ const {analyticsPdf}=loader()('src/lib/analytics-export.ts');const {extractText,getDocumentProxy}=require('unpdf');
+ const empty=await analyticsPdf([],'Member','Internships');assert.equal(empty.getNumberOfPages(),3);
+ const emptyText=(await extractText(new Uint8Array(empty.output('arraybuffer')),{mergePages:true})).text;
+ assert.match(emptyText,/N\/A/);assert.match(emptyText,/No AI analysis generated/);assert.doesNotMatch(emptyText,/NaN|Infinity/);
+ const summary=Array.from({length:70},(_,i)=>`Insight ${i}: review recorded pipeline evidence before adjusting your targets.`).join('\n');
+ const long=await analyticsPdf([sample()],'Member','All roles',{summary,nextSteps:['FINAL_NEXT_STEP']});assert.ok(long.getNumberOfPages()>3);
+ const doc=await getDocumentProxy(new Uint8Array(long.output('arraybuffer')));
+ const text=(await extractText(doc,{mergePages:true})).text;assert.match(text,/Insight 69/);assert.match(text,/FINAL_NEXT_STEP/);
+ for(let i=1;i<=doc.numPages;i++){const page=await doc.getPage(i);const content=await page.getTextContent();for(const item of content.items){if(!item.str)continue;assert.ok(item.transform[5]>=15 && item.transform[5]<=page.view[3]-25,`Text outside page ${i}: ${item.str}`);assert.ok(item.transform[4]+item.width<=page.view[2]-25,`Text overflows page ${i}: ${item.str}`);}}
 });
 
 test('resume profile is scoped to the session account and ignores a forged owner',async()=>{
@@ -144,6 +197,17 @@ test('screening statuses map to screening without changing interview or rejectio
 });
 test('preferences validate fields and save only to the signed-in account',async()=>{
  const {validatePreferences}=loader()('src/lib/preferences.ts');assert.throws(()=>validatePreferences({work_models:['INVALID']}));assert.throws(()=>validatePreferences({salary_min:-1}));let saved;const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'member'})},'@/lib/db':{getCandidatePreferences:async()=>null,saveCandidatePreferences:async(owner,data)=>{saved={owner,data};}}})('src/app/api/preferences/route.ts');assert.equal((await (await route.GET()).json()).data.salary_currency,'PHP');const response=await route.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({owner:'friend',target_roles:['Developer','Developer'],portfolio_summary:'Built Python tools',work_models:['REMOTE']})}));assert.equal(response.status,200);assert.equal(saved.owner,'member');assert.deepEqual(saved.data.target_roles,['Developer']);assert.equal(saved.data.portfolio_summary,'Built Python tools');
+});
+
+test('default view persists per account while new and legacy member preferences keep all job types',async()=>{
+ let user={id:'admin'};const saved={legacy:{target_roles:['Analyst']}};
+ const route=loader({'@/lib/session-account':{getSessionAccount:async()=>user},'@/lib/db':{getCandidatePreferences:async owner=>saved[owner]||null,saveCandidatePreferences:async(owner,data)=>{saved[owner]=data;}}})('src/app/api/preferences/route.ts');
+ const put=value=>route.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({default_view:value,target_roles:['Developer']})}));
+ assert.equal((await put('OTHER')).status,200);assert.equal((await(await route.GET()).json()).data.default_view,'OTHER');
+ user={id:'member'};assert.equal((await(await route.GET()).json()).data.default_view,'ALL');
+ assert.equal((await put('INTERNSHIP')).status,200);assert.equal((await(await route.GET()).json()).data.default_view,'INTERNSHIP');assert.equal(saved.admin.default_view,'OTHER');
+ assert.equal((await put('FULL_TIME')).status,400);assert.equal(saved.member.default_view,'INTERNSHIP');
+ user={id:'legacy'};const legacy=(await(await route.GET()).json()).data;assert.equal(legacy.default_view,'ALL');assert.deepEqual(legacy.target_roles,['Analyst']);
 });
 
 test('imports the Appficiency jobDetails JSON from LLM.txt',()=>{const fs=require('fs');const raw=fs.readFileSync('references/appficiency_job.json','utf8');const job=loader()('src/lib/job-import.ts').parseJobImport(raw);assert.equal(job.role_title,'Junior Solutions Architect');assert.equal(job.company_name,'Appficiency');assert.equal(job.work_model,'REMOTE');assert.equal(job.job_type,'FULL_TIME');assert.equal(job.job_url,'https://appficiency.bamboohr.com/careers/29');assert.match(job.location,/Makati/);assert.equal(job.owner,undefined);assert.equal(job.job_description,undefined);});

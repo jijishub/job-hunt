@@ -5,7 +5,7 @@ import ImageDropzone from './ImageDropzone';
 
 import React, { useState, useEffect } from 'react';
 import { Company } from '@/types/job';
-import { X, Building2, Globe, Image as ImageIcon, Upload } from 'lucide-react';
+import { Building2, Globe, Image as ImageIcon, Upload } from 'lucide-react';
 
 interface CompanyModalProps {
   isOpen: boolean;
@@ -89,7 +89,7 @@ export default function CompanyModal({
       try {
         const cleanDomain = website.replace(/^https?:\/\//, '').split('/')[0];
         setLogoUrl(`https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=128`);
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
@@ -125,14 +125,14 @@ export default function CompanyModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-[#F1DDE9] overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#F1DDE9] bg-gradient-to-r from-[#FFF5F8] to-[#FFF]">
+      <div role="dialog" aria-modal="true" aria-labelledby="company-modal-title" className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col bg-white rounded-2xl shadow-xl border border-[#F1DDE9] overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-[#F1DDE9] bg-gradient-to-r from-[#FFF5F8] to-[#FFF]">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[#FCE7F3] flex items-center justify-center text-[#9D3C5E]">
               <Building2 className="w-4 h-4 text-[#FF7AB3]" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-[#4A3E44]">
+              <h2 id="company-modal-title" className="text-base font-semibold text-[#4A3E44]">
                 {initialData ? 'Edit Company' : 'Add New Company'}
               </h2>
               <p className="text-xs text-[#736A6D]">Reusable profile with icon for your applications</p>
@@ -141,7 +141,8 @@ export default function CompanyModal({
           <CloseButton onClick={onClose} />
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
               Company Name *
@@ -198,7 +199,7 @@ export default function CompanyModal({
               ))}
             </div>
 
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
               <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#F1DDE9] bg-white hover:bg-[#FFF0F6] text-xs font-semibold text-[#9D3C5E] transition shadow-xs hover:border-[#FF7AB3]">
                 <Upload className="w-3.5 h-3.5 text-[#FF7AB3]" />
                 <span>Upload Logo / Photo</span>
@@ -276,7 +277,8 @@ export default function CompanyModal({
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-2">
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2.5 border-t border-[#F1DDE9] bg-white px-4 sm:px-6 py-4">
             <button
               type="button"
               onClick={onClose}
