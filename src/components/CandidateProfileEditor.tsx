@@ -20,7 +20,8 @@ export default function CandidateProfileEditor({ expanded = false }: { expanded?
     <section className="rounded-xl border border-[#F1DDE9] bg-[#FFF5F8] p-3 text-xs">
       <h3 className="font-semibold text-[#9D3C5E]">Resume used for fit analysis</h3>
       <p className="my-2 text-[#736A6D]" role="status">{message}</p>
-      <label className="block mb-2">Upload a resume PDF
+      <label className="block mb-2">
+        <span className="sr-only">Choose resume PDF</span>
         <input type="file" accept="application/pdf,.pdf" disabled={busy} className="mt-2 block w-full cursor-pointer rounded-lg text-xs text-[#736A6D] file:mr-3 file:cursor-pointer file:rounded-lg file:border file:border-[#9D3C5E] file:bg-[#9D3C5E] file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white file:shadow-sm hover:file:border-[#7D2D49] hover:file:bg-[#7D2D49] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF7AB3] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:file:cursor-not-allowed" onChange={async event => {
           const file = event.target.files?.[0]; if (!file) return;
           setBusy(true);

@@ -629,7 +629,7 @@ export default function JobHuntDashboard() {
                     className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[150px] truncate"
                     title="Filter by Industry / Service category"
                   >
-                    <option value="ALL">🏷️ All Services</option>
+                    <option value="ALL">All Services</option>
                     {uniqueServices.map((svc) => (
                       <option key={svc} value={svc}>
                         {svc}
@@ -646,7 +646,7 @@ export default function JobHuntDashboard() {
                     className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[140px] truncate"
                     title="Filter by Position / Role"
                   >
-                    <option value="ALL">💼 All Roles</option>
+                    <option value="ALL">All Roles</option>
                     {uniquePositions.map((pos) => (
                       <option key={pos} value={pos}>
                         {pos}
