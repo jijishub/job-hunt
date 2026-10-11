@@ -228,7 +228,7 @@ export default function SSOLandingView() {
               {/* Footnote */}
               <div className="mt-6 pt-5 border-t border-[#F1DDE9]/70 text-[11px] text-[#736A6D]/80">
                 Contact administrator for access.
-                <div className="mt-6 pt-5 text-[11px] text-[#736A6D]/80">
+                <div className="mt-2 pt-1 text-[11px] text-[#736A6D]/80">
                 Admin: <b>jizelle.casia@gmail.com</b>
               </div>
               </div>
