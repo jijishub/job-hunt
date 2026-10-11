@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     const isLead = status === 'LEAD' || body.is_lead === true;
     let company: any = null;
 
-    if (!isLead) {
+    if (!isLead || body.ensure_company === true) {
       company = await getOrCreateCompany(
         company_name,
         company_logo,

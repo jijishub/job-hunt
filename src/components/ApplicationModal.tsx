@@ -30,7 +30,7 @@ import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, applicationStatusLabel, g
 interface ApplicationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (appData: Partial<JobApplication>) => Promise<void>;
+  onSave: (appData: Partial<JobApplication> & { ensure_company?: boolean }) => Promise<void>;
   companies: Company[];
   initialData?: JobApplication | null;
   users?: UserAccount[];
@@ -205,7 +205,8 @@ export default function ApplicationModal({
       setJobUrl('');
       setContactName('');
       setContactEmail('');
-      setDateApplied('');
+      const today = new Date();
+      setDateApplied(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`);
       setNotes('');
       setOwner(currentUserId || users?.[0]?.id || 'admin');
     }
@@ -256,6 +257,7 @@ export default function ApplicationModal({
     setIsSubmitting(true);
     try {
       await onSave({
+        ensure_company: true,
         job_description: jobDescription.trim(),
         role_fit: roleFit,
         role_fit_source: roleFit ? (useAiFit ? 'ai' : 'manual') : null,
@@ -613,6 +615,7 @@ export default function ApplicationModal({
               <div className="relative">
                 <input
                   type="date"
+                  aria-label="Date Applied"
                   value={dateApplied}
                   onChange={(e) => setDateApplied(e.target.value)}
                   className="w-full pl-8 pr-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs text-[#4A3E44] transition"

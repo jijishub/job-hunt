@@ -47,6 +47,9 @@ export async function PUT(
       return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });
     }
     delete body.id; delete body.owner; delete body.created_at; delete body.stage_history;
+    const ensureCompany = body.ensure_company === true;
+    delete body.ensure_company;
+    if (ensureCompany) body.company_name ||= existingApp.company_name;
     if (body.role_fit != null && !validRoleFit(body.role_fit)) return NextResponse.json({ success: false, error: 'Invalid role fit.' }, { status: 400 });
     if (existingApp.status === 'LEAD' && body.status && body.status !== 'LEAD') {
       body.company_name ||= existingApp.company_name;
@@ -55,7 +58,7 @@ export async function PUT(
 
     if (body.company_name) {
       const isLead = (body.status || existingApp?.status) === 'LEAD' || body.is_lead === true;
-      if (!isLead) {
+      if (!isLead || ensureCompany) {
         const company = await getOrCreateCompany(
           body.company_name,
           body.company_logo,

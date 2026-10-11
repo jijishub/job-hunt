@@ -234,9 +234,11 @@ export default function JobHuntDashboard() {
       }
     }
 
-    fetch('/api/companies')
-      .then((r) => r.json())
-      .then((d) => d.success && setCompanies(d.data));
+    try {
+      const refreshed = await fetch('/api/companies');
+      const companyResult = await refreshed.json();
+      if (refreshed.ok && companyResult.success) setCompanies(companyResult.data);
+    } catch (error) { console.warn('Company directory refresh failed:', error); }
   };
 
   const handleDeleteApplication = async (id: string) => {
