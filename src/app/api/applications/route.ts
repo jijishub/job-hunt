@@ -1,3 +1,4 @@
+import { ANALYTICS_STAGES } from '@/lib/analytics-stages';
 import { getSessionAccount } from '@/lib/session-account';
 import { ownsApplication } from '@/lib/ownership';
 import { validRoleFit } from '@/lib/role-fit';
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const body = await request.json();
+    if (body.analytics_stage != null && !ANALYTICS_STAGES.includes(body.analytics_stage)) return NextResponse.json({ success: false, error: 'Invalid analytics phase.' }, { status: 400 });
+    if (body.not_proceeding != null && typeof body.not_proceeding !== 'boolean') return NextResponse.json({ success: false, error: 'Invalid Not Proceeding flag.' }, { status: 400 });
     body.owner = user.id;
     if (body.role_fit != null && !validRoleFit(body.role_fit)) return NextResponse.json({ success: false, error: 'Invalid role fit.' }, { status: 400 });
     const {
@@ -87,7 +90,10 @@ export async function POST(request: Request) {
       company_name: company?.name || company_name.trim(),
       company_logo: company?.logo_url || company_logo,
       role_title,
-      job_description: body.job_description,
+      information: body.information ?? body.job_description,
+      job_description: body.information ?? body.job_description,
+      analytics_stage: body.analytics_stage || null,
+      not_proceeding: Boolean(body.not_proceeding),
       role_fit: body.role_fit || null,
       role_fit_source: body.role_fit ? (body.role_fit_source === 'ai' ? 'ai' : 'manual') : null,
       role_fit_analysis: body.role_fit_analysis || null,

@@ -1,8 +1,9 @@
+import { reachedStage, AnalyticsStage } from './analytics-stages';
 import { JobApplication } from '@/types/job';
 import { ROLE_FITS } from './role-fit';
 
 export function isInternship(app: JobApplication) {
-  return app.job_type === 'INTERNSHIP' || /\bintern(?:ship)?\b/i.test(app.role_title);
+  return app.job_type ? app.job_type === 'INTERNSHIP' : /\bintern(?:ship)?\b/i.test(app.role_title);
 }
 export function isSubmitted(app: JobApplication) {
   if (app.status === 'LEAD') return false;
@@ -11,29 +12,27 @@ export function isSubmitted(app: JobApplication) {
   }
   return true;
 }
-export function pipelineAnalytics(applications: JobApplication[]) {
-  const submitted = applications.filter(isSubmitted);
-  const stages = (app: JobApplication) => [
-    { status: app.status, notion_status: app.notion_status }, ...(app.stage_history || []),
-  ];
-  const progressed = (app: JobApplication) => stages(app).some(stage => ['SCREENING', 'INTERVIEWING', 'OFFER', 'ACCEPTED'].includes(stage.status));
-  const interviewed = (app: JobApplication) => stages(app).some(stage => ['INTERVIEWING', 'OFFER', 'ACCEPTED'].includes(stage.status));
-  const offered = (app: JobApplication) => stages(app).some(stage => ['OFFER', 'ACCEPTED'].includes(stage.status));
-  const finalRound = (app: JobApplication) => stages(app).some(stage => /final interview|final round/i.test(stage.notion_status || '') || ['OFFER', 'ACCEPTED'].includes(stage.status));
+export function pipelineAnalytics(applications: JobApplication[], mapping: Record<string, AnalyticsStage> = {}) {
+  const rank = (app: JobApplication) => reachedStage(app, mapping);
+  const submitted = applications.filter(app => rank(app) >= 1);
+  const progressed = (app: JobApplication) => rank(app) >= 2;
+  const interviewed = (app: JobApplication) => rank(app) >= 3;
+  const finalRound = (app: JobApplication) => rank(app) >= 4;
+  const offered = (app: JobApplication) => rank(app) >= 5;
   const rate = (count: number, denominator: number) => denominator ? Math.round(count / denominator * 100) : null;
   const fits = ROLE_FITS.map(fit => {
     const tracked = applications.filter(app => app.role_fit === fit.value);
-    const sent = tracked.filter(isSubmitted);
+    const sent = tracked.filter(app => rank(app) >= 1);
     const responses = sent.filter(progressed).length;
     const offers = sent.filter(offered).length;
     return { ...fit, total: tracked.length, submitted: sent.length, progressed: responses, offers, progressionRate: rate(responses, sent.length), offerRate: rate(offers, sent.length) };
   });
   const funnel = [
     { label: 'Submitted', count: submitted.length },
-    { label: 'Screening or later', count: submitted.filter(progressed).length },
-    { label: 'Interview or later', count: submitted.filter(interviewed).length },
-    { label: 'Final round or offer', count: submitted.filter(finalRound).length },
-    { label: 'Offer received', count: submitted.filter(offered).length },
+    { label: 'Screening', count: submitted.filter(progressed).length },
+    { label: 'Interview', count: submitted.filter(interviewed).length },
+    { label: 'Final interview', count: submitted.filter(finalRound).length },
+    { label: 'Acceptance / offer', count: submitted.filter(offered).length },
   ];
   const preferenceAlignment = ['ALIGNED', 'MIXED', 'MISALIGNED', 'UNKNOWN'].map(value => ({ label: value, count: applications.filter(app => (app.role_fit_analysis?.preference_alignment || 'UNKNOWN') === value).length }));
   const assessed = applications.filter(app => app.role_fit).length;

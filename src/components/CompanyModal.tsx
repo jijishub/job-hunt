@@ -1,4 +1,5 @@
 'use client';
+import CloseButton from './CloseButton';
 
 import ImageDropzone from './ImageDropzone';
 
@@ -134,12 +135,7 @@ export default function CompanyModal({
               <p className="text-xs text-[#736A6D]">Reusable profile with icon for your applications</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <CloseButton onClick={onClose} />
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">

@@ -1,4 +1,5 @@
 'use client';
+import CloseButton from './CloseButton';
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
@@ -308,12 +309,7 @@ export default function UserManagementModal({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 text-stone-400 hover:text-[#4A3E44] rounded-xl hover:bg-[#FAF7F9] transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <CloseButton onClick={onClose} />
         </div>
 
         {/* Tab 1: User Accounts & RBAC */}
@@ -474,7 +470,7 @@ export default function UserManagementModal({
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Alex Rivera"
+                      placeholder="e.g. Person Name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs text-[#4A3E44] focus:outline-none focus:border-[#FF7AB3] transition bg-white"
@@ -488,7 +484,7 @@ export default function UserManagementModal({
                     <input
                       type="email"
                       required
-                      placeholder="e.g. alex@company.com"
+                      placeholder="e.g name@company.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs text-[#4A3E44] focus:outline-none focus:border-[#FF7AB3] transition bg-white"

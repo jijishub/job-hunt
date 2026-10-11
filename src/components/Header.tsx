@@ -72,21 +72,9 @@ export default function Header({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         {/* Left: Brand & Status */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-white border border-[#F1DDE9] p-0.5 shadow-2xs shrink-0 overflow-hidden flex items-center justify-center">
-            <Image
-              src="/job-hunt-facvicon.png"
-              alt="Job Hunt & Leads"
-              width={40}
-              height={40}
-              priority
-              className="w-full h-full object-contain rounded-xl"
-            />
-          </div>
+          <Image src="/job-hunt official text.png" alt="Job Hunt" width={180} height={60} loading="eager" className="w-36 sm:w-44 h-auto object-contain" />
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg font-bold text-[#4A3E44] tracking-tight">
-                Job Hunt & Leads
-              </h1>
 
               {/* RBAC Notion Status vs Member Cloud DB Status */}
               {isAdmin ? (

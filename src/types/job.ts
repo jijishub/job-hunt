@@ -36,6 +36,8 @@ export interface JobApplication {
   company_name: string;
   company_logo?: string;
   stage_history?: { status: ApplicationStatus; notion_status?: string; at: string }[];
+  analytics_stage?: import('@/lib/analytics-stages').AnalyticsStage | null;
+  not_proceeding?: boolean;
   role_title: string;
   job_description?: string;
   role_fit?: RoleFit | null;

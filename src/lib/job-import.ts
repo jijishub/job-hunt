@@ -7,9 +7,10 @@ export function parseJobImport(raw: string): Partial<JobApplication> {
   catch { throw new Error('Paste one valid JSON object. You can include Gemini’s JSON code fence.'); }
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Expected one job object.');
   let job = data as Record<string, unknown>;
-  if (job.job != null) {
-    if (typeof job.job !== 'object' || Array.isArray(job.job)) throw new Error('The job field must contain one object.');
-    job = job.job as Record<string, unknown>;
+  const nested = job.job ?? job.jobDetails;
+  if (nested != null) {
+    if (typeof nested !== 'object' || Array.isArray(nested)) throw new Error('The job field must contain one object.');
+    job = { ...job, ...(nested as Record<string, unknown>) };
   }
   const text = (value: unknown, field: string) => {
     if (value == null) return undefined;
@@ -19,7 +20,7 @@ export function parseJobImport(raw: string): Partial<JobApplication> {
   const result: Partial<JobApplication> = {};
   const title = text(job.role_title ?? job.job_title ?? job.title, 'Role title');
   const company = text(job.company_name ?? (typeof job.company === 'object' && job.company ? (job.company as Record<string, unknown>).name : job.company), 'Company');
-  const description = text(job.description ?? job.job_description, 'Description');
+  const description = text(job.description ?? job.job_description ?? job.jobDescription, 'Description');
   const qualifications = job.qualifications ?? job.requirements;
   if (qualifications != null && (!Array.isArray(qualifications) || !qualifications.every(item => typeof item === 'string'))) throw new Error('Qualifications must be an array of text items.');
   const requirements = (qualifications as string[] | undefined)?.map(item => item.trim()).filter(Boolean) || [];
@@ -29,9 +30,9 @@ export function parseJobImport(raw: string): Partial<JobApplication> {
   const location = text(job.location, 'Location'); if (location) result.location = location;
   const models: Record<string, WorkModel> = { onsite: 'ON_SITE', hybrid: 'HYBRID', remote: 'REMOTE' };
   const types: Record<string, JobType> = { fulltime: 'FULL_TIME', parttime: 'PART_TIME', contract: 'CONTRACT', internship: 'INTERNSHIP', intern: 'INTERNSHIP' };
-  const model = text(job.work_model ?? job.workModel, 'Work model');
+  const model = text(job.work_model ?? job.workModel ?? job.workplaceType ?? location?.match(/\b(remote|hybrid|on[- ]site)\b/i)?.[1], 'Work model');
   if (model) { const value = models[model.toLowerCase().replace(/[\s_-]/g, '')]; if (!value) throw new Error('Work model must be ON_SITE, HYBRID, or REMOTE.'); result.work_model = value; }
-  const type = text(job.job_type ?? job.employment_type, 'Job type');
+  const type = text(job.job_type ?? job.employment_type ?? job.employmentType, 'Job type');
   if (type) { const value = types[type.toLowerCase().replace(/[\s_-]/g, '')]; if (!value) throw new Error('Job type must be FULL_TIME, PART_TIME, CONTRACT, or INTERNSHIP.'); result.job_type = value; }
   const salary = job.salary && typeof job.salary === 'object' ? job.salary as Record<string, unknown> : {};
   for (const [key, value] of [['salary_min', job.salary_min ?? salary.min], ['salary_max', job.salary_max ?? salary.max]] as const) {
@@ -42,7 +43,7 @@ export function parseJobImport(raw: string): Partial<JobApplication> {
   if (result.salary_min != null && result.salary_max != null && result.salary_max < result.salary_min) throw new Error('Maximum salary must be at least the minimum salary.');
   const currency = text(job.salary_currency ?? salary.currency, 'Currency');
   if (currency) { if (!/^[a-z]{3}$/i.test(currency)) throw new Error('Currency must be a three-letter code such as PHP.'); result.salary_currency = currency.toUpperCase(); }
-  const url = text(job.job_url ?? job.url, 'Job URL');
+  const url = text(job.job_url ?? job.url ?? job.jobUrl, 'Job URL');
   if (url) { let parsed: URL; try { parsed = new URL(url); } catch { throw new Error('Job URL must be a valid https:// or http:// link.'); } if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error('Job URL must use https:// or http://.'); result.job_url = url; }
   if (!title && !description && !requirements.length) throw new Error('No job title, description, or qualifications found. Candidate/profile JSON cannot be imported as a job.');
   return result;

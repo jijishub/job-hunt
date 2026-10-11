@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
-import { getCustomStatuses, createCustomStatus, deleteCustomStatus } from '@/lib/db';
-import { SEEDED_STATUS_OPTIONS, getStatusCategory, StatusOption } from '@/lib/statuses';
+import { getCustomStatuses, createCustomStatus, deleteCustomStatus, getApplications } from '@/lib/db';
+import { getSessionAccount } from '@/lib/session-account';
+import { ownsApplication } from '@/lib/ownership';
+import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, getStatusCategory, StatusOption } from '@/lib/statuses';
 
 export async function GET() {
   try {
-    const custom = await getCustomStatuses();
+    const user = await getSessionAccount();
+    if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
+    const seeded = user.role === 'admin' ? SEEDED_STATUS_OPTIONS : MEMBER_STATUS_OPTIONS;
+    const custom = (await getCustomStatuses()).filter(c => c.owner === user.id || (!c.owner && user.role === 'admin'));
     const customOptions: StatusOption[] = custom.map((c) => ({
       id: c.id,
       name: c.name,
@@ -14,10 +19,16 @@ export async function GET() {
     }));
 
     // Merge: SEEDED first, then custom ones that don't duplicate seeded names
-    const seenNames = new Set(SEEDED_STATUS_OPTIONS.map((s) => s.name.toLowerCase()));
+    const seenNames = new Set(seeded.map((s) => s.name.toLowerCase()));
     const filteredCustom = customOptions.filter((c) => !seenNames.has(c.name.toLowerCase()));
 
-    const allStatuses = [...SEEDED_STATUS_OPTIONS, ...filteredCustom];
+    const allStatuses = [...seeded, ...filteredCustom];
+    const known = new Set(allStatuses.map(status => status.name.toLowerCase()));
+    for (const app of (await getApplications()).filter(app => ownsApplication(app, user))) {
+      for (const name of [app.notion_status, ...(app.stage_history || []).map(stage => stage.notion_status)]) {
+        if (name && !known.has(name.toLowerCase())) { allStatuses.push({ id: name, name, color: 'default', category: getStatusCategory(name), isCustom: true }); known.add(name.toLowerCase()); }
+      }
+    }
     return NextResponse.json({ success: true, data: allStatuses });
   } catch (error: any) {
     return NextResponse.json(
@@ -29,6 +40,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getSessionAccount();
+    if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const body = await request.json();
     const { name, color, category } = body;
 
@@ -43,6 +56,7 @@ export async function POST(request: Request) {
     const resolvedCategory = category || getStatusCategory(trimmedName);
 
     const created = await createCustomStatus({
+      owner: user.id,
       name: trimmedName,
       color: color || 'default',
       category: resolvedCategory,
@@ -59,6 +73,8 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const user = await getSessionAccount();
+    if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -69,6 +85,8 @@ export async function DELETE(request: Request) {
       );
     }
 
+    const status = (await getCustomStatuses()).find(s => s.id === id && (s.owner === user.id || (!s.owner && user.role === 'admin')));
+    if (!status) return NextResponse.json({ success: false, error: 'Status not found.' }, { status: 404 });
     await deleteCustomStatus(id);
     return NextResponse.json({ success: true });
   } catch (error: any) {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { JobApplication, UserAccount, ApplicationStatus } from '@/types/job';
+import { JobApplication, UserAccount, ApplicationStatus, Company } from '@/types/job';
 import StatusBadge from './StatusBadge';
 import PriorityBadge from './PriorityBadge';
 import {
@@ -40,6 +40,7 @@ interface JobLeadsViewProps {
   onAddToTracker: (appData: Partial<JobApplication>) => Promise<void>;
   existingApplications: JobApplication[];
   currentUser: UserAccount | null;
+  companies?: Company[];
   onUpdateStatus?: (id: string, newStatus: ApplicationStatus, notionStatus?: string) => Promise<void>;
   onDeleteApplication?: (id: string) => Promise<void>;
   onSelectLead?: (app: JobApplication) => void;
@@ -50,6 +51,7 @@ export default function JobLeadsView({
   onAddToTracker,
   existingApplications,
   currentUser,
+  companies = [],
   onUpdateStatus,
   onDeleteApplication,
   onSelectLead,
@@ -1032,10 +1034,11 @@ export default function JobLeadsView({
             {manualSuccess && (
               <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 flex items-center gap-2">
                 <Check className="w-4 h-4 shrink-0" />
-                <span>Lead added to your leads pipeline successfully without modifying companies!</span>
+                <span>Lead added to your leads pipeline successfully and linked to an existing company when available!</span>
               </div>
             )}
 
+            <datalist id="lead-company-options">{companies.map(company => <option key={company.id} value={company.name} />)}</datalist>
             <form onSubmit={handleManualAdd} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <input
@@ -1051,7 +1054,9 @@ export default function JobLeadsView({
                 <input
                   type="text"
                   required
-                  placeholder="Company Name"
+                  placeholder="Select or type company"
+                  list="lead-company-options"
+                  aria-label="Lead company"
                   value={manualCompany}
                   onChange={(e) => setManualCompany(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs text-[#4A3E44] focus:outline-none focus:border-[#FF7AB3] bg-[#FAF7F9]/50"

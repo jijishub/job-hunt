@@ -1,3 +1,4 @@
+import { getAdminEmail } from './admin-email';
 import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { getOrCreateUser, getUserByEmail } from '@/lib/db';
@@ -61,12 +62,11 @@ export function getAuthOptions(req?: any): NextAuthOptions {
         if (!user?.email) return false;
 
         const email = user.email.toLowerCase().trim();
-        const configuredAdminEmail = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
+        const configuredAdminEmail = getAdminEmail();
 
         // Check if user is the Master Admin (Strictly Jizelle Casia only)
         const isMasterAdmin =
           email === configuredAdminEmail ||
-          email === 'jizellecasia@gmail.com' ||
           email === 'jizelle.casia@gmail.com';
 
         // Strict Invite-Only RBAC check:
@@ -95,10 +95,9 @@ export function getAuthOptions(req?: any): NextAuthOptions {
         const email = (user?.email || token.email || '').toLowerCase().trim();
         if (email) {
           const dbUser = await getUserByEmail(email);
-          const configuredAdminEmail = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
+          const configuredAdminEmail = getAdminEmail();
           const isMasterAdmin =
             email === configuredAdminEmail ||
-            email === 'jizellecasia@gmail.com' ||
             email === 'jizelle.casia@gmail.com';
 
           if (dbUser) {

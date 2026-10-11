@@ -283,15 +283,15 @@ function buildNotionProperties(app: JobApplication) {
     };
   }
 
-  if (app.information) {
+  if (Object.hasOwn(app, 'information') || Object.hasOwn(app, 'job_description')) {
     properties['Information'] = {
-      rich_text: notionText(app.information),
+      rich_text: notionText(app.information ?? app.job_description ?? ''),
     };
   }
 
-  if (app.notes) {
+  if (Object.hasOwn(app, 'notes')) {
     properties['Post Notes'] = {
-      rich_text: notionText(app.notes),
+      rich_text: notionText(app.notes || ''),
     };
   }
 
@@ -513,6 +513,7 @@ export async function pullApplicationsFromNotion() {
             notion_status,
             service,
             information,
+            job_description: information,
             priority,
             work_model,
             location,

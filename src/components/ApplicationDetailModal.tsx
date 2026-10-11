@@ -1,4 +1,5 @@
 'use client';
+import CloseButton from './CloseButton';
 
 import RoleFitBadge from './RoleFitBadge';
 
@@ -56,12 +57,7 @@ export default function ApplicationDetailModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-xs animate-in fade-in duration-150">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[#F1DDE9] max-h-[90vh] flex flex-col overflow-hidden">
         <div className="h-28 bg-gradient-to-r from-[#FFB8CA] via-[#FCE7F3] to-[#FFF0F6] relative">
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 p-1.5 rounded-full bg-white/80 hover:bg-white text-stone-500 hover:text-stone-800 shadow-xs transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <CloseButton onClick={onClose} />
         </div>
 
         <div className="px-7 pt-0 pb-4 relative flex items-end justify-between border-b border-[#F1DDE9]">
@@ -251,14 +247,14 @@ export default function ApplicationDetailModal({
             {app.role_fit_analysis.preference_notes && <p><strong>Preference alignment:</strong> {app.role_fit_analysis.preference_alignment?.toLowerCase()} ? {app.role_fit_analysis.preference_notes}</p>}
           </section>}
 
-          {app.information && (
+          {(app.information || app.job_description) && (
             <div>
               <h3 className="text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5 text-[#FF7AB3]" />
-                <span>Information & Source Details</span>
+                <span>Job description & Source Details</span>
               </h3>
               <div className="p-4 rounded-xl border border-[#F1DDE9] bg-white text-xs text-[#4A3E44] whitespace-pre-wrap leading-relaxed">
-                {app.information}
+                {(app.information || app.job_description)}
               </div>
             </div>
           )}
@@ -279,12 +275,7 @@ export default function ApplicationDetailModal({
             <Clock className="w-3.5 h-3.5" />
             Last updated {new Date(app.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 font-medium text-stone-700 bg-white border border-[#F1DDE9] hover:bg-stone-50 rounded-xl transition"
-          >
-            Close
-          </button>
+          <CloseButton onClick={onClose} />
         </div>
       </div>
     </div>

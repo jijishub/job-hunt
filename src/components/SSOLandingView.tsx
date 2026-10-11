@@ -64,7 +64,7 @@ export default function SSOLandingView() {
               <div className="shrink-0 flex items-center justify-center self-center">
                 <div className="relative w-48 h-48 sm:w-60 sm:h-60 lg:w-72 lg:h-72 xl:w-80 xl:h-80">
                   <Image
-                    src="/job-hunt-facvicon.png"
+                    src="/job-hunt official icon.png"
                     alt="Job Hunt Archer"
                     width={320}
                     height={320}

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-export default function CandidateProfileEditor() {
+export default function CandidateProfileEditor({ expanded = false }: { expanded?: boolean }) {
   const [text, setText] = useState('');
   const [message, setMessage] = useState('Loading your saved resume…');
   const [busy, setBusy] = useState(false);
@@ -17,8 +17,8 @@ export default function CandidateProfileEditor() {
     setMessage('Resume saved to your account. New analyses will use this version.');
   }
   return (
-    <details className="rounded-xl border border-[#F1DDE9] bg-[#FFF5F8] p-3 text-xs">
-      <summary className="cursor-pointer font-semibold text-[#9D3C5E]">Resume used for fit analysis</summary>
+    <section className="rounded-xl border border-[#F1DDE9] bg-[#FFF5F8] p-3 text-xs">
+      <h3 className="font-semibold text-[#9D3C5E]">Resume used for fit analysis</h3>
       <p className="my-2 text-[#736A6D]" role="status">{message}</p>
       <label className="block mb-2">Upload a resume PDF
         <input type="file" accept="application/pdf,.pdf" disabled={busy} className="block mt-1" onChange={async event => {
@@ -35,6 +35,6 @@ export default function CandidateProfileEditor() {
       </label>
       <label className="block">Resume text<textarea aria-label="Account resume text" rows={5} value={text} onChange={event => setText(event.target.value)} className="mt-1 w-full rounded-lg border border-[#F1DDE9] p-2 bg-white" /></label>
       <button type="button" disabled={busy || !text.trim()} onClick={async () => { setBusy(true); try { await save(text); } catch (error) { setMessage(error instanceof Error ? error.message : 'Save failed.'); } finally { setBusy(false); } }} className="mt-2 rounded-lg bg-[#9D3C5E] px-3 py-2 text-white disabled:opacity-50">{busy ? 'Saving…' : 'Save resume'}</button>
-    </details>
+    </section>
   );
 }
