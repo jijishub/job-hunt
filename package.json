@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "company-icons": "node scripts/company_icons.cjs",
+    "company-icons:preview": "node scripts/company_icons.cjs --dry-run",
+    "test:company-icons": "node --test scripts/test_company_icons.cjs",
     "bytedance": "node scripts/bytedance_apply.js",
     "thinkingmachines": "node scripts/thinkingmachines_apply.cjs",
     "thinkingmachines:prepare": "node scripts/thinkingmachines_apply.cjs --prepare",
@@ -41,6 +44,7 @@
     "next-auth": "^4.24.15",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "sharp": "0.35.5",
     "unpdf": "^1.8.1"
   },
   "devDependencies": {

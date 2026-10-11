@@ -493,11 +493,11 @@ export default function JobHuntDashboard() {
                 onClick={() => setActiveView('table')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'table'
-                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
                     : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
                 }`}
               >
-                <TableIcon className="w-4 h-4" />
+                <TableIcon className="w-4 h-4 text-[#FF7AB3]" />
                 <span>Table View</span>
               </button>
 
@@ -505,11 +505,11 @@ export default function JobHuntDashboard() {
                 onClick={() => setActiveView('board')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'board'
-                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
                     : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
                 }`}
               >
-                <Columns className="w-4 h-4" />
+                <Columns className="w-4 h-4 text-[#FF7AB3]" />
                 <span>Board View</span>
               </button>
 
@@ -517,11 +517,11 @@ export default function JobHuntDashboard() {
                 onClick={() => setActiveView('companies')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'companies'
-                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
                     : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
                 }`}
               >
-                <Building2 className="w-4 h-4" />
+                <Building2 className="w-4 h-4 text-[#FF7AB3]" />
                 <span>Companies ({filteredCompanies.length})</span>
               </button>
 
@@ -529,24 +529,24 @@ export default function JobHuntDashboard() {
                 onClick={() => setActiveView('leads')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'leads'
-                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
                     : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
                 }`}
               >
-                <Compass className="w-4 h-4 text-emerald-500" />
-                <span>🎯 Leads ({leads.length})</span>
+                <Compass className="w-4 h-4 text-[#FF7AB3]" />
+                <span>Leads ({leads.length})</span>
               </button>
 
               <button
                 onClick={() => setActiveView('analytics')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'analytics'
-                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
                     : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
                 }`}
               >
-                <BarChart3 className="w-4 h-4" />
-                <span>📊 Analytics</span>
+                <BarChart3 className="w-4 h-4 text-[#FF7AB3]" />
+                <span>Analytics</span>
               </button>
 
               <button
@@ -556,12 +556,12 @@ export default function JobHuntDashboard() {
                 }}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'resume'
-                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
                     : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
                 }`}
               >
                 <Sparkles className="w-4 h-4 text-[#FF7AB3]" />
-                <span>📄 AI Resume & ATS</span>
+                <span>AI Resume & ATS</span>
               </button>
             </div>
 
