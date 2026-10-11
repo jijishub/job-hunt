@@ -2,7 +2,7 @@
   <img src="public/job-hunt%20official%20text.png" alt="Job Hunt" width="360" />
 </p>
 
-<p align="center"><strong>🌸 Keep the details. See the bigger picture.</strong></p>
+<p align="center"><strong>🌸 Aim with High Precision.</strong></p>
 <p align="center">Your job search, thoughtfully organized—with room for both ambition and analytics.</p>
 <p align="center">
   <a href="https://jobhunt.jizellecasia.site">Open Job Hunt</a> ·
