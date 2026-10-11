@@ -102,7 +102,7 @@ export default function ApplicationModal({
   const [jobDescription, setJobDescription] = useState('');
   const [roleFit, setRoleFit] = useState<RoleFit | null>(null);
   const [fitAnalysis, setFitAnalysis] = useState<RoleFitAnalysis | null>(null);
-  const [autoFit, setAutoFit] = useState(true);
+  const [useAiFit, setUseAiFit] = useState(false);
   const [fitError, setFitError] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
@@ -153,9 +153,9 @@ export default function ApplicationModal({
   useEffect(() => {
     setJobDescription(initialData?.information || initialData?.job_description || '');
     setAnalyticsStage(initialData?.analytics_stage || 'NOT_SUBMITTED'); setNotProceeding(initialData?.not_proceeding || false);
-    setRoleFit(initialData?.role_fit || null);
+    setRoleFit(initialData?.role_fit || initialData?.role_fit_analysis?.fit || null);
     setFitAnalysis(initialData?.role_fit_analysis || null);
-    setAutoFit(initialData?.role_fit_source !== 'manual');
+    setUseAiFit(initialData?.role_fit_source === 'ai');
     setFitError(''); setImportOpen(false); setImportText(''); setImportMessage('');
     if (initialData) {
       setRoleTitle(initialData.role_title || '');
@@ -227,7 +227,7 @@ export default function ApplicationModal({
       if (job.salary_max != null) setSalaryMax(String(job.salary_max));
       if (job.salary_currency) setSalaryCurrency(job.salary_currency);
       if (job.job_url) setJobUrl(job.job_url);
-      setFitAnalysis(null); setRoleFit(null); setAutoFit(true);
+      setFitAnalysis(null); setRoleFit(null); setUseAiFit(false);
       setImportMessage('Job fields filled in the draft. Review them before saving. No application has been created yet.');
     } catch (error) { setImportMessage(error instanceof Error ? error.message : 'JSON import failed.'); }
   };
@@ -236,7 +236,7 @@ export default function ApplicationModal({
     const response = await fetch('/api/role-fit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roleTitle, jobDescription, jobFacts: { company: companyName, location, work_model: workModel, job_type: jobType, salary_min: salaryMin ? Number(salaryMin) : undefined, salary_max: salaryMax ? Number(salaryMax) : undefined, salary_currency: salaryCurrency } }) });
     const result = await response.json();
     if (!response.ok || !result.success) throw new Error(result.error || 'Role fit analysis failed.');
-    setRoleFit(result.data.fit); setFitAnalysis(result.data); setFitError('');
+    setRoleFit(result.data.fit); setFitAnalysis(result.data); setUseAiFit(true); setFitError('');
     return result.data as RoleFitAnalysis;
   };
 
@@ -246,16 +246,11 @@ export default function ApplicationModal({
 
     setIsSubmitting(true);
     try {
-      let assessment = fitAnalysis;
-      if (autoFit && jobDescription.trim().length < 30 && ((initialData?.information || initialData?.job_description || '') !== jobDescription || initialData?.role_title !== roleTitle)) assessment = null;
-      if (autoFit && jobDescription.trim().length >= 30 && (!assessment || (initialData?.information || initialData?.job_description || '') !== jobDescription || initialData?.role_title !== roleTitle)) {
-        assessment = await analyzeFit();
-      }
       await onSave({
         job_description: jobDescription.trim(),
-        role_fit: autoFit ? assessment?.fit || null : roleFit,
-        role_fit_source: autoFit ? (assessment ? 'ai' : null) : (roleFit ? 'manual' : null),
-        role_fit_analysis: autoFit ? assessment : null,
+        role_fit: roleFit,
+        role_fit_source: roleFit ? (useAiFit ? 'ai' : 'manual') : null,
+        role_fit_analysis: roleFit && useAiFit ? fitAnalysis : null,
         role_title: roleTitle.trim(),
         company_name: companyName.trim(),
         company_logo: customLogoUrl || undefined,
@@ -675,13 +670,13 @@ export default function ApplicationModal({
           <section className="space-y-3 rounded-xl border border-[#F1DDE9] p-3 bg-[#FFF5F8]">
             <h3 className="font-semibold text-xs text-[#9D3C5E]">Role fit analysis</h3>
             <label className="block text-xs font-semibold">Role fit
-              <select aria-label="Role fit" value={autoFit ? fitAnalysis?.fit || roleFit || 'AUTO' : roleFit || 'UNASSESSED'} onChange={event => { setAutoFit(event.target.value === 'AUTO'); if (event.target.value !== 'AUTO') setRoleFit(event.target.value === 'UNASSESSED' ? null : event.target.value as RoleFit); }} className="ml-2 rounded-lg border border-[#F1DDE9] bg-white p-2">
-                <option value="AUTO">AI assessment (default)</option><option value="UNASSESSED">Leave unassessed</option>{ROLE_FITS.map(fit => <option key={fit.value} value={fit.value}>{fit.label}</option>)}
+              <select aria-label="Role fit" value={roleFit || 'UNASSESSED'} onChange={event => { setUseAiFit(false); setRoleFit(event.target.value === 'UNASSESSED' ? null : event.target.value as RoleFit); }} className="ml-2 rounded-lg border border-[#F1DDE9] bg-white p-2">
+                <option value="UNASSESSED">Leave unassessed</option>{ROLE_FITS.map(fit => <option key={fit.value} value={fit.value}>{fit.label}</option>)}
               </select>
             </label>
-            <p className="text-xs text-[#736A6D]">{autoFit ? (fitAnalysis || roleFit ? 'Selected from the AI assessment. Choose another rating to set a manual fit.' : 'Analyzes on save when your resume and job requirements are available. Otherwise saved as unassessed.') : (ROLE_FITS.find(fit => fit.value === roleFit)?.description || 'No rating yet. You can assess this role later in Analytics.')}</p>
-            {fitAnalysis && autoFit && <p className="text-xs text-[#9D3C5E]">{ROLE_FITS.find(fit => fit.value === fitAnalysis.fit)?.label}: {fitAnalysis.explanation}{fitAnalysis.preference_notes ? ` Preferences: ${fitAnalysis.preference_notes}` : ''}</p>}
-            <button type="button" disabled={isSubmitting || jobDescription.trim().length < 30} onClick={async () => { setIsSubmitting(true); setFitError(''); try { await analyzeFit(); setAutoFit(true); } catch (error) { setFitError(error instanceof Error ? error.message : 'Analysis failed.'); } finally { setIsSubmitting(false); } }} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E] disabled:opacity-50">Reanalyze role fit</button>
+            <p className="text-xs text-[#736A6D]">{useAiFit && roleFit ? 'Selected from the AI assessment. Choose another rating to set a manual fit.' : (ROLE_FITS.find(fit => fit.value === roleFit)?.description || 'Choose a rating manually, or click Reanalyze role fit to assess this role with AI. Saving does not run analysis.')}</p>
+            {fitAnalysis && useAiFit && <p className="text-xs text-[#9D3C5E]">{ROLE_FITS.find(fit => fit.value === fitAnalysis.fit)?.label}: {fitAnalysis.explanation}{fitAnalysis.preference_notes ? ` Preferences: ${fitAnalysis.preference_notes}` : ''}</p>}
+            <button type="button" disabled={isSubmitting || jobDescription.trim().length < 30} onClick={async () => { setIsSubmitting(true); setFitError(''); try { await analyzeFit(); } catch (error) { setFitError(error instanceof Error ? error.message : 'Analysis failed.'); } finally { setIsSubmitting(false); } }} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E] disabled:opacity-50">Reanalyze role fit</button>
 
             {fitError && <p role="alert" className="text-xs text-rose-700">{fitError} Select a manual fit or leave this role unassessed and retry.</p>}
           </section>
