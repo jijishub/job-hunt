@@ -11,7 +11,6 @@ import {
   Database,
   Brain,
   Layers,
-  CheckCircle2,
   ArrowRight,
 } from 'lucide-react';
 
@@ -35,103 +34,98 @@ export default function SSOLandingView() {
       <main className="relative z-10 w-full max-w-7xl mx-auto px-6 py-8 sm:py-14 flex-1 flex items-center">
         <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
           
-          {/* Left Column: Brand Story & Big Transparent Archer Hero (Zero white box container!) */}
-          <div className="lg:col-span-7 relative flex flex-col justify-center text-left pt-6 sm:pt-10 pb-6">
-            
-            {/* Big Archer Girl Illustration (100% Transparent, blends into background) */}
-            <div className="absolute -top-12 sm:-top-16 -left-4 sm:left-0 w-[420px] h-[420px] sm:w-[520px] sm:h-[520px] lg:w-[580px] lg:h-[580px] pointer-events-none select-none z-0 opacity-80 sm:opacity-90">
-              <Image
-                src="/job-hunt-facvicon.png"
-                alt="Job Hunt Archer"
-                fill
-                priority
-                className="object-contain object-left-top"
-              />
-            </div>
-
-            {/* Foreground Content */}
-            <div className="relative z-10 space-y-6 sm:space-y-7 max-w-xl">
-              {/* Space reservation so the top of archer's bow and star shine through */}
-              <div className="pt-24 sm:pt-32 lg:pt-36">
-                {/* Sparkle Pill */}
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#F1DDE9] text-[#9D3C5E] text-xs font-bold shadow-2xs backdrop-blur-sm">
-                  <Sparkles className="w-3.5 h-3.5 text-[#FF7AB3]" />
-                  <span>Aim High with Precision • Career Opportunity Platform</span>
+          {/* Left Column: Brand Story & Clean Transparent Archer Hero (Zero overlap, no excess top padding, no white box) */}
+          <div className="lg:col-span-7 space-y-5 sm:space-y-6 text-left">
+            {/* Top Row: Left (Sparkle badge + Headline + Narrative) and Right (Prominent Archer Hero Illustration side-by-side, zero text overlap) */}
+            <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 lg:gap-8">
+              {/* Text narrative */}
+              <div className="space-y-3.5 flex-1 max-w-lg">
+                {/* Sparkle Tag */}
+                <div>
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#F1DDE9] text-[#9D3C5E] text-xs font-bold shadow-2xs backdrop-blur-sm">
+                    <Sparkles className="w-3.5 h-3.5 text-[#FF7AB3]" />
+                    <span>Smart Career Opportunity Platform</span>
+                  </div>
                 </div>
-              </div>
 
-              {/* Headline and Narrative */}
-              <div className="space-y-3">
-                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#4A3E44] tracking-tight leading-tight">
-                  Track Applications.<br />
+                {/* Headline and Narrative */}
+                <h2 className="text-3xl sm:text-4xl lg:text-[44px] font-extrabold text-[#4A3E44] tracking-tight leading-[1.15]">
+                  Aim with<br />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF7AB3] to-[#9D3C5E]">
-                    Supercharge with AI.
+                   High Precision.
                   </span>
                 </h2>
                 <p className="text-sm sm:text-base text-[#736A6D] leading-relaxed">
-                  A private, high-precision career command center featuring two-way live Notion synchronization, Luna 5.6 & Antigravity AI ATS resume scanning, and smart lead discovery.
+                  A private career command center featuring two-way live Notion synchronization, Luna 5.6 & Antigravity AI ATS resume scanning, and smart lead discovery.
                 </p>
               </div>
 
-              {/* Feature Highlights Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1 w-full text-left">
-                <div className="p-3.5 rounded-2xl bg-white/75 border border-[#F1DDE9] shadow-2xs backdrop-blur-sm flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#FFF0F6] border border-[#F1DDE9] flex items-center justify-center shrink-0 text-[#9D3C5E]">
-                    <Database className="w-4 h-4 text-[#FF7AB3]" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-[#4A3E44]">2-Way Notion Live Sync</h4>
-                    <p className="text-[11px] text-[#736A6D] mt-0.5 leading-snug">
-                      Real-time sync with database stages, service categories, and notes.
-                    </p>
-                  </div>
+              {/* Archer Hero Artwork (Right beside the headline, maximized size, zero shadow, pure transparent) */}
+              <div className="shrink-0 flex items-center justify-center self-center">
+                <div className="relative w-48 h-48 sm:w-60 sm:h-60 lg:w-72 lg:h-72 xl:w-80 xl:h-80">
+                  <Image
+                    src="/job-hunt official icon.png"
+                    alt="Job Hunt Archer"
+                    width={320}
+                    height={320}
+                    priority
+                    className="w-full h-full object-contain select-none pointer-events-none"
+                  />
                 </div>
-
-                <div className="p-3.5 rounded-2xl bg-white/75 border border-[#F1DDE9] shadow-2xs backdrop-blur-sm flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#FFF0F6] border border-[#F1DDE9] flex items-center justify-center shrink-0 text-[#9D3C5E]">
-                    <Brain className="w-4 h-4 text-[#FF7AB3]" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-[#4A3E44]">Luna 5.6 & Antigravity ATS</h4>
-                    <p className="text-[11px] text-[#736A6D] mt-0.5 leading-snug">
-                      Score resumes, detect missing keywords, and rewrite XYZ bullets.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-white/75 border border-[#F1DDE9] shadow-2xs backdrop-blur-sm flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#FFF0F6] border border-[#F1DDE9] flex items-center justify-center shrink-0 text-[#9D3C5E]">
-                    <Layers className="w-4 h-4 text-[#FF7AB3]" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-[#4A3E44]">Categorized Pipeline & Leads</h4>
-                    <p className="text-[11px] text-[#736A6D] mt-0.5 leading-snug">
-                      Dedicated Leads Hub with promote-to-applied pipeline workflows.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-white/75 border border-[#F1DDE9] shadow-2xs backdrop-blur-sm flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#FFF0F6] border border-[#F1DDE9] flex items-center justify-center shrink-0 text-[#9D3C5E]">
-                    <Lock className="w-4 h-4 text-[#FF7AB3]" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-[#4A3E44]">Strict Google SSO</h4>
-                    <p className="text-[11px] text-[#736A6D] mt-0.5 leading-snug">
-                      Invite-only authentication ensures only whitelisted accounts enter.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 pt-1 text-xs text-[#736A6D]">
-                <span className="flex items-center gap-1.5 text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Private Workspace Active</span>
-                </span>
-                <span>Admin: <strong className="text-[#4A3E44]">jizellecasia@gmail.com</strong></span>
               </div>
             </div>
+
+            {/* Feature Highlights Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1 w-full max-w-xl text-left">
+              <div className="p-3.5 rounded-2xl bg-white/75 border border-[#F1DDE9] shadow-2xs backdrop-blur-sm flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-[#FFF0F6] border border-[#F1DDE9] flex items-center justify-center shrink-0 text-[#9D3C5E]">
+                  <Database className="w-4 h-4 text-[#FF7AB3]" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-[#4A3E44]">2-Way Notion Live Sync</h4>
+                  <p className="text-[11px] text-[#736A6D] mt-0.5 leading-snug">
+                    Real-time sync with database stages, service categories, and notes.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white/75 border border-[#F1DDE9] shadow-2xs backdrop-blur-sm flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-[#FFF0F6] border border-[#F1DDE9] flex items-center justify-center shrink-0 text-[#9D3C5E]">
+                  <Brain className="w-4 h-4 text-[#FF7AB3]" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-[#4A3E44]">Luna 5.6 & Antigravity ATS</h4>
+                  <p className="text-[11px] text-[#736A6D] mt-0.5 leading-snug">
+                    Score resumes, detect missing keywords, and rewrite XYZ bullets.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white/75 border border-[#F1DDE9] shadow-2xs backdrop-blur-sm flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-[#FFF0F6] border border-[#F1DDE9] flex items-center justify-center shrink-0 text-[#9D3C5E]">
+                  <Layers className="w-4 h-4 text-[#FF7AB3]" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-[#4A3E44]">Categorized Pipeline & Leads</h4>
+                  <p className="text-[11px] text-[#736A6D] mt-0.5 leading-snug">
+                    Dedicated Leads Hub with promote-to-applied pipeline workflows.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white/75 border border-[#F1DDE9] shadow-2xs backdrop-blur-sm flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-[#FFF0F6] border border-[#F1DDE9] flex items-center justify-center shrink-0 text-[#9D3C5E]">
+                  <Lock className="w-4 h-4 text-[#FF7AB3]" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-[#4A3E44]">Strict Google SSO</h4>
+                  <p className="text-[11px] text-[#736A6D] mt-0.5 leading-snug">
+                    Invite-only authentication ensures only whitelisted accounts enter.
+                  </p>
+                </div>
+              </div>
+            </div>
+
           </div>
 
           {/* Right Column: Google SSO Sign-in Card */}
@@ -140,8 +134,9 @@ export default function SSOLandingView() {
               
               {/* Brand Title Header (Moved here per user request) */}
               <div className="mb-6 space-y-1">
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-[#4A3E44] tracking-tight">
-                  Job Hunt & Leads
+                <h1 className="whitespace-nowrap text-2xl sm:text-3xl font-extrabold tracking-tight">
+                  <span className="text-[#FF7AB3]">Job Hunt</span>{' '}
+                  <span className="text-black">Login</span>
                 </h1>
                 <p className="text-xs font-semibold text-[#9D3C5E]">
                   Career Pipeline & AI Suite
@@ -232,8 +227,12 @@ export default function SSOLandingView() {
 
               {/* Footnote */}
               <div className="mt-6 pt-5 border-t border-[#F1DDE9]/70 text-[11px] text-[#736A6D]/80">
-                Job Hunt & Leads • Precision Opportunity Tracking
+                Contact administrator for access.
+                <div className="mt-2 pt-1 text-[11px] text-[#736A6D]/80">
+                Admin: <b>jizelle.casia@gmail.com</b>
               </div>
+              </div>
+
             </div>
           </div>
 

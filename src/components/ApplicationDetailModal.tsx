@@ -1,11 +1,14 @@
 'use client';
+import CloseButton from './CloseButton';
+
+import RoleFitBadge from './RoleFitBadge';
 
 import React from 'react';
 import { JobApplication } from '@/types/job';
 import StatusBadge from './StatusBadge';
 import PriorityBadge from './PriorityBadge';
+import { formatSalaryRange } from '@/lib/currencies';
 import {
-  X,
   ExternalLink,
   Calendar,
   DollarSign,
@@ -52,14 +55,9 @@ export default function ApplicationDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[#F1DDE9] max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="h-28 bg-gradient-to-r from-[#FFB8CA] via-[#FCE7F3] to-[#FFF0F6] relative">
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 p-1.5 rounded-full bg-white/80 hover:bg-white text-stone-500 hover:text-stone-800 shadow-xs transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
+      <div role="dialog" aria-modal="true" aria-label="Application details" className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[#F1DDE9] max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="h-28 shrink-0 bg-gradient-to-r from-[#FFB8CA] via-[#FCE7F3] to-[#FFF0F6] relative">
+          <CloseButton onClick={onClose} className="absolute right-3 top-3" />
         </div>
 
         <div className="px-7 pt-0 pb-4 relative flex items-end justify-between border-b border-[#F1DDE9]">
@@ -159,6 +157,7 @@ export default function ApplicationDetailModal({
                 </span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <StatusBadge status={app.notion_status || app.status} />
+                  <RoleFitBadge app={app} />
                 </div>
               </div>
               <div>
@@ -175,7 +174,7 @@ export default function ApplicationDetailModal({
                   Service / Category
                 </span>
                 <span className="text-xs text-[#9D3C5E] font-semibold">
-                  {app.service ? `🏷️ ${app.service}` : 'General'}
+                  {app.service || 'General'}
                 </span>
               </div>
               <div>
@@ -204,14 +203,7 @@ export default function ApplicationDetailModal({
                 </span>
                 <span className="text-xs text-[#4A3E44] flex items-center gap-1 font-medium">
                   <DollarSign className="w-3.5 h-3.5 text-stone-400" />
-                  {app.salary_min || app.salary_max
-                    ? `${app.salary_currency} ${[
-                        app.salary_min ? app.salary_min.toLocaleString() : '',
-                        app.salary_max ? `- ${app.salary_max.toLocaleString()}` : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}`
-                    : 'Not disclosed'}
+                  {formatSalaryRange(app.salary_min, app.salary_max, app.salary_currency) || 'Not disclosed'}
                 </span>
               </div>
             </div>
@@ -228,6 +220,8 @@ export default function ApplicationDetailModal({
               </div>
             </div>
 
+            {app.offer_amount != null && <div className="pt-2 border-t border-[#F1DDE9]/60"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#736A6D]">Job offer</span><p className="text-xs font-medium text-[#4A3E44]">{formatSalaryRange(app.offer_amount, undefined, app.offer_currency)} / {(app.offer_pay_period || 'MONTHLY').toLowerCase()}</p></div>}
+
             {(app.contact_name || app.contact_email) && (
               <div className="pt-2 border-t border-[#F1DDE9]/60">
                 <span className="text-[11px] font-semibold text-[#736A6D] uppercase tracking-wider block mb-1">
@@ -240,14 +234,22 @@ export default function ApplicationDetailModal({
             )}
           </div>
 
-          {app.information && (
+          {app.role_fit_analysis && <section className="rounded-xl border border-[#F1DDE9] bg-[#FFF5F8] p-4 text-xs space-y-2">
+            <h3 className="font-semibold text-[#9D3C5E]">Role fit assessment</h3>
+            <p>{app.role_fit_analysis.explanation}</p>
+            {app.role_fit_analysis.strengths.length > 0 && <p><strong>Experience evidence:</strong> {app.role_fit_analysis.strengths.join('; ')}</p>}
+            {app.role_fit_analysis.gaps.length > 0 && <p><strong>Requirements to address:</strong> {app.role_fit_analysis.gaps.join('; ')}</p>}
+            {app.role_fit_analysis.preference_notes && <p><strong>Preference alignment:</strong> {app.role_fit_analysis.preference_alignment?.toLowerCase()} ? {app.role_fit_analysis.preference_notes}</p>}
+          </section>}
+
+          {(app.information || app.job_description) && (
             <div>
               <h3 className="text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5 text-[#FF7AB3]" />
-                <span>Information & Source Details</span>
+                <span>Job description & Source Details</span>
               </h3>
               <div className="p-4 rounded-xl border border-[#F1DDE9] bg-white text-xs text-[#4A3E44] whitespace-pre-wrap leading-relaxed">
-                {app.information}
+                {(app.information || app.job_description)}
               </div>
             </div>
           )}
@@ -268,12 +270,6 @@ export default function ApplicationDetailModal({
             <Clock className="w-3.5 h-3.5" />
             Last updated {new Date(app.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 font-medium text-stone-700 bg-white border border-[#F1DDE9] hover:bg-stone-50 rounded-xl transition"
-          >
-            Close
-          </button>
         </div>
       </div>
     </div>

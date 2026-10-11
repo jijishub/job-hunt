@@ -1,0 +1,27 @@
+{
+  "target_url": "https://appficiency.bamboohr.com/careers/29?source=LinkedIn",
+  "first_name": "Jizelle",
+  "last_name": "Casia",
+  "email": "jizelle.casia@gmail.com",
+  "phone": "09603899736",
+  "street_address": "1152 Tramo Street",
+  "city": "Pulanglupa I, Las Pinas City",
+  "state": "Metro Manila",
+  "zip": "1742",
+  "country": "Philippines",
+  "website": "https://jizellecasia.site",
+  "linkedin_url": "https://www.linkedin.com/in/jizelle-casia-860814286/",
+  "start_date": "26 Oct 2026",
+  "desired_pay": "30,000 PHP",
+  "education_level": "College - Bachelor of Science",
+  "college_university": "Polytechnic University of the Philippines – Parañaque City Campus",
+  "remote_est": true,
+  "cover_letter": null,
+  "answers": {},
+  "answer_reference": {
+    "q1_erp_systems_experience": {
+      "text": "While I do not have direct hands-on experience with legacy ERP platforms like SAP or NetSuite, I have extensive experience engineering and integrating custom enterprise business applications and",
+      "complete": false
+    }
+  }
+}

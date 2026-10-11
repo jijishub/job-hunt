@@ -1,16 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
 import { useSession } from 'next-auth/react';
-import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import ATSExportReport from './ATSExportReport';
+import { getReportPageCuts } from '@/lib/report-pagination';
+import { captureReport } from '@/lib/report-capture';
 import { JobApplication } from '@/types/job';
-import { AIModelId, AVAILABLE_AI_MODELS, ResumeAnalysisResult } from '@/lib/ai';
+import { AIModelId, AVAILABLE_AI_MODELS, ResumeAnalysisResult } from '@/lib/ai-types';
 import {
   Sparkles,
   FileText,
+  RefreshCw,
   Briefcase,
   CheckCircle2,
   AlertCircle,
@@ -19,28 +20,28 @@ import {
   Zap,
   Brain,
   Crown,
-  RefreshCw,
   TrendingUp,
   Tag,
   MessageSquare,
   HelpCircle,
-  Upload,
-  FileCheck,
   Download,
-  ChevronDown,
-  Image as ImageIcon,
 } from 'lucide-react';
 
 interface ResumeAnalyzerViewProps {
   applications: JobApplication[];
   initialSelectedAppId?: string | null;
+  preferenceVersion?: number;
+  onOpenPreferences: () => void;
 }
 
 export default function ResumeAnalyzerView({
   applications,
   initialSelectedAppId,
+  preferenceVersion = 0,
+  onOpenPreferences,
 }: ResumeAnalyzerViewProps) {
   const { data: session } = useSession();
+  const isAdmin = (session?.user as any)?.role === 'admin';
 
   // Model selection
   const [selectedModel, setSelectedModel] = useState<AIModelId>('luna');
@@ -55,20 +56,13 @@ export default function ResumeAnalyzerView({
   // Loading & Result states
   const [isLoading, setIsLoading] = useState(false);
   const [isPortfolioImporting, setIsPortfolioImporting] = useState(false);
-  const [isPdfUploading, setIsPdfUploading] = useState(false);
-  const [uploadedPdfInfo, setUploadedPdfInfo] = useState<{
-    filename: string;
-    fileSize: number;
-    totalPages: number;
-  } | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [result, setResult] = useState<ResumeAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Client-side export states (Zero DB writes!)
   const reportRef = useRef<HTMLDivElement>(null);
-  const exportDropdownRef = useRef<HTMLDivElement>(null);
-  const [isExporting, setIsExporting] = useState<'pdf' | 'png' | null>(null);
-  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
 
   // Copy feedback states
@@ -78,16 +72,19 @@ export default function ResumeAnalyzerView({
   // Active sub-tab in results
   const [activeResultTab, setActiveResultTab] = useState<'overview' | 'keywords' | 'bullets' | 'pitch'>('overview');
 
-  // Close export dropdown on outside click
   useEffect(() => {
-    const handleOutside = (e: MouseEvent) => {
-      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target as Node)) {
-        setExportDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, []);
+    const controller = new AbortController();
+    setProfileLoading(true); setResult(null);
+    fetch('/api/profile', { signal: controller.signal }).then(r => r.json()).then(data => {
+      if (!data.success) throw new Error(data.error);
+      setResumeText(data.resumeText || '');
+    }).catch(err => { if (err.name !== 'AbortError') setError(err.message); })
+      .finally(() => { if (!controller.signal.aborted) setProfileLoading(false); });
+    return () => controller.abort();
+  }, [preferenceVersion]);
+
+  const analysisVersion = useRef(0);
+  useEffect(() => { analysisVersion.current++; setResult(null); }, [resumeText, jobTitle, companyName, jobDescription, selectedModel, preferenceVersion]);
 
   // Pre-load from selected app if provided
   useEffect(() => {
@@ -96,64 +93,11 @@ export default function ResumeAnalyzerView({
       if (app) {
         setJobTitle(app.role_title || '');
         setCompanyName(app.company_name || '');
-        const details = [
-          app.location ? `Location: ${app.location} (${app.work_model || 'Remote'})` : '',
-          app.notes ? `Role Notes & Requirements:\n${app.notes}` : '',
-          app.job_url ? `Job Posting Link: ${app.job_url}` : '',
-        ]
-          .filter(Boolean)
-          .join('\n\n');
-        setJobDescription(details || `${app.role_title} position at ${app.company_name}.`);
+        setJobDescription(app.information || app.job_description || '');
+        setResult(null);
       }
     }
   }, [selectedAppId, applications]);
-
-  // Handle PDF Resume Upload (PDF Acceptance Only)
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Reset input so re-uploading the same file works
-    e.target.value = '';
-
-    // Strictly validate PDF
-    const isPdfExt = file.name.toLowerCase().endsWith('.pdf');
-    const isPdfMime = file.type === 'application/pdf' || file.type === 'application/x-pdf';
-    if (!isPdfExt && !isPdfMime) {
-      setError('Only PDF files (.pdf) are accepted. Please upload a PDF resume.');
-      return;
-    }
-
-    setIsPdfUploading(true);
-    setError(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const res = await fetch('/api/resume/parse-pdf', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to extract text from PDF');
-      }
-
-      setResumeText(data.text);
-      setUploadedPdfInfo({
-        filename: data.filename || file.name,
-        fileSize: data.fileSize || file.size,
-        totalPages: data.totalPages || 1,
-      });
-    } catch (err: any) {
-      console.error('PDF upload error:', err);
-      setError(`PDF Import failed: ${err.message}. You can manually paste resume text below.`);
-    } finally {
-      setIsPdfUploading(false);
-    }
-  };
 
   // Auto-import candidate portfolio/bio from jizellecasia.vercel.app
   const handleAutoImportPortfolio = async () => {
@@ -165,29 +109,8 @@ export default function ResumeAnalyzerView({
       const p = data.profile || data.data;
 
       if (data.success && p) {
-        const formatted = `Candidate Name: ${p.name || 'Jizelle Casia'}
-Headline: ${p.headline || 'Forward-Deployed Engineer'}
-Portfolio: ${p.portfolioUrl || 'https://jizellecasia.vercel.app'}
-
-Bio:
-${p.bio || ''}
-
-Technical Skills:
-${p.skills?.join(', ') || 'React, TypeScript, Next.js, PostgreSQL, Docker, Python'}
-
-Education:
-${p.education?.school || 'Polytechnic University of the Philippines'} - ${p.education?.major || 'BS Information Technology'} (${p.education?.honors || 'Cum Laude'})
-GPA: ${p.education?.gpa || '1.35'}
-${p.education?.description || ''}
-
-Projects:
-${p.projects?.map((proj: any) => `• ${proj.title} (${proj.role}): Tech Stack: ${proj.techStack}`).join('\n') || 'Full-Stack Portfolio and AI Web Apps'}
-
-Experience Highlights:
-${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (${exp.location})`).join('\n') || 'Forward-Deployed Engineer at GDS Capital'}`;
-
-        setResumeText(formatted);
-        setUploadedPdfInfo(null);
+        setResumeText(JSON.stringify(p, null, 2));
+        setResult(null);
       } else {
         throw new Error('Failed to retrieve portfolio profile data');
       }
@@ -200,14 +123,15 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
 
   const handleAnalyze = async () => {
     if (!resumeText.trim()) {
-      setError('Please provide your resume or click "Auto-Import Portfolio" before analyzing.');
+      setError('Save your master resume in My preferences before analyzing.');
       return;
     }
-    if (!jobDescription.trim() && !jobTitle.trim()) {
-      setError('Please provide target job details or select an existing job application.');
+    if (jobDescription.trim().length < 30) {
+      setError('Add the actual job requirements (at least 30 characters).');
       return;
     }
 
+    const version = analysisVersion.current;
     setIsLoading(true);
     setError(null);
 
@@ -216,15 +140,17 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          resumeText,
+          resumeText: isAdmin ? resumeText : undefined,
+          applicationId: selectedAppId || undefined,
           jobTitle,
           companyName,
-          jobDescription: jobDescription || `${jobTitle} at ${companyName}`,
+          jobDescription,
           model: selectedModel,
         }),
       });
 
       const json = await res.json();
+      if (version !== analysisVersion.current) return;
       if (json.success && json.data) {
         setResult(json.data);
         setActiveResultTab('overview');
@@ -233,7 +159,7 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'An unexpected error occurred during AI resume analysis.');
+      if (version === analysisVersion.current) setError(err.message || 'An unexpected error occurred during AI resume analysis.');
     } finally {
       setIsLoading(false);
     }
@@ -252,56 +178,52 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
   };
 
   // Client-Side 1-Click Export (Zero DB writes to prevent DB population)
-  const handleExport = async (format: 'pdf' | 'png') => {
+  const handleExport = async () => {
     if (!reportRef.current || !result) return;
-    setIsExporting(format);
+    setIsExporting(true);
     setError(null);
     setExportSuccessMsg(null);
 
     try {
-      // Small pause to ensure layout stabilization
-      await new Promise((r) => setTimeout(r, 150));
+      const report = reportRef.current;
+      if (!report) throw new Error('Report is unavailable');
+      const canvas = await captureReport(report);
 
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2, // 2x high retina resolution
-        useCORS: true,
-        backgroundColor: '#FAF7F9',
-        logging: false,
-      });
+      const width = canvas.width;
 
       const cleanCompany = (companyName || 'Job').replace(/[^a-zA-Z0-9_-]/g, '_');
       const cleanRole = (jobTitle || 'Role').replace(/[^a-zA-Z0-9_-]/g, '_');
       const baseFilename = `ATS_Report_${cleanCompany}_${cleanRole}_${result.matchScore}pct`;
 
-      if (format === 'png') {
-        const imgData = canvas.toDataURL('image/png');
-        const link = document.createElement('a');
-        link.href = imgData;
-        link.download = `${baseFilename}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setExportSuccessMsg('PNG report downloaded successfully!');
-      } else {
-        // Continuous single-page PDF with exact aspect ratio (no text truncation or split)
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'px',
-          format: [canvas.width, canvas.height],
-          hotfixes: ['px_scaling'],
-        });
-        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-        pdf.save(`${baseFilename}.pdf`);
-        setExportSuccessMsg('PDF report downloaded successfully!');
+      const cuts = getReportPageCuts(report, report.offsetWidth * (273 / 190));
+      const pdf = new jsPDF({
+        orientation: 'portrait', unit: 'mm', format: 'a4',
+      });
+      const ratio = canvas.height / report.scrollHeight;
+      for (let index = 0; index < cuts.length - 1; index++) {
+        if (index > 0) pdf.addPage();
+        const top = Math.round(cuts[index] * ratio);
+        const bottom = Math.round(cuts[index + 1] * ratio);
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = width;
+        pageCanvas.height = bottom - top;
+        const context = pageCanvas.getContext('2d');
+        if (!context) throw new Error('Could not create PDF page');
+        context.drawImage(canvas, 0, top, width, bottom - top, 0, 0, width, bottom - top);
+        pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', 10, 10, 190,
+          pageCanvas.height * 190 / width);
+        pdf.setFontSize(8);
+        pdf.setTextColor(115, 106, 109);
+        pdf.text(`Page ${index + 1} of ${cuts.length - 1}`, 200, 290, { align: 'right' });
       }
+      pdf.save(`${baseFilename}.pdf`);
+      setExportSuccessMsg('PDF report downloaded successfully!');
       setTimeout(() => setExportSuccessMsg(null), 3000);
     } catch (err: any) {
       console.error('Export failed:', err);
       setError(`Export failed: ${err.message || 'Please try again'}`);
     } finally {
-      setIsExporting(null);
-      setExportDropdownOpen(false);
+      setIsExporting(false);
     }
   };
 
@@ -318,19 +240,9 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-gradient-to-br from-[#FFF0F6] via-[#FCE7F3] to-transparent rounded-full opacity-60 pointer-events-none" />
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div className="flex items-start gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-white border border-[#F1DDE9] p-0.5 shadow-xs shrink-0 overflow-hidden flex items-center justify-center">
-              <Image
-                src="/job-hunt-facvicon.png"
-                alt="Job Hunt Logo"
-                width={48}
-                height={48}
-                className="w-full h-full object-contain rounded-xl"
-              />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-[#4A3E44]">AI Resume & ATS Matcher</h1>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-[#4A3E44]">AI Resume & ATS Matcher</h1>
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FFF0F6] text-[#9D3C5E] border border-[#F1DDE9]">
                   AI Powered
                 </span>
@@ -339,9 +251,8 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
                 Scan your candidate credentials against job requirements. Discover missing ATS keywords, optimize bullet points with high-impact metrics, and generate tailored application pitches in seconds.
               </p>
             </div>
-          </div>
 
-          {/* Model Selector Pill */}
+            {/* Model Selector Pill */}
           <div className="flex items-center gap-2 bg-[#FAF7F9] p-1.5 rounded-xl border border-[#F1DDE9]">
             <span className="text-[11px] font-semibold text-[#736A6D] pl-2 flex items-center gap-1">
               Model:
@@ -392,45 +303,14 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Form Inputs (5 cols) */}
         <div className="lg:col-span-5 space-y-5">
-          {/* Resume Input Card */}
-          <div className="bg-white rounded-2xl p-5 border border-[#F1DDE9] shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-[#4A3E44] uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-[#FF7AB3]" />
-                <span>Candidate Resume / Profile *</span>
-              </label>
-
-              <button
-                type="button"
-                onClick={handleAutoImportPortfolio}
-                disabled={isPortfolioImporting}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-[#FFF0F6] text-[#9D3C5E] hover:bg-[#FCE7F3] border border-[#F1DDE9] transition disabled:opacity-50"
-                title="Fetch live bio, tech stack, and projects from jizellecasia.vercel.app"
-              >
-                <RefreshCw className={`w-3 h-3 ${isPortfolioImporting ? 'animate-spin' : ''}`} />
-                <span>{isPortfolioImporting ? 'Importing...' : '⚡ Auto-Import Portfolio'}</span>
-              </button>
+          <div className="bg-white rounded-2xl p-5 border border-[#F1DDE9] space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-bold text-[#4A3E44]">Master resume</h2>
+              <button type="button" onClick={onOpenPreferences} className="rounded-xl px-3 py-2 text-xs font-semibold bg-[#FFF0F6] text-[#9D3C5E]">My preferences</button>
             </div>
-
-            <textarea
-              rows={8}
-              value={resumeText}
-              onChange={(e) => setResumeText(e.target.value)}
-              placeholder="Paste candidate resume, bio, project history, or tech stack here (or click Auto-Import Portfolio above)..."
-              className="w-full p-3 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] focus:ring-2 focus:ring-[#FF7AB3]/20 text-xs font-mono text-[#4A3E44] placeholder-stone-400 resize-y leading-relaxed"
-            />
-            <div className="flex items-center justify-between text-[11px] text-[#736A6D]">
-              <span>{resumeText.length} characters</span>
-              {resumeText && (
-                <button
-                  type="button"
-                  onClick={() => setResumeText('')}
-                  className="hover:text-rose-600 transition"
-                >
-                  Clear text
-                </button>
-              )}
-            </div>
+            <p className="text-xs text-[#736A6D]">{profileLoading ? 'Loading your saved resume?' : resumeText ? 'Uses the resume saved in My preferences.' : 'Save your resume in My preferences to begin.'}</p>
+            <textarea aria-label="ATS resume" rows={8} value={resumeText} readOnly={!isAdmin} onChange={e => { setResumeText(e.target.value); setResult(null); }} className="w-full p-3 rounded-xl border border-[#F1DDE9] text-xs text-[#4A3E44]" />
+            {isAdmin && <button type="button" disabled={isPortfolioImporting} onClick={handleAutoImportPortfolio} className="rounded-xl px-3 py-2 text-xs font-semibold border border-[#F1DDE9] text-[#9D3C5E]">{isPortfolioImporting ? 'Loading portfolio?' : 'Use live portfolio for this match'}</button>}
           </div>
 
           {/* Target Job Card */}
@@ -449,6 +329,7 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
                   Select from Tracked Opportunities:
                 </label>
                 <select
+                  aria-label="ATS tracked opportunity"
                   value={selectedAppId}
                   onChange={(e) => setSelectedAppId(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-[#FAF7F9] transition"
@@ -491,9 +372,10 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
                 Job Description & Requirements *
               </label>
               <textarea
+                aria-label="ATS job requirements"
                 rows={6}
                 value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
+                onChange={(e) => { setJobDescription(e.target.value); setSelectedAppId(''); setResult(null); }}
                 placeholder="Paste key responsibilities, required qualifications, and tech stack from the job post..."
                 className="w-full p-3 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] focus:ring-2 focus:ring-[#FF7AB3]/20 text-xs text-[#4A3E44] placeholder-stone-400 resize-y leading-relaxed"
               />
@@ -523,17 +405,12 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
               <div className="w-16 h-16 rounded-2xl bg-[#FFF0F6] flex items-center justify-center text-[#FF7AB3] mb-4">
                 <Sparkles className="w-8 h-8" />
               </div>
-              <h3 className="text-base font-bold text-[#4A3E44]">Ready for AI Analysis</h3>
+              <h3 className="text-base font-bold text-[#4A3E44]">Ready for AI Resume Analysis</h3>
               <p className="text-xs text-[#736A6D] max-w-md mt-1.5 leading-relaxed">
-                Click <strong>&quot;Auto-Import Portfolio&quot;</strong> on the left, pick any of your tracked job applications, and hit <strong>&quot;Run AI ATS Match&quot;</strong> to get an ATS compatibility score, missing keywords, and a custom cover pitch!
+                Select a role with actual job requirements, then run a match when you want one. Manage your master resume in My preferences.
               </p>
-              <button
-                type="button"
-                onClick={handleAutoImportPortfolio}
-                className="mt-5 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#FAF7F9] hover:bg-[#FCE7F3] border border-[#F1DDE9] text-xs font-bold text-[#9D3C5E] transition"
-              >
-                <span>⚡ Auto-Import Candidate Profile Now</span>
-              </button>
+              <button type="button" onClick={onOpenPreferences} className="mt-5 rounded-xl bg-[#FFF0F6] px-4 py-2 text-xs font-semibold text-[#9D3C5E]">Manage master resume</button>
+
             </div>
           )}
 
@@ -577,59 +454,29 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
                   </div>
 
                   {/* Export Report Action Dropdown (Client-Side, Zero DB writes) */}
-                  <div className="relative shrink-0 self-start sm:self-center" ref={exportDropdownRef}>
+                  <div className="shrink-0 self-start sm:self-center">
                     <div className="inline-flex rounded-xl shadow-2xs">
                       <button
                         type="button"
-                        onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
-                        disabled={isExporting !== null}
+                        onClick={handleExport}
+                        disabled={isExporting}
                         className="px-3.5 py-2 rounded-xl text-xs font-bold text-[#4A3E44] bg-[#FFF0F6] hover:bg-[#FCE7F3] border border-[#F1DDE9] transition flex items-center gap-2 cursor-pointer shadow-2xs hover:border-[#FF7AB3]"
-                        title="Download analysis as 1 single PDF or PNG (Zero DB writes)"
+                        title="Download the complete analysis as an A4 PDF"
                       >
                         {isExporting ? (
                           <>
                             <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#FF7AB3]" />
-                            <span>Exporting {isExporting.toUpperCase()}...</span>
+                            <span>Exporting PDF...</span>
                           </>
                         ) : (
                           <>
                             <Download className="w-3.5 h-3.5 text-[#FF7AB3]" />
-                            <span>Export Analysis</span>
-                            <ChevronDown className="w-3 h-3 text-stone-400" />
+                            <span>Download PDF</span>
                           </>
                         )}
                       </button>
                     </div>
 
-                    {exportDropdownOpen && !isExporting && (
-                      <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-[#F1DDE9] py-1.5 z-20 animate-in fade-in zoom-in-95">
-                        <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#736A6D] border-b border-[#F1DDE9]/60">
-                          Choose Format (Download)
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleExport('pdf')}
-                          className="w-full px-3.5 py-2.5 text-left text-xs font-semibold text-[#4A3E44] hover:bg-[#FFF0F6] hover:text-[#9D3C5E] flex items-center gap-2.5 transition cursor-pointer"
-                        >
-                          <FileText className="w-4 h-4 text-[#FF7AB3] shrink-0" />
-                          <div>
-                            <div className="font-bold">Download as PDF</div>
-                            <div className="text-[10px] text-stone-400">1 continuous full-page PDF</div>
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleExport('png')}
-                          className="w-full px-3.5 py-2.5 text-left text-xs font-semibold text-[#4A3E44] hover:bg-[#FFF0F6] hover:text-[#9D3C5E] flex items-center gap-2.5 transition cursor-pointer"
-                        >
-                          <ImageIcon className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <div>
-                            <div className="font-bold">Download as PNG</div>
-                            <div className="text-[10px] text-stone-400">High-resolution image</div>
-                          </div>
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -893,7 +740,7 @@ ${p.experienceHighlights?.map((exp: any) => `• ${exp.role} at ${exp.company} (
         </div>
       </div>
 
-      {/* Hidden high-res export layout rendered for client-side PDF/PNG capture (Zero DB writes!) */}
+      {/* Full report layout for client-side PDF capture */}
       {result && (
         <ATSExportReport
           result={result}

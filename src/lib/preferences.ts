@@ -1,0 +1,48 @@
+import { AnalyticsStage, ANALYTICS_STAGES, DEFAULT_REJECTION_STATUSES } from './analytics-stages';
+import { canonicalStatusName } from './statuses';
+import { JobType, WorkModel } from '@/types/job';
+export type DefaultView = 'ALL' | 'INTERNSHIP' | 'OTHER';
+export const DEFAULT_VIEWS: { value: DefaultView; label: string }[] = [
+  { value: 'ALL', label: 'All job types' },
+  { value: 'INTERNSHIP', label: 'Internships only' },
+  { value: 'OTHER', label: 'Exclude internships' },
+];
+export interface PersonalPreferences {
+  default_view?: DefaultView;
+  target_companies: string[];
+  target_roles: string[];
+  preferred_locations: string[];
+  work_models: WorkModel[];
+  job_types: JobType[];
+  salary_min?: number;
+  salary_currency: string;
+  dealbreakers: string;
+  portfolio_summary: string;
+  analytics_status_stages?: Record<string, AnalyticsStage>;
+  analytics_rejection_statuses?: string[];
+}
+export const EMPTY_PREFERENCES: PersonalPreferences = { default_view: 'ALL', target_companies: [], target_roles: [], preferred_locations: [], work_models: [], job_types: [], salary_currency: 'PHP', dealbreakers: '', portfolio_summary: '', analytics_rejection_statuses: [...DEFAULT_REJECTION_STATUSES] };
+export function validatePreferences(raw: unknown): PersonalPreferences {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Preferences must be an object.');
+  const value = raw as Record<string, unknown>;
+  const default_view = value.default_view ?? 'ALL';
+  if (!DEFAULT_VIEWS.some(option => option.value === default_view)) throw new Error('Choose a valid default view.');
+  const list = (key: string) => {
+    const entries = value[key] ?? [];
+    if (!Array.isArray(entries) || entries.length > 50 || !entries.every(item => typeof item === 'string' && item.length <= 200)) throw new Error(`${key} must have at most 50 short text entries.`);
+    return [...new Set(entries.map(item => item.trim()).filter(Boolean))];
+  };
+  const mapping = value.analytics_status_stages ?? {};
+  if (!mapping || typeof mapping !== 'object' || Array.isArray(mapping) || Object.keys(mapping).length > 200 || !Object.entries(mapping).every(([key, stage]) => key.length <= 200 && ANALYTICS_STAGES.includes(stage as AnalyticsStage))) throw new Error('Invalid analytics status mapping.');
+  const analytics_status_stages = Object.fromEntries(Object.entries(mapping).map(([key, stage]) => [canonicalStatusName(key).toLowerCase(), stage])) as Record<string, AnalyticsStage>;
+  const analytics_rejection_statuses = value.analytics_rejection_statuses === undefined
+    ? [...DEFAULT_REJECTION_STATUSES]
+    : [...new Set(list('analytics_rejection_statuses').map(name => canonicalStatusName(name).toLowerCase()))];
+  const work = list('work_models'); const jobs = list('job_types');
+  if (!work.every(model => ['ON_SITE', 'HYBRID', 'REMOTE'].includes(model))) throw new Error('Choose valid work models.');
+  if (!jobs.every(type => ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERNSHIP'].includes(type))) throw new Error('Choose valid job types.');
+  if (value.salary_min != null && (typeof value.salary_min !== 'number' || !Number.isFinite(value.salary_min) || value.salary_min < 0)) throw new Error('Minimum salary must be a nonnegative number.');
+  const currency = value.salary_currency ?? 'PHP'; if (typeof currency !== 'string' || !/^[a-z]{3}$/i.test(currency)) throw new Error('Use a three-letter currency such as PHP.');
+  for (const key of ['dealbreakers', 'portfolio_summary']) if (value[key] != null && (typeof value[key] !== 'string' || (value[key] as string).length > 12000)) throw new Error(`${key} must be text under 12,000 characters.`);
+  return { default_view: default_view as DefaultView, analytics_status_stages, analytics_rejection_statuses, target_companies: list('target_companies'), target_roles: list('target_roles'), preferred_locations: list('preferred_locations'), work_models: work as WorkModel[], job_types: jobs as JobType[], salary_min: value.salary_min as number | undefined, salary_currency: currency.toUpperCase(), dealbreakers: (value.dealbreakers as string || '').trim(), portfolio_summary: (value.portfolio_summary as string || '').trim() };
+}

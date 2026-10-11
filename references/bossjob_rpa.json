@@ -1,0 +1,94 @@
+{
+  "personal_info": {
+    "name": "Jizelle Casia",
+    "email": "jizelle.casia@gmail.com",
+    "date_of_birth": "2004-05",
+    "availability": "Immediate",
+    "location": "National Capital Region / Las Pinas"
+  },
+  "job_preferences": {
+    "title": "DevOps Engineer",
+    "type": "Full-time",
+    "locations": ["Quezon City", "Makati", "Manila"],
+    "expected_salary_range": "₱30 - 60K",
+    "salary_frequency": "Monthly"
+  },
+  "summary": "Versatile IT professional and Full-Stack builder specializing in high-availability infrastructure, intelligent automations, and data-driven solutions. Proven track record of architecting agentic AI workflows that maximize organizational efficiency and maintaining service availability for enterprise-level environments. Passionate about bridging the gap between robust DevOps practices and advanced AI/Data Science engineering to deploy scalable, resilient, and intelligent systems. Eager to leverage a strong technical foundation and an entrepreneurial mindset to drive impactful digital transformation in DevOps, AI, or Data Science roles.",
+  "working_experience": [
+    {
+      "title": "IT Specialist Intern",
+      "company": "GDS CAPITAL, INC.",
+      "start_date": "Mar 2026",
+      "end_date": "Present",
+      "duration": "6 months",
+      "bullets": [
+        "Led the end-to-end development, project management, and optimization of full-stack applications, the GDS OpenClaw ECC dashboard, and public-facing websites, while maintaining 99.9% service availability on Linux VPS. Collaborated directly with the CEO to present technical roadmaps.",
+        "Spearheaded the architecture of agentic AI solutions by leveraging LLMs to deploy autonomous workflows and agents into the main enterprise productivity platform (Feishu), cutting departmental manual processing time by 98%."
+      ]
+    },
+    {
+      "title": "Founder",
+      "company": "CLOUDJI NOTION TEMPLATES",
+      "start_date": "Nov 2023",
+      "end_date": "Present",
+      "duration": "2 years 10 months",
+      "bullets": [
+        "Designs and codes database-driven Notion templates for international clients; manages all branding, content creation, and marketing strategies independently.",
+        "Scales brand presence to 6,500+ followers across Pinterest and Ko-fi, driving 15,000+ product downloads and securing 140+ paid customers."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "Polytechnic University of the Philippines",
+      "degree": "Bachelor",
+      "field_of_study": "Information Technology",
+      "start_date": "May 2022",
+      "end_date": "Oct 2026",
+      "activities": "Project Manager, QA, Front End Developer & Researcher - ORAS: Online Reservation Assistant System (Capstone Thesis) | President, Association of Information and Communications Technology Students, 2024-2025 | Scholar, Metro Pacific Tollways Corporation, 2023-Present | President’s Lister, 2022-Present | BSIT Representative, Central Student Council, 2023-2024 | Champion, Essay Writing Contest - PUPPQ 12th Founding Anniversary | Delegate, 46th YMCA National Congress of College Students"
+    },
+    {
+      "institution": "POLYTECHNIC UNIVERSITY OF THE PHILIPPINES - PARAÑAQUE CITY CAMPUS (PUPPQ)",
+      "degree": "Bachelor",
+      "field_of_study": "Information Technology",
+      "start_date": "Sep 2022",
+      "end_date": "Sep 2026",
+      "honors": "Scholar, Metro Pacific Tollways Corporation | President's Lister, 2022-2026 | Champion, Essay Writing Contest - PUPPQ 12th Founding Anniversary",
+      "leadership": "President, AICTS, 2024-2025 | BSIT Representative, Central Student Council, 2023-2024 | Delegate, YMCA-NCCS, 2024"
+    }
+  ],
+  "skills": [
+    { "skill": "R Programming Language", "level": "Skillful" },
+    { "skill": "Tailwind CSS", "level": "Skillful" },
+    { "skill": "Python Programming", "level": "Skillful" },
+    { "skill": "JavaScript", "level": "Not specified" },
+    { "skill": "React", "level": "Not specified" },
+    { "skill": "HTML/CSS", "level": "Not specified" }
+  ],
+  "licenses_and_certifications": [
+    {
+      "name": "Networking Devices and Initial Configuration",
+      "issuer": "Cisco Networking Academy",
+      "issue_date": "Feb 2024",
+      "credential_id": "856b0d11-bd42-46fc-819f-9b385b785d8f"
+    }
+  ],
+  "links": [
+    {
+      "platform": "Developer portfolio",
+      "name": "Jizelle Casia | Developer Portfolio"
+    },
+    {
+      "platform": "Linkedin",
+      "description": "Regularly active in this site."
+    },
+    {
+      "platform": "Ko-fi Storefront",
+      "description": "I sell my templates and publish content here."
+    }
+  ],
+  "languages": [
+    { "language": "English", "proficiency": "Full Professional" },
+    { "language": "Filipino", "proficiency": "Full Professional" }
+  ]
+}

@@ -1,9 +1,12 @@
 'use client';
 
+import RoleFitBadge from './RoleFitBadge';
+
 import React from 'react';
 import { JobApplication } from '@/types/job';
 import StatusBadge from './StatusBadge';
 import PriorityBadge from './PriorityBadge';
+import { formatSalaryRange } from '@/lib/currencies';
 import {
   Building2,
   ExternalLink,
@@ -51,6 +54,7 @@ export default function ApplicationTable({
               <th className="py-3 px-4 w-[28%]">ROLE & POSITION</th>
               <th className="py-3 px-4 w-[20%]">COMPANY</th>
               <th className="py-3 px-4 w-[14%]">STATUS</th>
+              <th className="py-3 px-4">ROLE FIT</th>
               <th className="py-3 px-4 w-[12%]">PRIORITY</th>
               <th className="py-3 px-4 w-[14%]">WORK MODEL</th>
               <th className="py-3 px-4 w-[12%]">DATE APPLIED</th>
@@ -66,6 +70,7 @@ export default function ApplicationTable({
                     day: 'numeric',
                   })
                 : '—';
+              const salary = formatSalaryRange(app.salary_min, app.salary_max, app.salary_currency);
 
               return (
                 <tr
@@ -84,20 +89,15 @@ export default function ApplicationTable({
                         </span>
                       )}
                     </div>
-                    {app.information && (
-                      <span className="text-[10px] text-[#736A6D] block truncate max-w-[220px] mt-0.5" title={app.information}>
-                        📌 {app.information}
+                    {app.not_proceeding && <span className="block text-[10px] text-rose-700 mt-1">Not Proceeding</span>}
+                    {app.notes && (
+                      <span className="text-[10px] text-[#736A6D] block truncate max-w-[220px] mt-0.5" title={app.notes}>
+                        {app.notes}
                       </span>
                     )}
-                    {app.salary_min || app.salary_max ? (
+                    {salary ? (
                       <span className="text-[11px] text-[#736A6D] block mt-0.5">
-                        {app.salary_currency}{' '}
-                        {[
-                          app.salary_min ? app.salary_min.toLocaleString() : '',
-                          app.salary_max ? `- ${app.salary_max.toLocaleString()}` : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
+                        {salary}
                       </span>
                     ) : null}
                   </td>
@@ -123,7 +123,7 @@ export default function ApplicationTable({
                     {app.service && (
                       <div className="mt-1">
                         <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#FFF0F6] text-[#9D3C5E] border border-[#F1DDE9] truncate max-w-[180px]" title={app.service}>
-                          🏷️ {app.service}
+                          {app.service}
                         </span>
                       </div>
                     )}
@@ -133,13 +133,14 @@ export default function ApplicationTable({
                     <StatusBadge status={app.notion_status || app.status} size="sm" />
                   </td>
 
+                  <td className="py-3 px-4"><RoleFitBadge app={app} /></td>
                   <td className="py-3.5 px-4">
                     <PriorityBadge priority={app.priority} size="sm" />
                   </td>
 
                   <td className="py-3.5 px-4 text-[#736A6D]">
                     <div className="flex items-center gap-1 font-medium capitalize">
-                      {app.work_model.toLowerCase()}
+                      {app.work_model.toLowerCase().replace('_', '-')}
                     </div>
                     {app.location && (
                       <div className="flex items-center gap-0.5 text-[11px] text-[#736A6D]/80 mt-0.5 truncate max-w-[140px]">

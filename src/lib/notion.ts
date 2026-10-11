@@ -10,9 +10,10 @@ import {
   getOrCreateCompany,
   getUsers,
 } from './db';
-import { getStatusCategory } from './statuses';
+import { getStatusCategory, canonicalStatusName } from './statuses';
 
 async function isAppEligibleForNotionSync(app: JobApplication): Promise<boolean> {
+  if (app.status === 'LEAD') return false;
   const users = await getUsers();
   const eligibleIds = new Set(
     users.filter((u) => u.role === 'admin' || u.notion_enabled).map((u) => u.id)
@@ -202,8 +203,26 @@ export function parseServiceAndLocation(raw?: string): { service?: string; locat
   return { service: trimmed, location: trimmed };
 }
 
+function notionText(content: string) {
+  const parts = [];
+  for (let start = 0; start < content.length; start += 2000) {
+    parts.push({ text: { content: content.slice(start, start + 2000) } });
+  }
+  return parts;
+}
+
+function readNotionText(props: Record<string, any>, names: string[]): string | undefined {
+  for (const name of names) {
+    const property = props[name];
+    if (property?.type === 'rich_text' || Array.isArray(property?.rich_text)) {
+      return (property.rich_text || []).map((part: any) => part.plain_text ?? part.text?.content ?? '').join('');
+    }
+  }
+  return undefined;
+}
+
 function buildNotionProperties(app: JobApplication) {
-  let statusSelectName = app.notion_status;
+  let statusSelectName = app.notion_status ? canonicalStatusName(app.notion_status) : undefined;
   if (!statusSelectName) {
     statusSelectName =
       app.status === 'ACCEPTED'
@@ -217,7 +236,7 @@ function buildNotionProperties(app: JobApplication) {
         : app.status === 'SCREENING'
         ? 'Screening'
         : app.status === 'WITHDRAWN'
-        ? 'Do not Proceed'
+        ? 'Not Proceeding'
         : app.status === 'LEAD'
         ? 'Inquiry'
         : 'Applied - No MOA';
@@ -225,22 +244,16 @@ function buildNotionProperties(app: JobApplication) {
 
   const properties: Record<string, any> = {
     'Company Name': {
-      title: [
-        {
-          text: {
-            content: app.company_name,
-          },
-        },
-      ],
+      title: notionText(app.company_name),
     },
     'Intern Position': {
       select: {
-        name: app.role_title,
+        name: app.role_title.replace(/,/g, ' -'),
       },
     },
     'Application Status': {
       select: {
-        name: statusSelectName,
+        name: statusSelectName.replace(/,/g, ' -'),
       },
     },
   };
@@ -251,7 +264,7 @@ function buildNotionProperties(app: JobApplication) {
         ? `${app.service}\n\n${app.location}`
         : app.location || app.service || '';
     properties['Service & Location'] = {
-      rich_text: [{ text: { content } }],
+      rich_text: notionText(content),
     };
   }
 
@@ -268,29 +281,34 @@ function buildNotionProperties(app: JobApplication) {
   }
 
   if (app.date_applied) {
+    // Postgres TIMESTAMPTZ values can be Date objects before JSON serialization.
+    const dateApplied = new Date(app.date_applied);
+    if (Number.isNaN(dateApplied.getTime())) {
+      throw new Error('Invalid application date. Please edit the application date and retry.');
+    }
     properties['Application/ Inquiry Date'] = {
       date: {
-        start: app.date_applied.split('T')[0],
+        start: dateApplied.toISOString().slice(0, 10),
       },
     };
   }
 
-  if (app.information) {
+  if (Object.hasOwn(app, 'information') || Object.hasOwn(app, 'job_description')) {
     properties['Information'] = {
-      rich_text: [{ text: { content: app.information } }],
+      rich_text: notionText(app.information ?? app.job_description ?? ''),
     };
   }
 
-  if (app.notes) {
+  if (Object.hasOwn(app, 'notes')) {
     properties['Post Notes'] = {
-      rich_text: [{ text: { content: app.notes } }],
+      rich_text: notionText(app.notes || ''),
     };
   }
 
   return properties;
 }
 
-export async function pushApplicationToNotion(app: JobApplication): Promise<string | null> {
+export async function pushApplicationToNotion(app: JobApplication, onError?: (message: string) => void): Promise<string | null> {
   const isEligible = await isAppEligibleForNotionSync(app);
   if (!isEligible) {
     return null;
@@ -332,7 +350,8 @@ export async function pushApplicationToNotion(app: JobApplication): Promise<stri
       });
       return pageId;
     }
-  } catch (error) {
+  } catch (error: any) {
+    onError?.(error?.message || 'Notion write failed');
     console.error('Error syncing application to Notion:', error);
     await updateApplication(app.id, {
       sync_status: 'ERROR',
@@ -368,7 +387,7 @@ export async function pullApplicationsFromNotion() {
     existingApps.forEach((a) => {
       if (a.notion_page_id) {
         appMap.set(a.notion_page_id, a);
-        appMap.set(a.notion_page_id.replace(/-/g, ''), a);
+        appMap.set(a.notion_page_id.replace(/-/g, '').toLowerCase(), a);
       }
     });
 
@@ -376,12 +395,13 @@ export async function pullApplicationsFromNotion() {
       try {
         const pageId = page.id;
         const props = page.properties || {};
+        const existingApp = appMap.get(pageId) || appMap.get(pageId.replace(/-/g, '').toLowerCase());
 
         // 1. Company Name
         const titleProp = Object.values(props).find((p: any) => p.type === 'title') as any;
         const companyName = (
-          props['Company Name']?.title?.[0]?.plain_text ||
-          titleProp?.title?.[0]?.plain_text ||
+          props['Company Name']?.title?.map((part: any) => part.plain_text || part.text?.content || '').join('') ||
+          titleProp?.title?.map((part: any) => part.plain_text || part.text?.content || '').join('') ||
           props.Company?.select?.name ||
           props.Company?.rich_text?.[0]?.plain_text ||
           props.Name?.title?.[0]?.plain_text ||
@@ -398,19 +418,21 @@ export async function pullApplicationsFromNotion() {
           'IT Intern';
 
         // 3. Exact Notion Status & Standard Status
-        const notion_status =
+        const rawNotionStatus =
           props['Application Status']?.select?.name ||
           props['Application Status']?.status?.name ||
           props.Status?.select?.name ||
           props.Status?.status?.name ||
           undefined;
 
-        const status: ApplicationStatus = notion_status ? getStatusCategory(notion_status) : 'APPLIED';
-        let priority: Priority = 'MEDIUM';
+        const notion_status = rawNotionStatus ? canonicalStatusName(rawNotionStatus) : undefined;
 
-        if (status === 'ACCEPTED' || status === 'INTERVIEWING') {
+        const status: ApplicationStatus = notion_status ? getStatusCategory(notion_status) : 'APPLIED';
+        let priority: Priority = existingApp?.priority || 'MEDIUM';
+
+        if (!existingApp && (status === 'ACCEPTED' || status === 'INTERVIEWING')) {
           priority = 'HIGH';
-        } else if (status === 'REJECTED' || status === 'WITHDRAWN') {
+        } else if (!existingApp && (status === 'REJECTED' || status === 'WITHDRAWN')) {
           priority = 'LOW';
         }
 
@@ -424,14 +446,15 @@ export async function pullApplicationsFromNotion() {
 
         // 5. Work Model
         const workModelProp = props['Work Model'] || props.Workplace || props.Setup;
-        const workModelRaw = (workModelProp?.select?.name || 'HYBRID').toUpperCase();
-        let work_model: WorkModel = 'HYBRID';
+        const workModelRaw = (workModelProp?.select?.name || '').toUpperCase();
+        let work_model: WorkModel = existingApp?.work_model || 'HYBRID';
         if (workModelRaw.includes('REMOTE')) work_model = 'REMOTE';
         else if (workModelRaw.includes('ON-SITE') || workModelRaw.includes('ONSITE')) work_model = 'ON_SITE';
+        else if (workModelRaw.includes('HYBRID')) work_model = 'HYBRID';
 
         // 6. Service & Location Categorization
         const rawServiceLocation =
-          props['Service & Location']?.rich_text?.[0]?.plain_text ||
+          props['Service & Location']?.rich_text?.map((part: any) => part.plain_text || part.text?.content || '').join('') ||
           props.Location?.rich_text?.[0]?.plain_text ||
           undefined;
         const { service, location } = parseServiceAndLocation(rawServiceLocation);
@@ -454,7 +477,7 @@ export async function pullApplicationsFromNotion() {
         const rawDate =
           props['Application/ Inquiry Date']?.date?.start ||
           props['Date Applied']?.date?.start;
-        let date_applied: string = new Date().toISOString();
+        let date_applied: string | undefined = existingApp?.date_applied;
         if (rawDate) {
           try {
             date_applied = new Date(rawDate).toISOString();
@@ -464,47 +487,57 @@ export async function pullApplicationsFromNotion() {
         }
 
         // 10. Information & Post Notes
-        const information = props['Information']?.rich_text?.[0]?.plain_text || undefined;
-        const notes =
-          props['Post Notes']?.rich_text?.[0]?.plain_text ||
-          props.Notes?.rich_text?.[0]?.plain_text ||
-          undefined;
+        const information = readNotionText(props, ['Information']);
+        const notes = readNotionText(props, ['Post Notes', 'Notes']);
+        const textFields = {
+          ...(information !== undefined ? { information, job_description: information } : {}),
+          ...(notes !== undefined ? { notes } : {}),
+        };
+
+        const notionLogo = page.icon?.type === 'emoji' ? `emoji:${page.icon.emoji}`
+          : page.icon?.type === 'external' ? page.icon.external.url
+          : page.icon?.type === 'file' ? page.icon.file.url : undefined;
 
         // Efficient cached company retrieval / creation
         let company = companyMap.get(companyName.toLowerCase());
         if (!company) {
-          company = await getOrCreateCompany(companyName);
+          company = await getOrCreateCompany(companyName, notionLogo);
           companyMap.set(companyName.toLowerCase(), company);
+        }
+        if (notionLogo && !company.logo_url) {
+          await updateCompany(company.id, { logo_url: notionLogo });
+          company.logo_url = notionLogo;
         }
         if (service && !company.industry) {
           await updateCompany(company.id, { industry: service });
           company.industry = service;
         }
 
-        const existingApp = appMap.get(pageId) || appMap.get(pageId.replace(/-/g, ''));
-
         if (existingApp) {
+          // Pending or failed local edits must survive the pull so they can be retried.
+          if (existingApp.sync_status !== 'SYNCED') continue;
           await updateApplication(existingApp.id, {
             company_id: company.id,
             company_name: company.name,
             company_logo: company.logo_url,
-            role_title: roleTitle,
+            role_title: existingApp.role_title.replace(/,/g, ' -') === roleTitle
+              ? existingApp.role_title : roleTitle,
             status,
             notion_status,
             service,
-            information,
+            ...textFields,
             priority,
             work_model,
             location,
             job_url,
             contact_email,
             date_applied,
-            notes,
             sync_status: 'SYNCED',
             last_synced_at: new Date().toISOString(),
           });
         } else {
           const created = await createApplication({
+            id: `notion_${pageId.replace(/-/g, '').toLowerCase()}`,
             company_id: company.id,
             company_name: company.name,
             company_logo: company.logo_url,
@@ -512,7 +545,7 @@ export async function pullApplicationsFromNotion() {
             status,
             notion_status,
             service,
-            information,
+            ...textFields,
             priority,
             job_type: 'INTERNSHIP',
             work_model,
@@ -521,13 +554,13 @@ export async function pullApplicationsFromNotion() {
             job_url,
             contact_email,
             date_applied,
-            notes,
             owner: defaultOwnerId,
             notion_page_id: pageId,
             sync_status: 'SYNCED',
             last_synced_at: new Date().toISOString(),
           });
           appMap.set(pageId, created);
+          appMap.set(pageId.replace(/-/g, '').toLowerCase(), created);
         }
         syncedCount++;
       } catch (rowErr) {
@@ -564,24 +597,29 @@ export async function performTwoWaySync() {
     };
   }
 
-  const allApps = await getApplications();
+  const allApps = await getApplications(false);
   let pushedCount = 0;
+  const failed: { id: string; company: string; role: string; error?: string }[] = [];
 
   for (const app of allApps) {
     const isEligible = await isAppEligibleForNotionSync(app);
     if (!isEligible) {
       continue;
     }
-    if (app.sync_status === 'PENDING' || !app.notion_page_id) {
-      await pushApplicationToNotion(app);
-      pushedCount++;
+    if (app.sync_status !== 'SYNCED' || !app.notion_page_id) {
+      let error: string | undefined;
+      const pageId = await pushApplicationToNotion(app, (message) => { error = message; });
+      if (pageId) pushedCount++;
+      else failed.push({ id: app.id, company: app.company_name, role: app.role_title, error });
     }
   }
 
   return {
-    success: true,
+    success: failed.length === 0,
     pulled: pullResult.count,
     pushed: pushedCount,
+    failed,
+    message: failed.length ? failed.map((app) => `${app.company}: ${app.error || 'Notion write failed'}`).join('\n') : undefined,
     timestamp: new Date().toISOString(),
   };
 }

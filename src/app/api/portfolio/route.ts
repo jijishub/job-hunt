@@ -1,3 +1,4 @@
+import { getSessionAccount } from '@/lib/session-account';
 import { NextResponse } from 'next/server';
 
 export interface PortfolioProfile {
@@ -28,6 +29,9 @@ export interface PortfolioProfile {
 }
 
 export async function GET() {
+  const user = await getSessionAccount();
+  if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
+  if (user.role !== 'admin') return NextResponse.json({ success: false, error: 'Admin access required.' }, { status: 403 });
   try {
     const res = await fetch('https://jizellecasia.vercel.app/api/content', {
       headers: { 'User-Agent': 'JobHuntTracker/1.0' },

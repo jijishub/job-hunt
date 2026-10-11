@@ -8,11 +8,19 @@ export interface StatusOption {
   isCustom?: boolean;
 }
 
-// Exactly 15 seeded statuses matching Notion database
+// Default statuses matching the Notion database.
+export const MEMBER_STATUS_OPTIONS: StatusOption[] = [
+  { id: 'member_not_started', name: 'Not started', color: 'gray', category: 'LEAD' },
+  { id: 'member_applied', name: 'Applied', color: 'yellow', category: 'APPLIED' },
+  { id: 'member_interview', name: 'Interview', color: 'blue', category: 'INTERVIEWING' },
+  { id: 'member_accepted', name: 'Accepted', color: 'green', category: 'ACCEPTED' },
+  { id: 'member_not_proceeding', name: 'Not Proceeding', color: 'gray', category: 'WITHDRAWN' },
+];
+
 export const SEEDED_STATUS_OPTIONS: StatusOption[] = [
+  { id: 'not_started', name: 'Not started', color: 'gray', category: 'LEAD' },
   { id: 'accepted', name: 'Accepted', color: 'green', category: 'ACCEPTED' },
   { id: 'accepted_not_proceeding', name: 'Accepted - Not Proceeding', color: 'purple', category: 'OFFER' },
-  { id: 'not_started', name: 'Not started', color: 'gray', category: 'LEAD' },
   { id: 'initial_interview', name: 'Initial Interview', color: 'orange', category: 'INTERVIEWING' },
   { id: 'technical_interview', name: 'Technical Interview', color: 'brown', category: 'INTERVIEWING' },
   { id: 'interview_task', name: 'Interview Task', color: 'purple', category: 'INTERVIEWING' },
@@ -21,28 +29,42 @@ export const SEEDED_STATUS_OPTIONS: StatusOption[] = [
   { id: 'applied_with_moa', name: 'Applied - With MOA', color: 'yellow', category: 'APPLIED' },
   { id: 'applied_no_moa', name: 'Applied - No MOA', color: 'purple', category: 'APPLIED' },
   { id: 'not_accepting_interns', name: 'Not Accepting Interns', color: 'red', category: 'REJECTED' },
-  { id: 'do_not_proceed', name: 'Do not Proceed', color: 'red', category: 'WITHDRAWN' },
+  { id: 'not_proceeding', name: 'Not Proceeding', color: 'red', category: 'WITHDRAWN' },
   { id: 'interview_not_accepted', name: 'Interview - Not Accepted', color: 'gray', category: 'REJECTED' },
   { id: 'not_accepted', name: 'Not Accepted', color: 'gray', category: 'REJECTED' },
   { id: 'repeated', name: 'Repeated', color: 'gray', category: 'REJECTED' },
 ];
 
+export function applicationStatusLabel(status?: ApplicationStatus): string {
+  const labels: Record<ApplicationStatus, string> = {
+    LEAD: 'Not started', APPLIED: 'Applied', SCREENING: 'Screening',
+    INTERVIEWING: 'Interview', OFFER: 'Offer received', ACCEPTED: 'Accepted',
+    REJECTED: 'Not Accepted', WITHDRAWN: 'Not Proceeding',
+  };
+  return status ? labels[status] || 'Not started' : 'Not started';
+}
+
+export function canonicalStatusName(statusName: string): string {
+  return statusName.trim().toLowerCase() === 'do not proceed' ? 'Not Proceeding' : statusName.trim();
+}
+
 export function getStatusCategory(statusName: string): ApplicationStatus {
-  const lower = statusName.toLowerCase().trim();
+  const lower = canonicalStatusName(statusName).toLowerCase();
 
   // Exact matches
-  const match = SEEDED_STATUS_OPTIONS.find((s) => s.name.toLowerCase() === lower);
+  const match = [...MEMBER_STATUS_OPTIONS, ...SEEDED_STATUS_OPTIONS].find((s) => s.name.toLowerCase() === lower);
   if (match) return match.category;
 
   // Heuristic categorization for custom user statuses
   if (lower.includes('accept') && !lower.includes('not accept')) return 'ACCEPTED';
   if (lower.includes('offer')) return 'OFFER';
+  if (lower.includes('screen') && !lower.includes('not accept') && !lower.includes('reject')) return 'SCREENING';
   if (lower.includes('interview') && !lower.includes('not accept')) return 'INTERVIEWING';
-  if (lower.includes('task') || lower.includes('exam') || lower.includes('screen') || lower.includes('test')) return 'INTERVIEWING';
+  if (lower.includes('task') || lower.includes('exam') || lower.includes('test')) return 'INTERVIEWING';
   if (lower.includes('applied') || lower.includes('submitted')) return 'APPLIED';
   if (lower.includes('lead') || lower.includes('inquiry') || lower.includes('not started') || lower.includes('wishlist')) return 'LEAD';
   if (lower.includes('not accepted') || lower.includes('reject') || lower.includes('repeated')) return 'REJECTED';
-  if (lower.includes('withdraw') || lower.includes('do not proceed') || lower.includes('drop')) return 'WITHDRAWN';
+  if (lower.includes('withdraw') || lower.includes('not proceeding') || lower.includes('drop')) return 'WITHDRAWN';
 
   return 'APPLIED';
 }
@@ -148,7 +170,7 @@ export function getStatusStyle(statusName: string): StatusStyle {
     };
   }
 
-  if (lower === 'not accepting interns' || lower === 'do not proceed') {
+  if (lower === 'not accepting interns' || lower === 'not proceeding' || lower === 'do not proceed') {
     return {
       bg: 'bg-rose-50',
       text: 'text-rose-800',

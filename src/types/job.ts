@@ -1,3 +1,6 @@
+export type RoleFit = 'STRONG' | 'POSSIBLE' | 'WEAK';
+export interface RoleFitAnalysis { preference_alignment?: 'ALIGNED' | 'MIXED' | 'MISALIGNED' | 'UNKNOWN'; preference_notes?: string; fit: RoleFit; explanation: string; strengths: string[]; gaps: string[]; analyzed_at: string; }
+
 export type ApplicationStatus =
   | 'LEAD'
   | 'APPLIED'
@@ -13,6 +16,7 @@ export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'DREAM';
 export type JobType = 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERNSHIP';
 
 export type WorkModel = 'REMOTE' | 'HYBRID' | 'ON_SITE';
+export type OfferPayPeriod = 'MONTHLY' | 'ANNUAL' | 'HOURLY';
 
 export type SyncStatus = 'SYNCED' | 'PENDING' | 'ERROR';
 
@@ -22,6 +26,7 @@ export interface Company {
   logo_url?: string;
   website?: string;
   industry?: string;
+  created_by?: string;
   created_at: string;
   updated_at: string;
 }
@@ -31,7 +36,14 @@ export interface JobApplication {
   company_id: string;
   company_name: string;
   company_logo?: string;
+  stage_history?: { status: ApplicationStatus; notion_status?: string; at: string }[];
+  analytics_stage?: import('@/lib/analytics-stages').AnalyticsStage | null;
+  not_proceeding?: boolean;
   role_title: string;
+  job_description?: string;
+  role_fit?: RoleFit | null;
+  role_fit_source?: 'manual' | 'ai' | null;
+  role_fit_analysis?: RoleFitAnalysis | null;
   status: ApplicationStatus;
   notion_status?: string;
   service?: string;
@@ -43,6 +55,9 @@ export interface JobApplication {
   salary_min?: number;
   salary_max?: number;
   salary_currency: string;
+  offer_amount?: number | null;
+  offer_currency?: string | null;
+  offer_pay_period?: OfferPayPeriod | null;
   job_url?: string;
   source?: 'LINKEDIN' | 'JOBSTREET' | 'INDEED' | 'GOOGLE' | 'DIRECT' | 'OTHER';
   owner?: string;

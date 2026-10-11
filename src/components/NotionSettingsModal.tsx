@@ -1,4 +1,5 @@
 'use client';
+import CloseButton from './CloseButton';
 
 import React, { useState, useEffect } from 'react';
 import { X, RefreshCw, CheckCircle2, AlertCircle, ExternalLink, Copy, Check, Sparkles } from 'lucide-react';
@@ -82,12 +83,7 @@ export default function NotionSettingsModal({
               <p className="text-xs text-[#736A6D]">Sync applications & leads between Vercel & Notion</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <CloseButton onClick={onClose} />
         </div>
 
         <div className="p-6 overflow-y-auto space-y-6 text-sm text-[#4A3E44]">

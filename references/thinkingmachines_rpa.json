@@ -1,0 +1,20 @@
+{
+  "target_url": "https://thinkingmachines.freshteam.com/jobs/qHDogHkvICQ_/ph-genai-engineer",
+  "portfolio_url": "https://jizellecasia.site",
+  "education_start_month": "09",
+  "education_end_month": "09",
+  "work_summaries": {
+    "Junior Forward-Deployed Engineer": "Built Dockerized enterprise RAG and agentic AI systems across three regions. Translated client needs into workflows that cut manual work by up to 80% and costs by 60%, partnering with the CEO on delivery and technical roadmaps.",
+    "IT Specialist Intern (AI Product & Growth Trainee)": "Built full-stack apps, an AI agent dashboard, and public websites. Managed VPS and Active Directory for 70+ users. Deployed Feishu agent workflows across seven departments and worked with executives on technical roadmaps.",
+    "Core Systems Delivery Intern": "Participated in cross-border SAFe Agile planning and Scrum delivery for enterprise core systems. Observed COBOL reviews for cloud migration, evaluated GitHub Copilot adoption, and analyzed DORA engineering metrics.",
+    "Founder & Digital Product Freelancer": "Built and marketed database-driven Notion templates for international users. Managed product design, branding, and content; grew to 6,500+ followers, 15,000+ downloads, and 140+ paid customers."
+  },
+  "application_questions": {
+    "where_did_you_initially_learn_about_this_opening": "Others",
+    "why_are_you_interested_in_this_role": "I am interested in this role because it connects the work I enjoy most: building AI systems and making them useful in real client environments. At GDS Capital, I developed enterprise RAG and agentic automation workflows, translated business requirements into deployed solutions, and worked directly with executives on delivery. Thinking Machines' focus on client problems, reliable GenAI systems, and the full lifecycle from prototyping to deployment is a strong match for that experience. I would like to contribute my practical engineering background while deepening my skills in LLM evaluation, model optimization, and production MLOps.",
+    "what_do_you_hope_to_get_out_of_this_role": "I hope to grow from hands-on RAG and automation delivery into an engineer who can rigorously evaluate, improve, and operate GenAI systems at scale. I want to learn from experienced engineers and data scientists, strengthen my foundations in model evaluation and fine-tuning, and develop sound deployment and monitoring practices. I also want to work across different client problems so I can become better at choosing appropriate technical approaches and measuring whether an AI solution actually improves the user's workflow.",
+    "what_can_you_uniquely_contribute_to_the_team": "I bring a combination of client-facing engineering, full-stack delivery, and an independent product-builder's mindset. My resume and portfolio cover Dockerized enterprise RAG systems, agent orchestration, and multi-region deployments that accelerated manual workflows by up to 80% and reduced operational costs by 60%. I have also built an enterprise agent control dashboard and a Discord-integrated recommendation platform with AI-assisted drafting. Running Cloudji, a digital product brand with 15,000+ downloads worldwide, has strengthened my ability to understand users, manage scope, and deliver independently. I can help turn business requirements into usable AI applications while communicating clearly with both technical and non-technical stakeholders."
+  },
+  "agreements": { "i_agree_to_tm_privacy_policy": false },
+  "date_convention": "Resume dates specify months rather than exact days. Use the first day of each stated month for Freshteam's calendar inputs; review those dates before submitting."
+}

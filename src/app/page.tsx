@@ -1,5 +1,9 @@
 'use client';
 
+import { ownsApplication } from '@/lib/ownership';
+import { isInternship } from '@/lib/analytics';
+import { DefaultView, DEFAULT_VIEWS } from '@/lib/preferences';
+
 import React, { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
@@ -11,11 +15,13 @@ import {
   UserAccount,
 } from '@/types/job';
 import Header from '@/components/Header';
+import PreferencesModal from '@/components/PreferencesModal';
 import SSOLandingView from '@/components/SSOLandingView';
 import ApplicationTable from '@/components/ApplicationTable';
 import ApplicationBoard from '@/components/ApplicationBoard';
 import CompaniesView from '@/components/CompaniesView';
 import AnalyticsView from '@/components/AnalyticsView';
+import GuideView from '@/components/GuideView';
 import JobLeadsView from '@/components/JobLeadsView';
 import ApplicationDetailModal from '@/components/ApplicationDetailModal';
 import ApplicationModal from '@/components/ApplicationModal';
@@ -32,6 +38,7 @@ import {
   Compass,
   BarChart3,
   Sparkles,
+  BookOpen,
 } from 'lucide-react';
 
 export default function JobHuntDashboard() {
@@ -41,7 +48,7 @@ export default function JobHuntDashboard() {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
 
-  const [activeView, setActiveView] = useState<'table' | 'board' | 'companies' | 'leads' | 'analytics' | 'resume'>('table');
+  const [activeView, setActiveView] = useState<'table' | 'board' | 'companies' | 'leads' | 'analytics' | 'resume' | 'guide'>('table');
   const [resumeTargetAppId, setResumeTargetAppId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -49,13 +56,31 @@ export default function JobHuntDashboard() {
 
   // Filter and Search States
   const [searchQuery, setSearchQuery] = useState('');
-  const [ownerFilter, setOwnerFilter] = useState<string>('ALL');
+  const [jobTypeFilter, setJobTypeFilter] = useState('ALL');
+  const [defaultView, setDefaultView] = useState<DefaultView>('ALL');
+  const [roleFitFilter, setRoleFitFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [notionStatusFilter, setNotionStatusFilter] = useState<string>('ALL');
   const [serviceFilter, setServiceFilter] = useState<string>('ALL');
   const [positionFilter, setPositionFilter] = useState<string>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
   const [sortBy, setSortBy] = useState<'updated' | 'date_applied' | 'priority' | 'company'>('updated');
+
+  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
+  const [preferenceVersion, setPreferenceVersion] = useState(0);
+
+  useEffect(() => {
+    setDefaultView('ALL'); setJobTypeFilter('ALL');
+    if (authStatus !== 'authenticated' || !currentUser?.id) return;
+    const controller = new AbortController();
+    fetch('/api/preferences', { signal: controller.signal }).then(response => response.json()).then(data => {
+      if (!data.success || controller.signal.aborted) return;
+      const saved = data.data.default_view;
+      const view: DefaultView = DEFAULT_VIEWS.some(option => option.value === saved) ? saved : 'ALL';
+      setDefaultView(view); setJobTypeFilter(view);
+    }).catch(error => { if (error.name !== 'AbortError') console.error('Could not load default view.'); });
+    return () => controller.abort();
+  }, [authStatus, currentUser?.id]);
 
   // Modals
   const [selectedApp, setSelectedApp] = useState<JobApplication | null>(null);
@@ -72,9 +97,19 @@ export default function JobHuntDashboard() {
 
   const fetchData = async () => {
     try {
+      const sessionEmail = session?.user?.email?.toLowerCase().trim();
+      const sessionRole = (session?.user as any)?.role;
+      const isAdmin =
+        sessionRole === 'admin' ||
+        sessionEmail === 'jizellecasia@gmail.com' ||
+        sessionEmail === 'jizelle.casia@gmail.com';
+      const compsQuery = sessionEmail
+        ? `?user=${encodeURIComponent(sessionEmail)}&role=${isAdmin ? 'admin' : 'member'}`
+        : '';
+
       const [appsRes, compsRes, notionRes, usersRes] = await Promise.all([
         fetch('/api/applications'),
-        fetch('/api/companies'),
+        fetch(`/api/companies${compsQuery}`),
         fetch('/api/notion/sync'),
         fetch('/api/users'),
       ]);
@@ -119,9 +154,6 @@ export default function JobHuntDashboard() {
           : null;
         if (matched) {
           setCurrentUser(matched);
-          if (matched.role === 'member') {
-            setOwnerFilter(matched.id);
-          }
         } else if (session?.user) {
           const isMemberRole = !isAdminUser;
           const userObj: UserAccount = {
@@ -135,9 +167,6 @@ export default function JobHuntDashboard() {
             updated_at: new Date().toISOString(),
           };
           setCurrentUser(userObj);
-          if (isMemberRole) {
-            setOwnerFilter(userObj.id);
-          }
         }
       }
     } catch (err) {
@@ -158,6 +187,9 @@ export default function JobHuntDashboard() {
     try {
       const res = await fetch('/api/notion/sync', { method: 'POST' });
       const syncResult = await res.json();
+      if (!res.ok || !syncResult.success) {
+        alert(syncResult.message || syncResult.error || 'Notion sync failed. Please retry.');
+      }
       if (syncResult.success) {
         if (syncResult.data) setApplications(syncResult.data);
         if (syncResult.companies) setCompanies(syncResult.companies);
@@ -178,6 +210,8 @@ export default function JobHuntDashboard() {
         body: JSON.stringify(data),
       });
       const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.error || 'Failed to save application');
+      if (result.sync_error) alert(`Application saved. Notion sync failed: ${result.sync_error}`);
       if (result.success) {
         setApplications((prev) =>
           prev.map((a) => (a.id === editingApp.id ? result.data : a))
@@ -193,19 +227,24 @@ export default function JobHuntDashboard() {
         body: JSON.stringify(data),
       });
       const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.error || 'Failed to save application');
+      if (result.sync_error) alert(`Application saved. Notion sync failed: ${result.sync_error}`);
       if (result.success) {
         setApplications((prev) => [result.data, ...prev]);
       }
     }
 
-    fetch('/api/companies')
-      .then((r) => r.json())
-      .then((d) => d.success && setCompanies(d.data));
+    try {
+      const refreshed = await fetch('/api/companies');
+      const companyResult = await refreshed.json();
+      if (refreshed.ok && companyResult.success) setCompanies(companyResult.data);
+    } catch (error) { console.warn('Company directory refresh failed:', error); }
   };
 
   const handleDeleteApplication = async (id: string) => {
     const res = await fetch(`/api/applications/${id}`, { method: 'DELETE' });
     const result = await res.json();
+    if (!res.ok || !result.success) throw new Error(result.error || 'Could not delete application.');
     if (result.success) {
       setApplications((prev) => prev.filter((a) => a.id !== id));
       if (selectedApp?.id === id) {
@@ -232,7 +271,7 @@ export default function JobHuntDashboard() {
       )
     );
     try {
-      await fetch(`/api/applications/${id}`, {
+      const response = await fetch(`/api/applications/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -240,22 +279,31 @@ export default function JobHuntDashboard() {
           notion_status: notionStatusName,
         }),
       });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to update status');
+      setApplications((prev) => prev.map((app) => app.id === id ? result.data : app));
+      if (result.sync_error) alert(`Application saved. Notion sync failed: ${result.sync_error}`);
     } catch (e) {
       console.error('Failed to update status:', e);
       fetchData();
+      throw e;
     }
   };
 
   const handleSaveCompany = async (data: Partial<Company>) => {
+    const sessionEmail = session?.user?.email?.toLowerCase().trim();
+    const payload = {
+      ...data,
+      created_by: data.created_by || sessionEmail || currentUser?.id,
+    };
     const res = await fetch('/api/companies', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     const result = await res.json();
-    if (result.success) {
-      await fetchData();
-    }
+    if (!result.success) throw new Error(result.error || 'Could not save company.');
+    await fetchData();
   };
 
   const handleDeleteCompany = async (id: string) => {
@@ -266,62 +314,39 @@ export default function JobHuntDashboard() {
     }
   };
 
+  const personalApplications = useMemo(() => currentUser && currentUser.email.toLowerCase().trim() === session?.user?.email?.toLowerCase().trim() ? applications.filter(app => ownsApplication(app, currentUser)) : [], [applications, currentUser, session?.user?.email]);
+
   // Extract unique Notion categories for quick smart filtering
   const uniqueNotionStatuses = useMemo(() => {
     const set = new Set<string>();
-    applications.forEach((a) => {
+    personalApplications.forEach((a) => {
       if (a.notion_status) set.add(a.notion_status);
     });
     return Array.from(set).sort();
-  }, [applications]);
+  }, [personalApplications]);
 
   const uniqueServices = useMemo(() => {
     const set = new Set<string>();
-    applications.forEach((a) => {
+    personalApplications.forEach((a) => {
       if (a.service) set.add(a.service);
     });
     return Array.from(set).sort();
-  }, [applications]);
+  }, [personalApplications]);
 
   const uniquePositions = useMemo(() => {
     const set = new Set<string>();
-    applications.forEach((a) => {
+    personalApplications.forEach((a) => {
       if (a.role_title) set.add(a.role_title);
     });
     return Array.from(set).sort();
-  }, [applications]);
+  }, [personalApplications]);
 
   const filteredApplications = useMemo(() => {
-    return applications
+    return personalApplications
       .filter((app) => {
-        // STRICT RBAC PIPELINE ISOLATION:
-        // Members can ONLY see their own applications!
-        const isMember = currentUser?.role === 'member';
-        if (isMember) {
-          const appOwner = (app.owner || '').trim().toLowerCase();
-          const memberId = (currentUser?.id || '').toLowerCase();
-          const memberEmail = (currentUser?.email || '').toLowerCase();
-          const memberName = (currentUser?.name || '').toLowerCase();
-
-          const isOwnerMatch =
-            (memberId && appOwner === memberId) ||
-            (memberEmail && appOwner === memberEmail) ||
-            (memberName && appOwner === memberName);
-
-          if (!isOwnerMatch) return false;
-        } else if (ownerFilter !== 'ALL') {
-          const appOwner = (app.owner || '').trim().toLowerCase();
-          const targetFilter = ownerFilter.toLowerCase();
-          if (appOwner !== targetFilter) {
-            const matchedUser = users.find((u) => u.id === ownerFilter);
-            const isMatch =
-              matchedUser &&
-              (appOwner === matchedUser.name.toLowerCase() ||
-                appOwner === matchedUser.email.toLowerCase() ||
-                appOwner.includes(matchedUser.name.toLowerCase()));
-            if (!isMatch) return false;
-          }
-        }
+        if (jobTypeFilter === 'INTERNSHIP' && !isInternship(app)) return false;
+        if (jobTypeFilter === 'OTHER' && isInternship(app)) return false;
+        if (roleFitFilter !== 'ALL' && (app.role_fit || 'UNASSESSED') !== roleFitFilter) return false;
 
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
@@ -394,7 +419,9 @@ export default function JobHuntDashboard() {
   }, [
     applications,
     searchQuery,
-    ownerFilter,
+    jobTypeFilter,
+    roleFitFilter,
+    personalApplications,
     statusFilter,
     notionStatusFilter,
     serviceFilter,
@@ -408,6 +435,31 @@ export default function JobHuntDashboard() {
   const leads = useMemo(() => {
     return filteredApplications.filter((app) => app.status === 'LEAD');
   }, [filteredApplications]);
+
+  // STRICT COMPANY ISOLATION:
+  // 1. Admin sees all companies in her Notion workspace.
+  // 2. Members NEVER see Admin's Notion companies! Members only see companies they created or use in their applications.
+  const filteredCompanies = useMemo(() => {
+    const sessionEmail = session?.user?.email?.toLowerCase().trim();
+    const currentEmail = currentUser?.email?.toLowerCase().trim();
+    const currentId = currentUser?.id?.toLowerCase().trim();
+    // Member Isolation:
+    return companies.filter((c: any) => {
+      const creator = (c.created_by || '').toLowerCase().trim();
+      const isCreatorMatch =
+        (sessionEmail && creator === sessionEmail) ||
+        (currentEmail && creator === currentEmail) ||
+        (currentId && creator === currentId);
+
+      const isUsedInMemberApp = personalApplications.some(
+        (app) =>
+          app.company_id === c.id ||
+          (app.company_name && c.name && app.company_name.toLowerCase().trim() === c.name.toLowerCase().trim())
+      );
+
+      return isCreatorMatch || isUsedInMemberApp || (currentUser?.id === 'user_ji' && !c.created_by);
+    });
+  }, [companies, session, currentUser, personalApplications]);
 
   if (authStatus === 'loading') {
     return (
@@ -433,7 +485,8 @@ export default function JobHuntDashboard() {
   return (
     <div className="min-h-screen bg-[#FAF7F9] text-[#4A3E44] flex flex-col">
       <Header
-        applications={applications}
+        applications={personalApplications}
+        onOpenPreferences={() => setIsPreferencesOpen(true)}
         onNewApp={() => {
           setEditingApp(null);
           setIsAppModalOpen(true);
@@ -444,11 +497,6 @@ export default function JobHuntDashboard() {
         notionStatus={notionStatus}
         users={users}
         currentUser={currentUser}
-        onSelectUser={(u) => {
-          setCurrentUser(u);
-          // When switching user, also auto-filter pipeline if desired
-          setOwnerFilter(u.id);
-        }}
         onOpenUserManagement={(tab = 'accounts') => {
           setUserManagementTab(tab);
           setIsUserManagementOpen(true);
@@ -465,11 +513,11 @@ export default function JobHuntDashboard() {
                 onClick={() => setActiveView('table')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'table'
-                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
                     : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
                 }`}
               >
-                <TableIcon className="w-4 h-4" />
+                <TableIcon className="w-4 h-4 text-[#FF7AB3]" />
                 <span>Table View</span>
               </button>
 
@@ -477,11 +525,11 @@ export default function JobHuntDashboard() {
                 onClick={() => setActiveView('board')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'board'
-                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
                     : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
                 }`}
               >
-                <Columns className="w-4 h-4" />
+                <Columns className="w-4 h-4 text-[#FF7AB3]" />
                 <span>Board View</span>
               </button>
 
@@ -489,36 +537,36 @@ export default function JobHuntDashboard() {
                 onClick={() => setActiveView('companies')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'companies'
-                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
                     : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
                 }`}
               >
-                <Building2 className="w-4 h-4" />
-                <span>Companies ({companies.length})</span>
+                <Building2 className="w-4 h-4 text-[#FF7AB3]" />
+                <span>Companies ({filteredCompanies.length})</span>
               </button>
 
               <button
                 onClick={() => setActiveView('leads')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'leads'
-                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
                     : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
                 }`}
               >
-                <Compass className="w-4 h-4 text-emerald-500" />
-                <span>🎯 Leads ({leads.length})</span>
+                <Compass className="w-4 h-4 text-[#FF7AB3]" />
+                <span>Leads ({leads.length})</span>
               </button>
 
               <button
                 onClick={() => setActiveView('analytics')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'analytics'
-                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
                     : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
                 }`}
               >
-                <BarChart3 className="w-4 h-4" />
-                <span>📊 Analytics</span>
+                <BarChart3 className="w-4 h-4 text-[#FF7AB3]" />
+                <span>Analytics</span>
               </button>
 
               <button
@@ -528,17 +576,18 @@ export default function JobHuntDashboard() {
                 }}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'resume'
-                    ? 'bg-[#FF7AB3] text-white shadow-xs'
+                    ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
                     : 'text-[#736A6D] hover:bg-[#FAF7F9] hover:text-[#4A3E44]'
                 }`}
               >
                 <Sparkles className="w-4 h-4 text-[#FF7AB3]" />
-                <span>📄 AI Resume & ATS</span>
+                <span>AI Resume & ATS</span>
               </button>
+              <button onClick={() => setActiveView('guide')} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition sm:text-sm ${activeView === 'guide' ? 'bg-[#FFF0F6] text-[#9D3C5E]' : 'text-[#736A6D] hover:bg-[#FAF7F9]'}`}><BookOpen className="h-4 w-4 text-[#FF7AB3]" /><span>Guide</span></button>
             </div>
 
             <div className="flex items-center gap-2 px-3 py-1.5 bg-[#FAF7F9] rounded-xl text-xs text-[#736A6D] font-medium border border-[#F1DDE9] whitespace-nowrap ml-auto">
-              <span>Pipeline: <strong className="text-[#9D3C5E] font-bold">{applications.length}</strong> jobs</span>
+              <span>Pipeline: <strong className="text-[#9D3C5E] font-bold">{filteredApplications.length}</strong> jobs</span>
             </div>
           </div>
 
@@ -568,25 +617,13 @@ export default function JobHuntDashboard() {
 
               {/* Filter Dropdowns with graceful wrapping */}
               <div className="flex items-center gap-2 flex-wrap">
-                {/* Dynamic Applicant / Account Filter */}
-                {currentUser?.role === 'admin' ? (
-                  <select
-                    value={ownerFilter}
-                    onChange={(e) => setOwnerFilter(e.target.value)}
-                    className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer"
-                  >
-                    <option value="ALL">👥 All Pipelines</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.avatar?.startsWith('http') ? (u.role === 'admin' ? '🌸' : '👤') : (u.avatar || '👤')} {u.name} ({u.role.toUpperCase()})
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] bg-white flex items-center gap-1.5 whitespace-nowrap">
-                    <span>👤 My Pipeline ({currentUser?.name || 'Member'})</span>
-                  </div>
-                )}
+                <span className="text-xs font-semibold text-[#9D3C5E]">My pipeline</span>
+                <select aria-label="Application type" value={jobTypeFilter} onChange={event => setJobTypeFilter(event.target.value)} className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs bg-white">
+                  <option value="ALL">All job types</option><option value="INTERNSHIP">Internships only</option><option value="OTHER">Exclude internships</option>
+                </select>
+                <select aria-label="Role fit filter" value={roleFitFilter} onChange={event => setRoleFitFilter(event.target.value)} className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs bg-white">
+                  <option value="ALL">All role fits</option><option value="STRONG">Strong fit</option><option value="POSSIBLE">Possible fit</option><option value="WEAK">Weak fit</option><option value="UNASSESSED">Unassessed</option>
+                </select>
 
                 {/* Notion Exact Stage Filter */}
                 {uniqueNotionStatuses.length > 0 && (
@@ -613,7 +650,7 @@ export default function JobHuntDashboard() {
                     className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[150px] truncate"
                     title="Filter by Industry / Service category"
                   >
-                    <option value="ALL">🏷️ All Services</option>
+                    <option value="ALL">All Services</option>
                     {uniqueServices.map((svc) => (
                       <option key={svc} value={svc}>
                         {svc}
@@ -630,7 +667,7 @@ export default function JobHuntDashboard() {
                     className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[140px] truncate"
                     title="Filter by Position / Role"
                   >
-                    <option value="ALL">💼 All Roles</option>
+                    <option value="ALL">All Roles</option>
                     {uniquePositions.map((pos) => (
                       <option key={pos} value={pos}>
                         {pos}
@@ -647,8 +684,8 @@ export default function JobHuntDashboard() {
                 >
                   <option value="ALL">All Priorities</option>
                   <option value="DREAM">⭐ Dream</option>
-                  <option value="HIGH">🔥 High</option>
-                  <option value="MEDIUM">⚡ Medium</option>
+                  <option value="HIGH">🌸 High</option>
+                  <option value="MEDIUM">💮 Medium</option>
                   <option value="LOW">☕ Low</option>
                 </select>
 
@@ -668,7 +705,7 @@ export default function JobHuntDashboard() {
                 </div>
 
                 {(searchQuery ||
-                  ownerFilter !== 'ALL' ||
+                  jobTypeFilter !== 'ALL' || roleFitFilter !== 'ALL' ||
                   statusFilter !== 'ALL' ||
                   notionStatusFilter !== 'ALL' ||
                   serviceFilter !== 'ALL' ||
@@ -677,7 +714,7 @@ export default function JobHuntDashboard() {
                   <button
                     onClick={() => {
                       setSearchQuery('');
-                      setOwnerFilter('ALL');
+                      setJobTypeFilter('ALL'); setRoleFitFilter('ALL');
                       setStatusFilter('ALL');
                       setNotionStatusFilter('ALL');
                       setServiceFilter('ALL');
@@ -714,20 +751,21 @@ export default function JobHuntDashboard() {
           />
         ) : activeView === 'board' ? (
           <ApplicationBoard
+            isMember={currentUser?.role === 'member'}
             applications={filteredApplications}
             onSelectApp={(app) => {
               setSelectedApp(app);
               setIsDetailOpen(true);
             }}
-            onNewAppWithStatus={(status) => {
-              setEditingApp({ status } as any);
+            onNewAppWithStatus={(status, notionStatusName) => {
+              setEditingApp({ status, notion_status: notionStatusName } as JobApplication);
               setIsAppModalOpen(true);
             }}
             onUpdateStatus={handleUpdateStatus}
           />
         ) : activeView === 'companies' ? (
           <CompaniesView
-            companies={companies}
+            companies={filteredCompanies}
             onAddCompany={() => {
               setEditingCompany(null);
               setIsCompanyModalOpen(true);
@@ -740,8 +778,9 @@ export default function JobHuntDashboard() {
           />
         ) : activeView === 'leads' ? (
           <JobLeadsView
+            companies={companies}
             onAddToTracker={handleSaveApplication}
-            existingApplications={filteredApplications}
+            existingApplications={personalApplications}
             currentUser={currentUser}
             onUpdateStatus={handleUpdateStatus}
             onDeleteApplication={handleDeleteApplication}
@@ -755,14 +794,19 @@ export default function JobHuntDashboard() {
             }}
           />
         ) : activeView === 'analytics' ? (
-          <AnalyticsView applications={filteredApplications} companies={companies} />
-        ) : activeView === 'resume' ? (
-          <ResumeAnalyzerView
-            applications={filteredApplications}
+          <AnalyticsView applications={personalApplications} companies={filteredCompanies} accountName={currentUser?.name || 'My account'} preferenceVersion={preferenceVersion} defaultScope={defaultView} onEditApp={app => { setEditingApp(app); setIsAppModalOpen(true); }} />
+        ) : activeView === 'guide' ? <GuideView onOpenPreferences={() => setIsPreferencesOpen(true)} onNavigate={setActiveView} /> : activeView === 'resume' ? (
+          <ResumeAnalyzerView preferenceVersion={preferenceVersion} onOpenPreferences={() => setIsPreferencesOpen(true)}
+            applications={personalApplications}
             initialSelectedAppId={resumeTargetAppId}
           />
         ) : null}
       </main>
+
+      <PreferencesModal isOpen={isPreferencesOpen} isAdmin={currentUser?.role === 'admin'} onClose={() => setIsPreferencesOpen(false)} onSaved={preferences => {
+        setPreferenceVersion(version => version + 1);
+        if (preferences) { const view = preferences.default_view || 'ALL'; setDefaultView(view); setJobTypeFilter(view); }
+      }} />
 
       {/* Application Details Modal */}
       <ApplicationDetailModal
@@ -787,13 +831,14 @@ export default function JobHuntDashboard() {
 
       {/* Add / Edit Application Modal */}
       <ApplicationModal
+        isMember={currentUser?.role === 'member'}
         isOpen={isAppModalOpen}
         onClose={() => {
           setIsAppModalOpen(false);
           setEditingApp(null);
         }}
         onSave={handleSaveApplication}
-        companies={companies}
+        companies={filteredCompanies}
         initialData={editingApp}
         users={users}
         currentUserId={currentUser?.id}

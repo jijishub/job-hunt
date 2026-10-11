@@ -1,6 +1,5 @@
 import React from 'react';
 import { Priority } from '@/types/job';
-import { Sparkles, Star } from 'lucide-react';
 
 interface PriorityBadgeProps {
   priority: Priority;
@@ -16,28 +15,28 @@ export const PRIORITY_CONFIG: Record<
     bg: 'bg-rose-50',
     text: 'text-[#9D3C5E]',
     border: 'border-[#F1DDE9]',
-    icon: <Sparkles className="w-3 h-3 text-[#FF7AB3]" />,
+    icon: <span aria-hidden="true">⭐</span>,
   },
   HIGH: {
     label: 'High',
     bg: 'bg-amber-50',
     text: 'text-amber-800',
     border: 'border-amber-200',
-    icon: <Star className="w-3 h-3 fill-amber-400 text-amber-400" />,
+    icon: <span aria-hidden="true">🌸</span>,
   },
   MEDIUM: {
     label: 'Medium',
     bg: 'bg-sky-50',
     text: 'text-sky-700',
     border: 'border-sky-200',
-    icon: null,
+    icon: <span aria-hidden="true">💮</span>,
   },
   LOW: {
     label: 'Low',
     bg: 'bg-stone-50',
     text: 'text-stone-600',
     border: 'border-stone-200',
-    icon: null,
+    icon: <span aria-hidden="true">☕</span>,
   },
 };
 
