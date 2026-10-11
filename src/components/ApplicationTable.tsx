@@ -90,7 +90,7 @@ export default function ApplicationTable({
                     {app.not_proceeding && <span className="block text-[10px] text-rose-700 mt-1">Not Proceeding</span>}
                     {app.notes && (
                       <span className="text-[10px] text-[#736A6D] block truncate max-w-[220px] mt-0.5" title={app.notes}>
-                        📌 {app.notes}
+                        {app.notes}
                       </span>
                     )}
                     {app.salary_min || app.salary_max ? (
@@ -127,7 +127,7 @@ export default function ApplicationTable({
                     {app.service && (
                       <div className="mt-1">
                         <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#FFF0F6] text-[#9D3C5E] border border-[#F1DDE9] truncate max-w-[180px]" title={app.service}>
-                          🏷️ {app.service}
+                          {app.service}
                         </span>
                       </div>
                     )}

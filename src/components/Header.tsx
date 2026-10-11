@@ -221,7 +221,7 @@ export default function Header({
                               : 'bg-stone-50 text-stone-600 border-stone-200'
                           }`}
                         >
-                          {isAdmin ? '👑 ADMIN' : '👤 MEMBER'}
+                          {isAdmin ? 'ADMIN' : 'MEMBER'}
                         </span>
                       </div>
                       <p className="text-[11px] text-[#736A6D] truncate mt-0.5">{activeEmail}</p>

@@ -83,9 +83,9 @@ const STATUS_OPTIONS: { value: ApplicationStatus; label: string }[] = [
 
 const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
   { value: 'DREAM', label: '⭐ Dream Job' },
-  { value: 'HIGH', label: 'High' },
-  { value: 'MEDIUM', label: 'Medium' },
-  { value: 'LOW', label: 'Low' },
+  { value: 'HIGH', label: '🌸 High' },
+  { value: 'MEDIUM', label: '💮 Medium' },
+  { value: 'LOW', label: '☕ Low' },
 ];
 
 export default function ApplicationModal({
