@@ -1,3 +1,4 @@
+import { getSessionAccount } from '@/lib/session-account';
 import { NextResponse } from 'next/server';
 
 export interface TargetedLead {
@@ -202,7 +203,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = (searchParams.get('q') || '').toLowerCase().trim();
   const sourceFilter = searchParams.get('source');
-  const role = searchParams.get('role');
+  const user = await getSessionAccount();
+  if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
+  const role = user.role;
 
   // For members: do NOT seed hardcoded IT leads, as members have diverse non-IT backgrounds
   if (role === 'member') {

@@ -9,6 +9,13 @@ export interface StatusOption {
 }
 
 // Exactly 15 seeded statuses matching Notion database
+export const MEMBER_STATUS_OPTIONS: StatusOption[] = [
+  { id: 'member_applied', name: 'Applied', color: 'yellow', category: 'APPLIED' },
+  { id: 'member_interview', name: 'Interview', color: 'blue', category: 'INTERVIEWING' },
+  { id: 'member_accepted', name: 'Accepted', color: 'green', category: 'ACCEPTED' },
+  { id: 'member_not_proceeding', name: 'Not Proceeding', color: 'gray', category: 'WITHDRAWN' },
+];
+
 export const SEEDED_STATUS_OPTIONS: StatusOption[] = [
   { id: 'accepted', name: 'Accepted', color: 'green', category: 'ACCEPTED' },
   { id: 'accepted_not_proceeding', name: 'Accepted - Not Proceeding', color: 'purple', category: 'OFFER' },
@@ -31,7 +38,7 @@ export function getStatusCategory(statusName: string): ApplicationStatus {
   const lower = statusName.toLowerCase().trim();
 
   // Exact matches
-  const match = SEEDED_STATUS_OPTIONS.find((s) => s.name.toLowerCase() === lower);
+  const match = [...MEMBER_STATUS_OPTIONS, ...SEEDED_STATUS_OPTIONS].find((s) => s.name.toLowerCase() === lower);
   if (match) return match.category;
 
   // Heuristic categorization for custom user statuses

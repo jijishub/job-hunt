@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { JobApplication, ApplicationStatus } from '@/types/job';
 import PriorityBadge from './PriorityBadge';
 import StatusBadge from './StatusBadge';
-import { SEEDED_STATUS_OPTIONS, getStatusCategory, StatusOption } from '@/lib/statuses';
+import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, getStatusCategory, StatusOption } from '@/lib/statuses';
 import {
   Building2,
   MapPin,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 interface ApplicationBoardProps {
+  isMember?: boolean;
   applications: JobApplication[];
   onSelectApp: (app: JobApplication) => void;
   onNewAppWithStatus: (status: ApplicationStatus) => void;
@@ -31,14 +32,16 @@ const COLUMNS: { status: ApplicationStatus; title: string; color: string; badgeD
 ];
 
 export default function ApplicationBoard({
+  isMember = false,
   applications,
   onSelectApp,
   onNewAppWithStatus,
   onUpdateStatus,
 }: ApplicationBoardProps) {
-  const [statusOptions, setStatusOptions] = useState<StatusOption[]>(SEEDED_STATUS_OPTIONS);
+  const [statusOptions, setStatusOptions] = useState<StatusOption[]>(isMember ? MEMBER_STATUS_OPTIONS : SEEDED_STATUS_OPTIONS);
 
   useEffect(() => {
+    setStatusOptions(isMember ? MEMBER_STATUS_OPTIONS : SEEDED_STATUS_OPTIONS);
     fetch('/api/statuses')
       .then((r) => r.json())
       .then((d) => {
@@ -47,10 +50,11 @@ export default function ApplicationBoard({
         }
       })
       .catch(() => {});
-  }, []);
+  }, [isMember]);
+  const columns = isMember ? MEMBER_STATUS_OPTIONS.map(option => ({ status: option.category, title: option.name, color: 'border-[#F1DDE9] bg-pink-50/40', badgeDot: 'bg-[#FF7AB3]' })) : COLUMNS;
   return (
     <div className="flex gap-4 overflow-x-auto pb-6 pt-1 items-start min-h-[600px]">
-      {COLUMNS.map((col) => {
+      {columns.map((col) => {
         const colApps = applications.filter((app) => {
           if (col.status === 'REJECTED') {
             return app.status === 'REJECTED' || app.status === 'WITHDRAWN';

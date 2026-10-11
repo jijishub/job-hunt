@@ -730,6 +730,7 @@ export default function JobHuntDashboard() {
           />
         ) : activeView === 'board' ? (
           <ApplicationBoard
+            isMember={currentUser?.role === 'member'}
             applications={filteredApplications}
             onSelectApp={(app) => {
               setSelectedApp(app);
@@ -756,6 +757,7 @@ export default function JobHuntDashboard() {
           />
         ) : activeView === 'leads' ? (
           <JobLeadsView
+            companies={companies}
             onAddToTracker={handleSaveApplication}
             existingApplications={personalApplications}
             currentUser={currentUser}
@@ -805,6 +807,7 @@ export default function JobHuntDashboard() {
 
       {/* Add / Edit Application Modal */}
       <ApplicationModal
+        isMember={currentUser?.role === 'member'}
         isOpen={isAppModalOpen}
         onClose={() => {
           setIsAppModalOpen(false);

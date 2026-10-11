@@ -1,3 +1,4 @@
+import { getAdminEmail } from './admin-email';
 import type { PersonalPreferences } from './preferences';
 import { Company, JobApplication, UserAccount, UserRole } from '@/types/job';
 import fs from 'fs';
@@ -24,7 +25,7 @@ export const INITIAL_USERS: UserAccount[] = [
   {
     id: 'user_ji',
     name: 'Jizelle Casia',
-    email: (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim(),
+    email: getAdminEmail(),
     role: 'admin',
     industry: 'IT / AI & Forward-Deployed Software',
     avatar: '🌸',
@@ -198,6 +199,8 @@ async function initPostgresSchema(sql: any) {
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS service TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS information TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS job_description TEXT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS analytics_stage TEXT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS not_proceeding BOOLEAN DEFAULT FALSE;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS stage_history JSONB;`;
     await sql`ALTER TABLE applications ALTER COLUMN salary_currency SET DEFAULT 'PHP';`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS role_fit TEXT;`;
@@ -217,8 +220,12 @@ async function initPostgresSchema(sql: any) {
       );
     `;
 
+    await sql`ALTER TABLE custom_statuses ADD COLUMN IF NOT EXISTS owner TEXT;`;
+    await sql`ALTER TABLE custom_statuses DROP CONSTRAINT IF EXISTS custom_statuses_name_key;`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS custom_statuses_owner_name_key ON custom_statuses ((COALESCE(owner, '')), name);`;
+
     // Always seed the Master Admin user (Jizelle)
-    const adminEmail = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
+    const adminEmail = getAdminEmail();
     await sql`
       INSERT INTO users (id, name, email, role, industry, avatar, notion_enabled, created_at, updated_at)
       VALUES (
@@ -241,7 +248,7 @@ async function initPostgresSchema(sql: any) {
     await sql`
       UPDATE users
       SET role = 'member', notion_enabled = FALSE
-      WHERE LOWER(email) NOT IN (${adminEmail}, 'jizellecasia@gmail.com', 'jizelle.casia@gmail.com');
+      WHERE LOWER(email) NOT IN (${adminEmail}, 'jizelle.casia@gmail.com');
     `;
 
     // Purge legacy demo seed account (Denise) from DB so real user edits persist permanently
@@ -507,6 +514,8 @@ export async function createApplication(
 
   const newApp: JobApplication = {
     ...data,
+    information: data.information ?? data.job_description,
+    job_description: data.information ?? data.job_description,
     stage_history: data.stage_history || [{ status: data.status, notion_status: data.notion_status, at: now }],
     id,
     created_at: now,
@@ -546,13 +555,13 @@ export async function createApplication(
     await initPostgresSchema(sql);
     const inserted = await sql`
       INSERT INTO applications (
-        id, company_id, company_name, company_logo, role_title, job_description, role_fit, role_fit_source, role_fit_analysis, stage_history, status, notion_status, service, information, priority,
+        id, company_id, company_name, company_logo, role_title, analytics_stage, not_proceeding, job_description, role_fit, role_fit_source, role_fit_analysis, stage_history, status, notion_status, service, information, priority,
         job_type, work_model, location, salary_min, salary_max, salary_currency,
         job_url, source, owner, contact_name, contact_email, date_applied, follow_up_date, notes,
         notion_page_id, last_synced_at, sync_status, created_at, updated_at
       ) VALUES (
         ${newApp.id}, ${newApp.company_id || null}, ${newApp.company_name}, ${newApp.company_logo || null},
-        ${newApp.role_title}, ${newApp.job_description || null}, ${newApp.role_fit || null}, ${newApp.role_fit_source || null}, ${JSON.stringify(newApp.role_fit_analysis || null)}::jsonb, ${JSON.stringify(newApp.stage_history || [])}::jsonb, ${newApp.status}, ${newApp.notion_status || null}, ${newApp.service || null}, ${newApp.information || null},
+        ${newApp.role_title}, ${newApp.analytics_stage || null}, ${newApp.not_proceeding || false}, ${newApp.job_description || null}, ${newApp.role_fit || null}, ${newApp.role_fit_source || null}, ${JSON.stringify(newApp.role_fit_analysis || null)}::jsonb, ${JSON.stringify(newApp.stage_history || [])}::jsonb, ${newApp.status}, ${newApp.notion_status || null}, ${newApp.service || null}, ${newApp.information || null},
         ${newApp.priority}, ${newApp.job_type},
         ${newApp.work_model}, ${newApp.location || null}, ${newApp.salary_min || null},
         ${newApp.salary_max || null}, ${newApp.salary_currency}, ${newApp.job_url || null},
@@ -589,6 +598,7 @@ export async function updateApplication(
   id: string,
   updates: Partial<JobApplication>
 ): Promise<JobApplication | null> {
+  if (Object.hasOwn(updates, 'information') || Object.hasOwn(updates, 'job_description')) { const description=updates.information ?? updates.job_description; updates={...updates,information:description,job_description:description}; }
   const saved = await getApplicationById(id);
   if (!saved) return null;
   if ((updates.status && updates.status !== saved.status) || (updates.notion_status && updates.notion_status !== saved.notion_status)) {
@@ -655,6 +665,8 @@ export async function updateApplication(
         company_name = ${merged.company_name},
         company_logo = ${merged.company_logo || null},
         role_title = ${merged.role_title},
+        analytics_stage = ${merged.analytics_stage || null},
+        not_proceeding = ${merged.not_proceeding || false},
         job_description = ${merged.job_description || null},
         stage_history = ${JSON.stringify(merged.stage_history || [])}::jsonb,
         role_fit = ${merged.role_fit || null},
@@ -752,7 +764,7 @@ export async function getUsers(): Promise<UserAccount[]> {
     if (rows.length > 0) return rows as UserAccount[];
 
     // If database has 0 users, auto-seed from INITIAL_USERS
-    const adminEmail = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
+    const adminEmail = getAdminEmail();
     const defaultAdmin: UserAccount = {
       id: 'user_ji',
       name: 'Jizelle Casia',
@@ -804,10 +816,9 @@ export async function getOrCreateUser(data: {
   industry?: string;
 }): Promise<UserAccount> {
   const lowerEmail = data.email.toLowerCase().trim();
-  const adminConfig = (process.env.ADMIN_EMAIL || 'jizellecasia@gmail.com').toLowerCase().trim();
+  const adminConfig = getAdminEmail();
   const isMasterAdmin =
     lowerEmail === adminConfig ||
-    lowerEmail === 'jizellecasia@gmail.com' ||
     lowerEmail === 'jizelle.casia@gmail.com';
 
   const existing = await getUserByEmail(data.email);
@@ -974,6 +985,7 @@ export async function getCustomStatuses(): Promise<any[]> {
 
 export async function createCustomStatus(data: {
   name: string;
+  owner?: string;
   color?: string;
   category?: string;
 }): Promise<any> {
@@ -986,9 +998,9 @@ export async function createCustomStatus(data: {
   if (sql) {
     await initPostgresSchema(sql);
     const inserted = await sql`
-      INSERT INTO custom_statuses (id, name, color, category, created_at)
-      VALUES (${id}, ${trimmed}, ${color}, ${category}, NOW())
-      ON CONFLICT (name) DO UPDATE SET color = EXCLUDED.color, category = EXCLUDED.category
+      INSERT INTO custom_statuses (id, name, owner, color, category, created_at)
+      VALUES (${id}, ${trimmed}, ${data.owner || null}, ${color}, ${category}, NOW())
+      ON CONFLICT ((COALESCE(owner, '')), name) DO UPDATE SET color = EXCLUDED.color, category = EXCLUDED.category
       RETURNING *;
     `;
     return inserted[0];
@@ -997,9 +1009,9 @@ export async function createCustomStatus(data: {
   const db = readLocalDb();
   if (!db.statuses) db.statuses = [];
   const existingIndex = db.statuses.findIndex(
-    (s: any) => s.name.toLowerCase() === trimmed.toLowerCase()
+    (s: any) => s.name.toLowerCase() === trimmed.toLowerCase() && s.owner === data.owner
   );
-  const statusObj = { id, name: trimmed, color, category, created_at: new Date().toISOString() };
+  const statusObj = { id, name: trimmed, owner: data.owner, color, category, created_at: new Date().toISOString() };
   if (existingIndex >= 0) {
     db.statuses[existingIndex] = { ...db.statuses[existingIndex], ...statusObj };
   } else {

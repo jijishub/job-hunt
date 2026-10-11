@@ -87,9 +87,10 @@ export default function ApplicationTable({
                         </span>
                       )}
                     </div>
-                    {app.information && (
-                      <span className="text-[10px] text-[#736A6D] block truncate max-w-[220px] mt-0.5" title={app.information}>
-                        📌 {app.information}
+                    {app.not_proceeding && <span className="block text-[10px] text-rose-700 mt-1">Not Proceeding</span>}
+                    {app.notes && (
+                      <span className="text-[10px] text-[#736A6D] block truncate max-w-[220px] mt-0.5" title={app.notes}>
+                        📌 {app.notes}
                       </span>
                     )}
                     {app.salary_min || app.salary_max ? (

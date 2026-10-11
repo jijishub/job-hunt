@@ -1,0 +1,59 @@
+{
+  "company": "Appficiency",
+  "jobDetails": {
+    "title": "Junior Solutions Architect",
+    "location": "Makati City, NCR (Remote)",
+    "department": "Sales",
+    "employmentType": "Full-Time",
+    "minimumExperience": "Entry-level",
+    "jobUrl": "https://appficiency.bamboohr.com/careers/29"
+  },
+  "applicationForm": {
+    "personalInformation": {
+      "firstName": "",
+      "lastName": "",
+      "email": "",
+      "phone": "",
+      "address": "",
+      "city": "",
+      "state": "",
+      "zip": "",
+      "country": "United States"
+    },
+    "documents": {
+      "coverLetter": null,
+      "resume": "JizelleCasia_Resume.pdf"
+    },
+    "additionalInformation": {
+      "dateAvailable": "",
+      "desiredPay": "",
+      "websiteBlogPortfolio": "",
+      "linkedInUrl": "",
+      "highestEducationObtained": "",
+      "collegeUniversity": ""
+    },
+    "questionnaire": [
+      {
+        "question": "Are you comfortable working in a remote setup and supporting EST (night shift) hours?",
+        "type": "boolean",
+        "options": ["Yes", "No"]
+      },
+      {
+        "question": "Can you briefly describe your experience with ERP systems or similar business applications (e.g., NetSuite, SAP, Salesforce)?",
+        "type": "text"
+      },
+      {
+        "question": "Tell us about a project where you gathered business requirements and translated them into a technical solution. What was your approach?",
+        "type": "text"
+      },
+      {
+        "question": "What is your level of experience with system integrations, APIs, or data flows between systems?",
+        "type": "text"
+      },
+      {
+        "question": "What interests you about a Solutions Architect role, and how does it align with your career goals?",
+        "type": "text"
+      }
+    ]
+  }
+}

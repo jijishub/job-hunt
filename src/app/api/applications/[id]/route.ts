@@ -1,3 +1,4 @@
+import { ANALYTICS_STAGES } from '@/lib/analytics-stages';
 import { getSessionAccount } from '@/lib/session-account';
 import { ownsApplication } from '@/lib/ownership';
 import { validRoleFit } from '@/lib/role-fit';
@@ -32,6 +33,10 @@ export async function PUT(
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const body = await request.json();
+    if (body.analytics_stage != null && !ANALYTICS_STAGES.includes(body.analytics_stage)) return NextResponse.json({ success: false, error: 'Invalid analytics phase.' }, { status: 400 });
+    if (body.not_proceeding != null && typeof body.not_proceeding !== 'boolean') return NextResponse.json({ success: false, error: 'Invalid Not Proceeding flag.' }, { status: 400 });
+    if (Object.hasOwn(body, 'information') || Object.hasOwn(body, 'job_description')) { body.information = body.information ?? body.job_description; body.job_description = body.information; }
+
     const existingApp = await getApplicationById(id);
     if (!existingApp || !ownsApplication(existingApp, user)) {
       return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });

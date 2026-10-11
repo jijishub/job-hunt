@@ -1,6 +1,8 @@
 'use client';
 
-import CandidateProfileEditor from './CandidateProfileEditor';
+import { CURRENCIES } from '@/lib/currencies';
+import { ANALYTICS_STAGES, STAGE_LABELS, AnalyticsStage } from '@/lib/analytics-stages';
+import CloseButton from './CloseButton';
 import { ROLE_FITS } from '@/lib/role-fit';
 import { parseJobImport, JOB_JSON_PROMPT } from '@/lib/job-import';
 import type { RoleFit, RoleFitAnalysis } from '@/types/job';
@@ -20,7 +22,7 @@ import {
   Plus,
   Upload,
 } from 'lucide-react';
-import { SEEDED_STATUS_OPTIONS, getStatusCategory, StatusOption, getStatusStyle } from '@/lib/statuses';
+import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, getStatusCategory, StatusOption, getStatusStyle } from '@/lib/statuses';
 
 interface ApplicationModalProps {
   isOpen: boolean;
@@ -30,6 +32,7 @@ interface ApplicationModalProps {
   initialData?: JobApplication | null;
   users?: UserAccount[];
   currentUserId?: string;
+  isMember?: boolean;
 }
 
 function compressImage(file: File, callback: (base64: string) => void) {
@@ -93,6 +96,7 @@ export default function ApplicationModal({
   initialData,
   users,
   currentUserId,
+  isMember = false,
 }: ApplicationModalProps) {
   const [roleTitle, setRoleTitle] = useState('');
   const [jobDescription, setJobDescription] = useState('');
@@ -112,7 +116,8 @@ export default function ApplicationModal({
   const [location, setLocation] = useState('');
   const [service, setService] = useState('');
   const [notionStatus, setNotionStatus] = useState('Not started');
-  const [information, setInformation] = useState('');
+  const [analyticsStage,setAnalyticsStage] = useState<AnalyticsStage | ''>('');
+  const [notProceeding,setNotProceeding] = useState(false);
   const [salaryMin, setSalaryMin] = useState<string>('');
   const [salaryMax, setSalaryMax] = useState<string>('');
   const [salaryCurrency, setSalaryCurrency] = useState('PHP');
@@ -124,7 +129,7 @@ export default function ApplicationModal({
   const [owner, setOwner] = useState<string>(currentUserId || users?.[0]?.id || 'admin');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [statusOptions, setStatusOptions] = useState<StatusOption[]>(SEEDED_STATUS_OPTIONS);
+  const [statusOptions, setStatusOptions] = useState<StatusOption[]>(isMember ? MEMBER_STATUS_OPTIONS : SEEDED_STATUS_OPTIONS);
   const [isAddingCustomStatus, setIsAddingCustomStatus] = useState(false);
   const [newStatusInput, setNewStatusInput] = useState('');
   const [isSavingStatus, setIsSavingStatus] = useState(false);
@@ -133,6 +138,7 @@ export default function ApplicationModal({
 
   useEffect(() => {
     if (isOpen) {
+      setStatusOptions(isMember ? MEMBER_STATUS_OPTIONS : SEEDED_STATUS_OPTIONS);
       fetch('/api/statuses')
         .then((r) => r.json())
         .then((d) => {
@@ -142,10 +148,11 @@ export default function ApplicationModal({
         })
         .catch(() => {});
     }
-  }, [isOpen]);
+  }, [isOpen, isMember]);
 
   useEffect(() => {
-    setJobDescription(initialData?.job_description || '');
+    setJobDescription(initialData?.information || initialData?.job_description || '');
+    setAnalyticsStage(initialData?.analytics_stage || ''); setNotProceeding(initialData?.not_proceeding || false);
     setRoleFit(initialData?.role_fit || null);
     setFitAnalysis(initialData?.role_fit_analysis || null);
     setAutoFit(initialData?.role_fit_source !== 'manual');
@@ -161,7 +168,6 @@ export default function ApplicationModal({
       setNotionStatus(resolvedNotionStatus);
       setStatus(initialData.status || getStatusCategory(resolvedNotionStatus));
       setService(initialData.service || '');
-      setInformation(initialData.information || '');
       setPriority(initialData.priority || 'MEDIUM');
       setJobType(initialData.job_type || 'FULL_TIME');
       setWorkModel(initialData.work_model || 'ON_SITE');
@@ -179,10 +185,9 @@ export default function ApplicationModal({
       setRoleTitle('');
       setCompanyName('');
       setCustomLogoUrl('');
-      setNotionStatus('Not started');
-      setStatus('LEAD');
+      setNotionStatus(isMember ? 'Applied' : 'Not started');
+      setStatus(isMember ? 'APPLIED' : 'LEAD');
       setService('');
-      setInformation('');
       setPriority('MEDIUM');
       setJobType('FULL_TIME');
       setWorkModel('ON_SITE');
@@ -197,7 +202,7 @@ export default function ApplicationModal({
       setNotes('');
       setOwner(currentUserId || users?.[0]?.id || 'admin');
     }
-  }, [initialData, isOpen, currentUserId, users]);
+  }, [initialData, isOpen, currentUserId, users, isMember]);
 
   if (!isOpen) return null;
 
@@ -244,8 +249,8 @@ export default function ApplicationModal({
     setIsSubmitting(true);
     try {
       let assessment = fitAnalysis;
-      if (autoFit && jobDescription.trim().length < 30 && (initialData?.job_description !== jobDescription || initialData?.role_title !== roleTitle)) assessment = null;
-      if (autoFit && jobDescription.trim().length >= 30 && (!assessment || initialData?.job_description !== jobDescription || initialData?.role_title !== roleTitle)) {
+      if (autoFit && jobDescription.trim().length < 30 && ((initialData?.information || initialData?.job_description || '') !== jobDescription || initialData?.role_title !== roleTitle)) assessment = null;
+      if (autoFit && jobDescription.trim().length >= 30 && (!assessment || (initialData?.information || initialData?.job_description || '') !== jobDescription || initialData?.role_title !== roleTitle)) {
         assessment = await analyzeFit();
       }
       await onSave({
@@ -259,7 +264,9 @@ export default function ApplicationModal({
         status,
         service: service.trim() || undefined,
         notion_status: notionStatus.trim() || undefined,
-        information: information.trim() || undefined,
+        information: jobDescription.trim(),
+        analytics_stage: analyticsStage || null,
+        not_proceeding: notProceeding,
         priority,
         job_type: jobType,
         work_model: workModel,
@@ -271,7 +278,7 @@ export default function ApplicationModal({
         contact_name: contactName.trim() || undefined,
         contact_email: contactEmail.trim() || undefined,
         date_applied: dateApplied ? new Date(dateApplied).toISOString() : undefined,
-        notes: notes.trim() || undefined,
+        notes: notes.trim(),
         owner: currentUserId || owner || 'admin',
       });
       onClose();
@@ -297,12 +304,7 @@ export default function ApplicationModal({
               <p className="text-xs text-[#736A6D]">Track opportunities & sync with Notion</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-white/80 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <CloseButton onClick={onClose} />
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 text-sm">
@@ -553,15 +555,16 @@ export default function ApplicationModal({
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
-                Min Salary
+                Monthly salary minimum
               </label>
-              <input
+              <div className="flex items-center gap-2">              <input
                 type="number"
                 placeholder="e.g. 120000"
+                aria-label="Monthly salary minimum"
                 value={salaryMin}
                 onChange={(e) => setSalaryMin(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs text-[#4A3E44] transition"
-              />
+              /><select aria-label="Salary currency" value={salaryCurrency} onChange={e=>setSalaryCurrency(e.target.value)} className="rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs">{CURRENCIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
@@ -641,7 +644,7 @@ export default function ApplicationModal({
 
           <div>
             <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
-              Notes & Interview Prep (Notion Page Content)
+              Personal comments (Post Notes)
             </label>
             <textarea
               rows={3}
@@ -653,7 +656,7 @@ export default function ApplicationModal({
           </div>
 
           <section className="space-y-3 rounded-xl border border-[#F1DDE9] p-3 bg-[#FFF5F8]">
-            <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-xs text-[#9D3C5E]">Job requirements and fit</h3><button type="button" onClick={() => setImportOpen(!importOpen)} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E]">Import job JSON</button></div>
+            <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-xs text-[#9D3C5E]">Job description (Information)</h3><button type="button" onClick={() => setImportOpen(!importOpen)} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E]">Import job JSON</button></div>
             {importOpen && <div className="space-y-2 rounded-xl border border-[#F1DDE9] bg-white p-3">
               <p className="text-xs text-[#736A6D]">Ask Gemini to extract the job posting, then paste its JSON here. This fills your draft for review.</p>
               <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(JOB_JSON_PROMPT); setImportMessage('Gemini prompt copied. Paste it with the job posting in Gemini.'); } catch { setImportMessage(JOB_JSON_PROMPT); } }} className="text-xs font-semibold text-[#9D3C5E]">Copy Gemini extraction prompt</button>
@@ -661,9 +664,12 @@ export default function ApplicationModal({
               <button type="button" onClick={applyJobJson} className="rounded-lg bg-[#9D3C5E] px-3 py-2 text-xs text-white">Fill draft from JSON</button>
               {importMessage && <p role="status" className="text-xs text-[#9D3C5E]">{importMessage}</p>}
             </div>}
-            <label className="block text-xs font-semibold text-[#9D3C5E]">Job requirements
-              <textarea aria-label="Job requirements" rows={4} value={jobDescription} onChange={event => setJobDescription(event.target.value)} placeholder="Paste the actual job description, required skills, and experience. A job title alone is not enough to assess fit." className="mt-1 w-full rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs font-normal" />
+            <label className="block text-xs font-semibold text-[#9D3C5E]">Job description
+              <textarea aria-label="Job description" rows={4} value={jobDescription} onChange={event => setJobDescription(event.target.value)} placeholder="Paste the actual job description, required skills, and experience. A job title alone is not enough to assess fit." className="mt-1 w-full rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs font-normal" />
             </label>
+          </section>
+          <section className="space-y-3 rounded-xl border border-[#F1DDE9] p-3 bg-[#FFF5F8]">
+            <h3 className="font-semibold text-xs text-[#9D3C5E]">Role fit analysis</h3>
             <label className="block text-xs font-semibold">Role fit
               <select aria-label="Role fit" value={autoFit ? 'AUTO' : roleFit || 'UNASSESSED'} onChange={event => { setAutoFit(event.target.value === 'AUTO'); if (event.target.value !== 'AUTO') setRoleFit(event.target.value === 'UNASSESSED' ? null : event.target.value as RoleFit); }} className="ml-2 rounded-lg border border-[#F1DDE9] bg-white p-2">
                 <option value="AUTO">AI assessment (default)</option><option value="UNASSESSED">Leave unassessed</option>{ROLE_FITS.map(fit => <option key={fit.value} value={fit.value}>{fit.label}</option>)}
@@ -672,10 +678,15 @@ export default function ApplicationModal({
             <p className="text-xs text-[#736A6D]">{autoFit ? 'Analyzes on save when your resume and job requirements are available. Otherwise saved as unassessed.' : (ROLE_FITS.find(fit => fit.value === roleFit)?.description || 'No rating yet. You can assess this role later in Analytics.')}</p>
             {fitAnalysis && autoFit && <p className="text-xs text-[#9D3C5E]">{ROLE_FITS.find(fit => fit.value === fitAnalysis.fit)?.label}: {fitAnalysis.explanation}{fitAnalysis.preference_notes ? ` Preferences: ${fitAnalysis.preference_notes}` : ''}</p>}
             <button type="button" disabled={isSubmitting || jobDescription.trim().length < 30} onClick={async () => { setIsSubmitting(true); setFitError(''); try { await analyzeFit(); setAutoFit(true); } catch (error) { setFitError(error instanceof Error ? error.message : 'Analysis failed.'); } finally { setIsSubmitting(false); } }} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E] disabled:opacity-50">Reanalyze role fit</button>
-            <CandidateProfileEditor />
+
             {fitError && <p role="alert" className="text-xs text-rose-700">{fitError} Select a manual fit or leave this role unassessed and retry.</p>}
           </section>
 
+          <div className="grid gap-3 sm:grid-cols-2 rounded-xl border border-[#F1DDE9] p-3 text-xs">
+            <label>Analytics phase reached<select aria-label="Analytics phase reached" value={analyticsStage} onChange={e=>setAnalyticsStage(e.target.value as AnalyticsStage | '')} className="mt-1 w-full rounded-lg border p-2"><option value="">Use status mapping in preferences</option>{ANALYTICS_STAGES.map(stage=><option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>)}</select></label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={notProceeding} onChange={e=>setNotProceeding(e.target.checked)} />Not Proceeding</label>
+            <p className="sm:col-span-2 text-[#736A6D]">Keep your status label. For ambiguous outcomes, record the phase reached; Not Proceeding does not erase your progress.</p>
+          </div>
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#F1DDE9]">
             <button
               type="button"

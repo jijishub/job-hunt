@@ -1,0 +1,11 @@
+Admin Seeded Opportunities Feed
+
+Who: the signed-in administrator sees this feed. Member accounts do not receive the seeded IT/software list. Saved leads belong only to the account that saves them.
+
+Where: 10 fixed entries in TARGETED_LEADS in src/app/api/leads/route.ts. They are manually coded suggestions, not a live scrape from LinkedIn, JobStreet or Indeed. Company links, salary ranges and match scores in this seeded feed are predefined and may be outdated; they are not measured AI fit scores.
+
+When/how often: the browser requests GET /api/leads when the Leads view mounts and when its search form is submitted. No cron, scheduled refresh or continuous background discovery exists. Filtering may return fewer than 10; reopening the view fetches the same list unless its code changes.
+
+AI Search is separate: it runs only when you click its search button, requests 6 suggestions per call, and receives generated JSON plus Google search links from the configured AI API. The app does not independently browse or verify those vacancies. It has no automatic frequency.
+
+Storage: viewing seeded/AI suggestions does not save them. Save as Lead or Quick Add calls POST /api/applications and stores a private LEAD record in the separate leads table. An existing company can be linked through the company dropdown without creating a new company; a new directory entry is created upon promotion/application. Leads remain separate from submitted applications.
