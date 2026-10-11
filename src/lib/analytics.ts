@@ -50,7 +50,7 @@ export function pipelineAnalytics(applications: JobApplication[], mapping: Recor
   else if (!funnel[1].count) recommendations.push('No screening progress is recorded yet. Review targeting and resume relevance; response timing and hiring conditions may also contribute.');
   else if (funnel[2].count) recommendations.push('Your applications have reached interviews. Use interview feedback to prepare specific technical and experience examples.');
   else recommendations.push('Screening progress is recorded. Review your introduction, salary expectations, and transferable skills before the next round.');
-  if (assessed < applications.length) recommendations.push(`Assess the ${applications.length - assessed} unrated roles before comparing fit-based conversion.`);
+  if (assessed < applications.length) recommendations.push(`Review the ${applications.length - assessed} unassessed roles and assess relevant ones individually before comparing fit-based conversion.`);
   if (fits.some(fit => fit.submitted > 0 && fit.submitted < 5)) recommendations.push('Fit groups have small samples. Treat their conversion rates as observations, not predictions.');
   return { preferenceAlignment, total: applications.length, submitted: submitted.length, leads: applications.length - submitted.length, assessed, unassessed: applications.length - assessed, coverage: rate(assessed, applications.length), recent, funnel, fits, recommendations, rejections, rejectionRate: rate(rejections, submitted.length), progressionRate: rate(funnel[1].count, submitted.length), offerRate: rate(funnel[4].count, submitted.length) };
 }

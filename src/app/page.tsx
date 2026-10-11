@@ -262,6 +262,7 @@ export default function JobHuntDashboard() {
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Failed to update status');
       setApplications((prev) => prev.map((app) => app.id === id ? result.data : app));
+      if (result.sync_error) alert(`Application saved. Notion sync failed: ${result.sync_error}`);
     } catch (e) {
       console.error('Failed to update status:', e);
       fetchData();
@@ -736,8 +737,8 @@ export default function JobHuntDashboard() {
               setSelectedApp(app);
               setIsDetailOpen(true);
             }}
-            onNewAppWithStatus={(status) => {
-              setEditingApp({ status } as any);
+            onNewAppWithStatus={(status, notionStatusName) => {
+              setEditingApp({ status, notion_status: notionStatusName } as JobApplication);
               setIsAppModalOpen(true);
             }}
             onUpdateStatus={handleUpdateStatus}
@@ -773,7 +774,7 @@ export default function JobHuntDashboard() {
             }}
           />
         ) : activeView === 'analytics' ? (
-          <AnalyticsView applications={personalApplications} companies={filteredCompanies} accountName={currentUser?.name || 'My account'} onRefresh={fetchData} preferenceVersion={preferenceVersion} onEditApp={app => { setEditingApp(app); setIsAppModalOpen(true); }} />
+          <AnalyticsView applications={personalApplications} companies={filteredCompanies} accountName={currentUser?.name || 'My account'} preferenceVersion={preferenceVersion} onEditApp={app => { setEditingApp(app); setIsAppModalOpen(true); }} />
         ) : activeView === 'resume' ? (
           <ResumeAnalyzerView
             applications={filteredApplications}

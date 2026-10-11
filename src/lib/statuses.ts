@@ -58,8 +58,9 @@ export function getStatusCategory(statusName: string): ApplicationStatus {
   // Heuristic categorization for custom user statuses
   if (lower.includes('accept') && !lower.includes('not accept')) return 'ACCEPTED';
   if (lower.includes('offer')) return 'OFFER';
+  if (lower.includes('screen') && !lower.includes('not accept') && !lower.includes('reject')) return 'SCREENING';
   if (lower.includes('interview') && !lower.includes('not accept')) return 'INTERVIEWING';
-  if (lower.includes('task') || lower.includes('exam') || lower.includes('screen') || lower.includes('test')) return 'INTERVIEWING';
+  if (lower.includes('task') || lower.includes('exam') || lower.includes('test')) return 'INTERVIEWING';
   if (lower.includes('applied') || lower.includes('submitted')) return 'APPLIED';
   if (lower.includes('lead') || lower.includes('inquiry') || lower.includes('not started') || lower.includes('wishlist')) return 'LEAD';
   if (lower.includes('not accepted') || lower.includes('reject') || lower.includes('repeated')) return 'REJECTED';

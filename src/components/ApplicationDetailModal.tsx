@@ -7,6 +7,7 @@ import React from 'react';
 import { JobApplication } from '@/types/job';
 import StatusBadge from './StatusBadge';
 import PriorityBadge from './PriorityBadge';
+import { formatSalaryRange } from '@/lib/currencies';
 import {
   ExternalLink,
   Calendar,
@@ -202,14 +203,7 @@ export default function ApplicationDetailModal({
                 </span>
                 <span className="text-xs text-[#4A3E44] flex items-center gap-1 font-medium">
                   <DollarSign className="w-3.5 h-3.5 text-stone-400" />
-                  {app.salary_min || app.salary_max
-                    ? `${app.salary_currency} ${[
-                        app.salary_min ? app.salary_min.toLocaleString() : '',
-                        app.salary_max ? `- ${app.salary_max.toLocaleString()}` : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}`
-                    : 'Not disclosed'}
+                  {formatSalaryRange(app.salary_min, app.salary_max, app.salary_currency) || 'Not disclosed'}
                 </span>
               </div>
             </div>
