@@ -35,6 +35,8 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
     "@notionhq/client": "^5.27.0",
+    "@openai/codex": "^0.162.1",
+    "coex": "^1.0.0",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "html2canvas-pro": "^2.5.0",

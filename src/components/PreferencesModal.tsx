@@ -4,7 +4,7 @@ import { EMPTY_PREFERENCES, PersonalPreferences } from '@/lib/preferences';
 import CloseButton from './CloseButton';
 import CurrencyInput from './CurrencyInput';
 import { CURRENCIES } from '@/lib/currencies';
-import { ANALYTICS_STAGES, STAGE_LABELS, stageForStatus, AnalyticsStage } from '@/lib/analytics-stages';
+import { ANALYTICS_STAGES, STAGE_LABELS, stageForStatus, AnalyticsStage, DEFAULT_REJECTION_STATUSES } from '@/lib/analytics-stages';
 import CandidateProfileEditor from './CandidateProfileEditor';
 
 const input = 'mt-1 w-full rounded-xl border border-[#F1DDE9] bg-white p-2 text-xs font-normal';
@@ -47,11 +47,15 @@ export default function PreferencesModal({ isOpen, onClose, onSaved }: { isOpen:
           <section className="rounded-xl border border-[#F1DDE9] p-3">
             <h3 className="font-semibold">Analytics status mappings</h3>
             <p className="my-2 text-[#736A6D]">Map your live status labels to standard phases. Screening includes interview and acceptance phases. Each application is counted once, including its recorded history. For ambiguous Not Proceeding outcomes, set the phase on the application.</p>
-            <div className="max-h-80 overflow-auto"><table className="w-full text-left"><thead><tr><th className="p-2">Status</th><th>Phase</th><th>Screening</th><th>Acceptance / offer</th></tr></thead><tbody>{statuses.map(status=>{
+            <p className="mb-3 text-[#736A6D]">Rejections default to Not Accepted. Check Rejection for any other status you want to include, such as Rejected if you add it later. Rejections use the current status and keep the phase reached.</p>
+            <div className="max-h-80 overflow-auto"><table className="w-full text-left"><thead><tr><th className="p-2">Status</th><th>Phase</th><th>Screening</th><th>Acceptance / offer</th><th>Rejection</th></tr></thead><tbody>{statuses.map(status=>{
               const stage=stageForStatus(status.name,status.category,preferences.analytics_status_stages);
               const rank=ANALYTICS_STAGES.indexOf(stage);
               const setStage=(value:AnalyticsStage)=>setPreferences({...preferences,analytics_status_stages:{...preferences.analytics_status_stages,[status.name.toLowerCase().trim()]:value}});
-              return <tr key={status.name} className="border-t border-[#F1DDE9]"><td className="p-2">{status.name}</td><td><select aria-label={'Analytics phase for '+status.name} value={stage} onChange={e=>setStage(e.target.value as AnalyticsStage)} className="m-1 rounded-lg border p-1">{ANALYTICS_STAGES.map(value=><option key={value} value={value}>{STAGE_LABELS[value]}</option>)}</select></td><td><input aria-label={'Count '+status.name+' as screening'} type="checkbox" checked={rank>=2} onChange={e=>setStage(e.target.checked?(rank>=2?stage:'SCREENING'):'SUBMITTED')} /></td><td><input aria-label={'Count '+status.name+' as acceptance or offer'} type="checkbox" checked={rank>=5} onChange={e=>setStage(e.target.checked?'OFFER':'INTERVIEW')} /></td></tr>;
+              const rejectionKey=status.name.trim().toLowerCase();
+              const rejectionStatuses=preferences.analytics_rejection_statuses ?? DEFAULT_REJECTION_STATUSES;
+              const countRejection=rejectionStatuses.some(name=>name.trim().toLowerCase()===rejectionKey);
+              return <tr key={status.name} className="border-t border-[#F1DDE9]"><td className="p-2">{status.name}</td><td><select aria-label={'Analytics phase for '+status.name} value={stage} onChange={e=>setStage(e.target.value as AnalyticsStage)} className="m-1 rounded-lg border p-1">{ANALYTICS_STAGES.map(value=><option key={value} value={value}>{STAGE_LABELS[value]}</option>)}</select></td><td><input aria-label={'Count '+status.name+' as screening'} type="checkbox" checked={rank>=2} onChange={e=>setStage(e.target.checked?(rank>=2?stage:'SCREENING'):'SUBMITTED')} /></td><td><input aria-label={'Count '+status.name+' as acceptance or offer'} type="checkbox" checked={rank>=5} onChange={e=>setStage(e.target.checked?'OFFER':'INTERVIEW')} /></td><td><input aria-label={'Count '+status.name+' as rejection'} type="checkbox" checked={countRejection} onChange={e=>setPreferences({...preferences,analytics_rejection_statuses:e.target.checked?[...new Set([...rejectionStatuses.map(name=>name.trim().toLowerCase()),rejectionKey])]:rejectionStatuses.filter(name=>name.trim().toLowerCase()!==rejectionKey)})} /></td></tr>;
             })}</tbody></table></div>
           </section>
           <CandidateProfileEditor />

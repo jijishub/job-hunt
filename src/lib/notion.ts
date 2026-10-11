@@ -10,7 +10,7 @@ import {
   getOrCreateCompany,
   getUsers,
 } from './db';
-import { getStatusCategory } from './statuses';
+import { getStatusCategory, canonicalStatusName } from './statuses';
 
 async function isAppEligibleForNotionSync(app: JobApplication): Promise<boolean> {
   if (app.status === 'LEAD') return false;
@@ -222,7 +222,7 @@ function readNotionText(props: Record<string, any>, names: string[]): string | u
 }
 
 function buildNotionProperties(app: JobApplication) {
-  let statusSelectName = app.notion_status;
+  let statusSelectName = app.notion_status ? canonicalStatusName(app.notion_status) : undefined;
   if (!statusSelectName) {
     statusSelectName =
       app.status === 'ACCEPTED'
@@ -236,7 +236,7 @@ function buildNotionProperties(app: JobApplication) {
         : app.status === 'SCREENING'
         ? 'Screening'
         : app.status === 'WITHDRAWN'
-        ? 'Do not Proceed'
+        ? 'Not Proceeding'
         : app.status === 'LEAD'
         ? 'Inquiry'
         : 'Applied - No MOA';
@@ -418,12 +418,14 @@ export async function pullApplicationsFromNotion() {
           'IT Intern';
 
         // 3. Exact Notion Status & Standard Status
-        const notion_status =
+        const rawNotionStatus =
           props['Application Status']?.select?.name ||
           props['Application Status']?.status?.name ||
           props.Status?.select?.name ||
           props.Status?.status?.name ||
           undefined;
+
+        const notion_status = rawNotionStatus ? canonicalStatusName(rawNotionStatus) : undefined;
 
         const status: ApplicationStatus = notion_status ? getStatusCategory(notion_status) : 'APPLIED';
         let priority: Priority = existingApp?.priority || 'MEDIUM';

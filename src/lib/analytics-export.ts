@@ -1,11 +1,11 @@
 import { JobApplication } from '@/types/job';
 import { pipelineAnalytics, isInternship } from './analytics';
-import { AnalyticsStage } from './analytics-stages';
+import { AnalyticsStage, DEFAULT_REJECTION_STATUSES } from './analytics-stages';
 import { ROLE_FITS } from './role-fit';
 
-export async function analyticsPdf(applications: JobApplication[], accountName: string, scope: string, aiSummary?: string, mapping: Record<string, AnalyticsStage> = {}) {
+export async function analyticsPdf(applications: JobApplication[], accountName: string, scope: string, aiSummary?: string, mapping: Record<string, AnalyticsStage> = {}, rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES) {
   const { default: jsPDF } = await import('jspdf');
-  const pdf = new jsPDF(); const stats = pipelineAnalytics(applications, mapping);
+  const pdf = new jsPDF(); const stats = pipelineAnalytics(applications, mapping, rejectionStatuses);
   const rose = '#9D3C5E', ink = '#4A3E44', muted = '#736A6D', pink = '#FFF0F6';
   const clean = (value: string) => value.normalize('NFKD').replace(/[^\x20-\x7E\n]/g, '');
   const percent = (value: number | null) => value === null ? 'N/A' : `${value}%`;
@@ -32,13 +32,14 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   cards.forEach(([label, value], i) => { const x = 17 + i * 45; pdf.setFillColor(pink); pdf.roundedRect(x, y, 41, 25, 3, 3, 'F'); pdf.setTextColor(muted); pdf.setFontSize(8); pdf.text(label, x + 3, y + 6); pdf.setTextColor(rose); pdf.setFontSize(19); pdf.setFont('helvetica', 'bold'); pdf.text(value, x + 3, y + 18); });
   y += 33; text(`Assessed: ${stats.assessed} | Unassessed: ${stats.unassessed} | Fit coverage: ${percent(stats.coverage)}`, 9, muted);
   text(`Not submitted / leads: ${stats.leads} | Submitted in last 30 days: ${stats.recent}`, 9, muted);
+  text(`Rejections: ${stats.rejections} | Rejection rate: ${percent(stats.rejectionRate)} of submitted applications`, 9, muted);
   section('Recorded progression');
   for (const stage of stats.funnel) { room(15); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(ink); pdf.text(stage.label, 17, y); pdf.text(String(stage.count), 193, y, { align: 'right' }); pdf.setFillColor('#F5F0F3'); pdf.roundedRect(17, y + 3, 176, 3, 1, 1, 'F'); const width=stats.submitted?176*stage.count/stats.submitted:0; if(width){pdf.setFillColor('#FF7AB3');pdf.roundedRect(17,y+3,width,3,1,1,'F');} y += 14; }
   room(90); section('Role fit and conversion');
-  const columns=[17,86,110,135,165];
-  const tableHeader=()=>{room(12);pdf.setFillColor(rose);pdf.rect(17,y,176,9,'F');pdf.setTextColor('#FFFFFF');pdf.setFontSize(8);['Role fit','Tracked','Submitted','Screening','Acceptances'].forEach((label,i)=>pdf.text(label,columns[i]+2,y+6));y+=12;};
+  const columns=[17,73,97,122,148,173];
+  const tableHeader=()=>{room(12);pdf.setFillColor(rose);pdf.rect(17,y,176,9,'F');pdf.setTextColor('#FFFFFF');pdf.setFontSize(8);['Role fit','Tracked','Submitted','Screening','Offers','Rejections'].forEach((label,i)=>pdf.text(label,columns[i]+2,y+6));y+=12;};
   tableHeader();
-  stats.fits.forEach((fit,i)=>{room(17);pdf.setFillColor(i%2? '#FFFFFF':pink);pdf.rect(17,y-3,176,13,'F');pdf.setTextColor(ink);pdf.setFontSize(9);[fit.label,String(fit.total),String(fit.submitted),`${fit.progressed} (${percent(fit.progressionRate)})`,`${fit.offers} (${percent(fit.offerRate)})`].forEach((value,j)=>pdf.text(value,columns[j]+2,y+3));y+=17;});
+  stats.fits.forEach((fit,i)=>{room(17);pdf.setFillColor(i%2? '#FFFFFF':pink);pdf.rect(17,y-3,176,13,'F');pdf.setTextColor(ink);pdf.setFontSize(8);[fit.label,String(fit.total),String(fit.submitted),`${fit.progressed} (${percent(fit.progressionRate)})`,`${fit.offers} (${percent(fit.offerRate)})`,`${fit.rejections} (${percent(fit.rejectionRate)})`].forEach((value,j)=>pdf.text(value,columns[j]+2,y+3));y+=17;});
   text('Conversion rates use submitted roles within each fit group. Unassessed roles remain separate.', 9, muted);
   section('Opportunity mix');
   text(`Internships: ${applications.filter(isInternship).length} | Regular Employment: ${applications.filter(app => !isInternship(app)).length}`);
@@ -48,7 +49,7 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   section('Suggested focus'); stats.recommendations.forEach((item,i)=>text(`${i+1}. ${item}`));
   if(aiSummary){section('AI interpretation');text(aiSummary);}
   section('How to read this report');
-  text('Standard phases use your saved status mappings, explicit phase entries, and recorded history. Not Proceeding does not erase the phase reached. Acceptance counts include both accepted and declined outcomes mapped to Acceptance / offer. Each application counts once. Older outcomes may need phase review. Rates describe recorded results and do not predict future success.',9,muted);
+  text('Standard phases use your saved status mappings, explicit phase entries, and recorded history. Not Proceeding does not erase the phase reached. Acceptance counts include both accepted and declined outcomes mapped to Acceptance / offer. Rejections use current statuses selected in preferences, defaulting to Not Accepted; previous rejected statuses do not count after the application changes to another outcome. Each application counts once. Older outcomes may need phase review. Rates describe recorded results and do not predict future success.',9,muted);
   pdf.addPage();header();y=42;section('Application details');
   for(const app of applications){
     room(27);pdf.setFillColor(pink);pdf.roundedRect(17,y-3,176,9,2,2,'F');text(`${app.company_name} - ${app.role_title}`,10);
