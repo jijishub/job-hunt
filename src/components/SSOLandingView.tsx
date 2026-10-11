@@ -138,7 +138,7 @@ export default function SSOLandingView() {
               {/* Brand Title Header (Moved here per user request) */}
               <div className="mb-6 space-y-1">
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-[#4A3E44] tracking-tight">
-                  Job Hunt
+                  Job Hunt Login
                 </h1>
                 <p className="text-xs font-semibold text-[#9D3C5E]">
                   Career Pipeline & AI Suite

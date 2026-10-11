@@ -173,7 +173,7 @@ export default function ApplicationDetailModal({
                   Service / Category
                 </span>
                 <span className="text-xs text-[#9D3C5E] font-semibold">
-                  {app.service ? `🏷️ ${app.service}` : 'General'}
+                  {app.service || 'General'}
                 </span>
               </div>
               <div>

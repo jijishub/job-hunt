@@ -663,8 +663,8 @@ export default function JobHuntDashboard() {
                 >
                   <option value="ALL">All Priorities</option>
                   <option value="DREAM">⭐ Dream</option>
-                  <option value="HIGH">🔥 High</option>
-                  <option value="MEDIUM">⚡ Medium</option>
+                  <option value="HIGH">🌸 High</option>
+                  <option value="MEDIUM">💮 Medium</option>
                   <option value="LOW">☕ Low</option>
                 </select>
 

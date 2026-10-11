@@ -371,7 +371,7 @@ export default function UserManagementModal({
                                   : 'bg-stone-50 text-stone-600 border-stone-200'
                               }`}
                             >
-                              {isAdmin ? '👑 ADMIN' : '👤 MEMBER'}
+                              {isAdmin ? 'ADMIN' : 'MEMBER'}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 text-[11px] text-[#736A6D] mt-0.5 truncate">
@@ -502,8 +502,8 @@ export default function UserManagementModal({
                       onChange={(e) => setRole(e.target.value as UserRole)}
                       className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer"
                     >
-                      <option value="member">👤 Member (Cloud DB Isolated)</option>
-                      <option value="admin">👑 Administrator (Full Notion & Portfolio)</option>
+                      <option value="member">Member (Cloud DB Isolated)</option>
+                      <option value="admin">Administrator (Full Notion & Portfolio)</option>
                     </select>
                   </div>
 
