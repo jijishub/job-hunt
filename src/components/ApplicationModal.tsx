@@ -22,7 +22,7 @@ import {
   Plus,
   Upload,
 } from 'lucide-react';
-import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, getStatusCategory, StatusOption, getStatusStyle } from '@/lib/statuses';
+import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, applicationStatusLabel, getStatusCategory, StatusOption, getStatusStyle } from '@/lib/statuses';
 
 interface ApplicationModalProps {
   isOpen: boolean;
@@ -116,7 +116,7 @@ export default function ApplicationModal({
   const [location, setLocation] = useState('');
   const [service, setService] = useState('');
   const [notionStatus, setNotionStatus] = useState('Not started');
-  const [analyticsStage,setAnalyticsStage] = useState<AnalyticsStage | ''>('');
+  const [analyticsStage,setAnalyticsStage] = useState<AnalyticsStage>('NOT_SUBMITTED');
   const [notProceeding,setNotProceeding] = useState(false);
   const [salaryMin, setSalaryMin] = useState<string>('');
   const [salaryMax, setSalaryMax] = useState<string>('');
@@ -152,7 +152,7 @@ export default function ApplicationModal({
 
   useEffect(() => {
     setJobDescription(initialData?.information || initialData?.job_description || '');
-    setAnalyticsStage(initialData?.analytics_stage || ''); setNotProceeding(initialData?.not_proceeding || false);
+    setAnalyticsStage(initialData?.analytics_stage || 'NOT_SUBMITTED'); setNotProceeding(initialData?.not_proceeding || false);
     setRoleFit(initialData?.role_fit || null);
     setFitAnalysis(initialData?.role_fit_analysis || null);
     setAutoFit(initialData?.role_fit_source !== 'manual');
@@ -162,9 +162,7 @@ export default function ApplicationModal({
       setCompanyName(initialData.company_name || '');
       setCustomLogoUrl(initialData.company_logo || '');
       const resolvedNotionStatus =
-        initialData.notion_status ||
-        (initialData.status === 'LEAD' ? 'Inquiry' : initialData.status) ||
-        'Applied - With MOA';
+        initialData.notion_status?.trim() || applicationStatusLabel(initialData.status);
       setNotionStatus(resolvedNotionStatus);
       setStatus(initialData.status || getStatusCategory(resolvedNotionStatus));
       setService(initialData.service || '');
@@ -185,8 +183,8 @@ export default function ApplicationModal({
       setRoleTitle('');
       setCompanyName('');
       setCustomLogoUrl('');
-      setNotionStatus(isMember ? 'Applied' : 'Not started');
-      setStatus(isMember ? 'APPLIED' : 'LEAD');
+      setNotionStatus('Not started');
+      setStatus('LEAD');
       setService('');
       setPriority('MEDIUM');
       setJobType('FULL_TIME');
@@ -265,7 +263,7 @@ export default function ApplicationModal({
         service: service.trim() || undefined,
         notion_status: notionStatus.trim() || undefined,
         information: jobDescription.trim(),
-        analytics_stage: analyticsStage || null,
+        analytics_stage: analyticsStage,
         not_proceeding: notProceeding,
         priority,
         job_type: jobType,
@@ -347,6 +345,9 @@ export default function ApplicationModal({
                       }}
                       className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
                     >
+                      {notionStatus && !statusOptions.some(option => option.name === notionStatus) && (
+                        <option value={notionStatus}>{notionStatus}</option>
+                      )}
                       {statusOptions.map((opt) => (
                         <option key={opt.id || opt.name} value={opt.name}>
                           {opt.name}
@@ -686,7 +687,7 @@ export default function ApplicationModal({
           </section>
 
           <div className="grid gap-3 sm:grid-cols-2 rounded-xl border border-[#F1DDE9] p-3 text-xs">
-            <label>Analytics phase reached<select aria-label="Analytics phase reached" value={analyticsStage} onChange={e=>setAnalyticsStage(e.target.value as AnalyticsStage | '')} className="mt-1 w-full rounded-lg border p-2"><option value="">Use status mapping in preferences</option>{ANALYTICS_STAGES.map(stage=><option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>)}</select></label>
+            <label>Analytics phase reached<select aria-label="Analytics phase reached" value={analyticsStage} onChange={e=>setAnalyticsStage(e.target.value as AnalyticsStage)} className="mt-1 w-full rounded-lg border p-2">{ANALYTICS_STAGES.map(stage=><option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>)}</select></label>
             <label className="flex items-center gap-2"><input type="checkbox" checked={notProceeding} onChange={e=>setNotProceeding(e.target.checked)} />Not Proceeding</label>
             <p className="sm:col-span-2 text-[#736A6D]">Keep your status label. For ambiguous outcomes, record the phase reached; Not Proceeding does not erase your progress.</p>
           </div>
