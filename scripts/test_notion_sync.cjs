@@ -51,7 +51,7 @@ const compiled = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 vm.runInNewContext(compiled, {
-  exports: moduleObject.exports, module: moduleObject, process: { env: {} },
+  exports: moduleObject.exports, module: moduleObject, process: { env: { NOTION_API_KEY: 'test-key', NOTION_DATABASE_ID: 'test-db' } },
   console: { ...console, error: () => {} },
   require: (name) => name === '@notionhq/client' ? { Client }
     : name === './db' ? db : name === './statuses' ? { canonicalStatusName: name => name.trim().toLowerCase() === 'do not proceed' ? 'Not Proceeding' : name.trim(), getStatusCategory: (name) => name === 'Inquiry' ? 'LEAD' : name === 'Not Proceeding' ? 'WITHDRAWN' : 'APPLIED' } : require(name),

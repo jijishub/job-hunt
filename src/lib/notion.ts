@@ -22,18 +22,16 @@ async function isAppEligibleForNotionSync(app: JobApplication): Promise<boolean>
   return eligibleIds.has(app.owner) || app.owner === 'admin' || app.owner === 'user_ji';
 }
 
-const DEFAULT_NOTION_API_KEY = 'YOUR_NOTION_API_KEY';
-const DEFAULT_NOTION_DATABASE_ID = 'YOUR_NOTION_DATABASE_ID';
 
 function getNotionClient() {
-  const apiKey = process.env.NOTION_API_KEY || DEFAULT_NOTION_API_KEY;
+  const apiKey = process.env.NOTION_API_KEY;
   if (!apiKey) return null;
   return new Client({ auth: apiKey });
 }
 
 export function getNotionConfig() {
-  const apiKey = process.env.NOTION_API_KEY || DEFAULT_NOTION_API_KEY;
-  const databaseId = process.env.NOTION_DATABASE_ID || DEFAULT_NOTION_DATABASE_ID;
+  const apiKey = process.env.NOTION_API_KEY;
+  const databaseId = process.env.NOTION_DATABASE_ID;
   return {
     apiKey: apiKey ? '••••••••' + apiKey.slice(-4) : undefined,
     databaseId,
@@ -43,7 +41,7 @@ export function getNotionConfig() {
 
 export async function testNotionConnection() {
   const notion = getNotionClient();
-  const databaseId = process.env.NOTION_DATABASE_ID || DEFAULT_NOTION_DATABASE_ID;
+  const databaseId = process.env.NOTION_DATABASE_ID;
 
   if (!notion || !databaseId) {
     return {
@@ -315,7 +313,7 @@ export async function pushApplicationToNotion(app: JobApplication, onError?: (me
   }
 
   const notion = getNotionClient();
-  const databaseId = process.env.NOTION_DATABASE_ID || DEFAULT_NOTION_DATABASE_ID;
+  const databaseId = process.env.NOTION_DATABASE_ID;
 
   if (!notion || !databaseId) return null;
 
@@ -362,7 +360,7 @@ export async function pushApplicationToNotion(app: JobApplication, onError?: (me
 
 export async function pullApplicationsFromNotion() {
   const notion = getNotionClient();
-  const databaseId = process.env.NOTION_DATABASE_ID || DEFAULT_NOTION_DATABASE_ID;
+  const databaseId = process.env.NOTION_DATABASE_ID;
 
   if (!notion || !databaseId) {
     return { success: false, count: 0, error: 'Notion credentials not set in environment variables' };

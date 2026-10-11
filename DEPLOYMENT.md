@@ -79,7 +79,7 @@ Our app has built-in auto-migration for PostgreSQL (automatically creates `users
 | `POSTGRES_URL` | `postgres://user:pass@ep-xyz.neon.tech/neondb?sslmode=require` | Neon or Vercel Postgres connection string |
 | `NEXTAUTH_URL` | `https://jobhunt.jizellecasia.site` | Full URL of your live production app |
 | `NEXTAUTH_SECRET` | `generate-a-random-32-char-string` | Secret key for JWT signing |
-| `ADMIN_EMAIL` | `jizellecasia@gmail.com` | Email automatically granted the 👑 Administrator role |
+| `ADMIN_EMAIL` | `admin@example.com` | Email automatically granted the 👑 Administrator role |
 | `NOTION_API_KEY` | `YOUR_NOTION_API_KEY` | Your Notion Integration API Secret |
 | `NOTION_DATABASE_ID` | `YOUR_NOTION_DATABASE_ID` | 32-character Notion Database ID |
 | `GOOGLE_CLIENT_ID` | `xxxx.apps.googleusercontent.com` | Google Cloud OAuth Client ID |
