@@ -4,13 +4,13 @@ import { useState } from 'react';
 import { PipelineStats } from '@/lib/analytics';
 import { AnalyticsStage } from '@/lib/analytics-stages';
 
-export type ChartSelection = { kind: 'fit' | 'outcome' | 'month'; value: string; label: string }
+export type ChartSelection = { kind: 'fit' | 'outcome' | 'month' | 'offer'; value: string; label: string }
   | { kind: 'phase'; value: AnalyticsStage; label: string; evidence?: 'recorded' | 'inferred' };
 const card = 'min-w-0 rounded-2xl border border-[#F1DDE9] bg-white p-5 shadow-xs';
 const fitColors = ['#A6DCC7', '#F4D6A4', '#F6B4C4', '#C8BCE8'];
 export default function AnalyticsCharts({ stats, onReview }: { stats: PipelineStats; onReview: (selection: ChartSelection) => void }) {
   const [metric, setMetric] = useState<'progressionRate' | 'offerRate' | 'rejectionRate'>('offerRate');
-  const metricLabel = metric === 'offerRate' ? 'Offers' : metric === 'rejectionRate' ? 'Rejections' : 'Past submission';
+  const metricLabel = metric === 'offerRate' ? 'Offers' : metric === 'rejectionRate' ? 'Rejections' : 'Screening or later';
   if (!stats.total) return <section className={card}><h3 className="font-semibold">Your charts start here</h3><p className="mt-2 text-sm text-[#736A6D]">Add an application to see your progress. Unassessed roles can stay unassessed.</p></section>;
   return <div className="grid gap-4 lg:grid-cols-2">
     <section className={card} aria-label="Pipeline progression chart">
@@ -32,7 +32,7 @@ export default function AnalyticsCharts({ stats, onReview }: { stats: PipelineSt
     <section className={card} aria-label="Fit conversion chart">
       <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-bold">Fit and conversion</h3>
         <select aria-label="Fit conversion metric" value={metric} onChange={event => setMetric(event.target.value as typeof metric)} className="rounded-lg border border-[#F1DDE9] bg-white px-2 py-1 text-xs">
-          <option value="offerRate">Offers</option><option value="progressionRate">Past submission</option><option value="rejectionRate">Rejections</option>
+          <option value="offerRate">Offers</option><option value="progressionRate">Screening or later</option><option value="rejectionRate">Rejections</option>
         </select>
       </div>
       <p className="mt-1 mb-4 text-xs text-[#736A6D]">{metricLabel} ÷ submitted in each group. Small samples vary widely.</p>

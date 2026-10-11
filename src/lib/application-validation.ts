@@ -1,3 +1,6 @@
+import { CURRENCIES } from './currencies';
+import { OFFER_PAY_PERIODS } from './salary-offers';
+
 export const APPLICATION_STATUSES = ['LEAD', 'APPLIED', 'SCREENING', 'INTERVIEWING', 'OFFER', 'ACCEPTED', 'REJECTED', 'WITHDRAWN'] as const;
 
 export function applicationValidationError(body: Record<string, unknown>) {
@@ -16,5 +19,8 @@ export function applicationValidationError(body: Record<string, unknown>) {
     if (body[field] != null && body[field] !== '' && (!Number.isFinite(Number(body[field])) || Number(body[field]) < 0)) return 'Salary must be a nonnegative amount.';
   }
   if (body.salary_min != null && body.salary_max != null && body.salary_max !== '' && Number(body.salary_min) > Number(body.salary_max)) return 'Maximum salary must be at least the minimum.';
+  if (body.offer_amount != null && String(body.offer_amount).trim() !== '' && (!['number', 'string'].includes(typeof body.offer_amount) || !Number.isFinite(Number(body.offer_amount)) || Number(body.offer_amount) < 0)) return 'Offer amount must be a nonnegative number.';
+  if (body.offer_currency != null && (typeof body.offer_currency !== 'string' || !CURRENCIES.some(currency => currency === (body.offer_currency as string).trim().toUpperCase()))) return 'Choose PHP or USD for the offer currency.';
+  if (body.offer_pay_period != null && !OFFER_PAY_PERIODS.some(period => period.value === body.offer_pay_period)) return 'Choose a valid offer pay period.';
   return null;
 }

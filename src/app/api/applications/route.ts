@@ -6,6 +6,7 @@ import { validRoleFit } from '@/lib/role-fit';
 import { NextResponse } from 'next/server';
 import { getApplications, createApplication, getOrCreateCompany, getCompanies, getApplicationById } from '@/lib/db';
 import { pushApplicationToNotion, pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
+import { normalizeOfferFields } from '@/lib/salary-offers';
 
 export async function GET() {
   try {
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validationError = applicationValidationError(body);
     if (validationError) return NextResponse.json({ success: false, error: validationError }, { status: 400 });
+    Object.assign(body, normalizeOfferFields(body));
     if (body.analytics_stage != null && !ANALYTICS_STAGES.includes(body.analytics_stage)) return NextResponse.json({ success: false, error: 'Invalid analytics phase.' }, { status: 400 });
     if (body.not_proceeding != null && typeof body.not_proceeding !== 'boolean') return NextResponse.json({ success: false, error: 'Invalid Not Proceeding flag.' }, { status: 400 });
     body.owner = user.id;
@@ -109,6 +111,9 @@ export async function POST(request: Request) {
       salary_max: salary_max != null && salary_max !== '' ? Number(salary_max) : undefined,
       salary_currency,
       job_url,
+      offer_amount: body.offer_amount ?? null,
+      offer_currency: body.offer_currency || 'PHP',
+      offer_pay_period: body.offer_pay_period || 'MONTHLY',
       contact_name,
       contact_email,
       date_applied,

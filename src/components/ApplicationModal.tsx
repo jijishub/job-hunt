@@ -4,6 +4,8 @@ import { CURRENCIES } from '@/lib/currencies';
 import { ANALYTICS_STAGES, STAGE_LABELS, AnalyticsStage } from '@/lib/analytics-stages';
 import CloseButton from './CloseButton';
 import CurrencyInput from './CurrencyInput';
+import { OFFER_PAY_PERIODS } from '@/lib/salary-offers';
+import type { OfferPayPeriod } from '@/types/job';
 import { ROLE_FITS } from '@/lib/role-fit';
 import { parseJobImport, JOB_JSON_PROMPT } from '@/lib/job-import';
 import type { RoleFit, RoleFitAnalysis } from '@/types/job';
@@ -122,6 +124,9 @@ export default function ApplicationModal({
   const [salaryMin, setSalaryMin] = useState<string>('');
   const [salaryMax, setSalaryMax] = useState<string>('');
   const [salaryCurrency, setSalaryCurrency] = useState('PHP');
+  const [offerAmount, setOfferAmount] = useState('');
+  const [offerCurrency, setOfferCurrency] = useState('PHP');
+  const [offerPayPeriod, setOfferPayPeriod] = useState<OfferPayPeriod>('MONTHLY');
   const [jobUrl, setJobUrl] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -153,6 +158,9 @@ export default function ApplicationModal({
 
   useEffect(() => {
     setJobDescription(initialData?.information || initialData?.job_description || '');
+    setOfferAmount(initialData?.offer_amount != null ? String(initialData.offer_amount) : '');
+    setOfferCurrency(initialData?.offer_currency || 'PHP');
+    setOfferPayPeriod(initialData?.offer_pay_period || 'MONTHLY');
     setAnalyticsStage(initialData?.analytics_stage || 'NOT_SUBMITTED'); setNotProceeding(initialData?.not_proceeding || false);
     setRoleFit(initialData?.role_fit || initialData?.role_fit_analysis?.fit || null);
     setFitAnalysis(initialData?.role_fit_analysis || null);
@@ -268,6 +276,9 @@ export default function ApplicationModal({
         salary_min: salaryMin ? Number(salaryMin) : undefined,
         salary_max: salaryMax ? Number(salaryMax) : undefined,
         salary_currency: salaryCurrency,
+        offer_amount: offerAmount.trim() ? Number(offerAmount) : null,
+        offer_currency: offerCurrency,
+        offer_pay_period: offerPayPeriod,
         job_url: jobUrl.trim() || undefined,
         contact_name: contactName.trim() || undefined,
         contact_email: contactEmail.trim() || undefined,
@@ -641,19 +652,6 @@ export default function ApplicationModal({
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
-              Personal comments (Post Notes)
-            </label>
-            <textarea
-              rows={3}
-              placeholder="Add key talking points, technical questions, salary negotiations, or links..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs text-[#4A3E44] placeholder-stone-400 transition"
-            />
-          </div>
-
           <section className="space-y-3 rounded-xl border border-[#F1DDE9] p-3 bg-[#FFF5F8]">
             <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-xs text-[#9D3C5E]">Job description (Information)</h3><button type="button" onClick={() => setImportOpen(!importOpen)} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E]">Import job JSON</button></div>
             {importOpen && <div className="space-y-2 rounded-xl border border-[#F1DDE9] bg-white p-3">
@@ -666,6 +664,19 @@ export default function ApplicationModal({
             <label className="block text-xs font-semibold text-[#9D3C5E]">Job description
               <textarea aria-label="Job description" rows={4} value={jobDescription} onChange={event => setJobDescription(event.target.value)} placeholder="Paste the actual job description, required skills, and experience. A job title alone is not enough to assess fit." className="mt-1 w-full rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs font-normal" />
             </label>
+          </section>
+          <div>
+            <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">Personal comments (Post Notes)</label>
+            <textarea aria-label="Personal comments" rows={3} placeholder="Add key talking points, technical questions, salary negotiations, or links..." value={notes} onChange={event => setNotes(event.target.value)} className="w-full px-3.5 py-2.5 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs text-[#4A3E44] placeholder-stone-400 transition" />
+          </div>
+          <section className="space-y-3 rounded-xl border border-[#F1DDE9] p-3">
+            <h3 className="text-xs font-semibold text-[#9D3C5E]">Job offer</h3>
+            <div className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr]">
+              <label className="text-xs font-semibold">Offer amount<CurrencyInput aria-label="Offer amount" value={offerAmount} onValueChange={setOfferAmount} placeholder="Leave blank until offered" className="mt-1 w-full rounded-lg border border-[#F1DDE9] p-2 text-xs font-normal" /></label>
+              <label className="text-xs font-semibold">Currency<select aria-label="Offer currency" value={offerCurrency} onChange={event => setOfferCurrency(event.target.value)} className="mt-1 w-full rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs font-normal">{CURRENCIES.map(currency => <option key={currency} value={currency}>{currency}</option>)}</select></label>
+              <label className="text-xs font-semibold">Pay period<select aria-label="Offer pay period" value={offerPayPeriod} onChange={event => setOfferPayPeriod(event.target.value as OfferPayPeriod)} className="mt-1 w-full rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs font-normal">{OFFER_PAY_PERIODS.map(period => <option key={period.value} value={period.value}>{period.label}</option>)}</select></label>
+            </div>
+            <p className="text-[11px] text-[#736A6D]">Record the employer&apos;s actual base-pay offer, excluding bonuses and benefits.</p>
           </section>
           <section className="space-y-3 rounded-xl border border-[#F1DDE9] p-3 bg-[#FFF5F8]">
             <h3 className="font-semibold text-xs text-[#9D3C5E]">Role fit analysis</h3>

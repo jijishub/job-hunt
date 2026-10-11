@@ -2,6 +2,7 @@
 import { applicationStatusLabel, canonicalStatusName } from './statuses';
 import { JobApplication } from '@/types/job';
 import { ROLE_FITS, validRoleFit } from './role-fit';
+import { salaryOfferAnalytics } from './salary-offers';
 
 export function isInternship(app: JobApplication) {
   return app.job_type ? app.job_type === 'INTERNSHIP' : /\bintern(?:ship)?\b/i.test(app.role_title);
@@ -102,7 +103,7 @@ export function pipelineAnalytics(input: JobApplication[], mapping: Record<strin
   else if (funnel[2].recorded) recommendations.push('Use recorded interview feedback to prepare your next interview.');
   if (quality.uncertainPhases) recommendations.push(`Review the phase reached for ${quality.uncertainPhases} closed applications.`);
   if (assessed < applications.length) recommendations.push('Assess relevant unassessed roles individually.');
-  return { asOf: today, preferenceAlignment, total: applications.length, submitted: submitted.length,
+  return { asOf: today, salaryOffers: salaryOfferAnalytics(applications), preferenceAlignment, total: applications.length, submitted: submitted.length,
     leads: applications.length - submitted.length, assessed, unassessed: applications.length - assessed,
     coverage: rate(assessed, applications.length), recent, funnel, fits, activity, outcomes, quality, recommendations,
     rejections, rejectionRate: rate(rejections, submitted.length), progressionRate: rate(funnel[1].count, submitted.length), offerRate: rate(funnel[4].count, submitted.length) };

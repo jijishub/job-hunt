@@ -6,6 +6,7 @@ import { validRoleFit } from '@/lib/role-fit';
 import { NextResponse } from 'next/server';
 import { getApplicationById, updateApplication, deleteApplication, getOrCreateCompany } from '@/lib/db';
 import { pushApplicationToNotion } from '@/lib/notion';
+import { normalizeOfferFields } from '@/lib/salary-offers';
 
 export async function GET(
   request: Request,
@@ -36,6 +37,7 @@ export async function PUT(
     const body = await request.json();
     const validationError = applicationValidationError(body);
     if (validationError) return NextResponse.json({ success: false, error: validationError }, { status: 400 });
+    Object.assign(body, normalizeOfferFields(body));
     if (body.analytics_stage != null && !ANALYTICS_STAGES.includes(body.analytics_stage)) return NextResponse.json({ success: false, error: 'Invalid analytics phase.' }, { status: 400 });
     if (body.not_proceeding != null && typeof body.not_proceeding !== 'boolean') return NextResponse.json({ success: false, error: 'Invalid Not Proceeding flag.' }, { status: 400 });
     if (Object.hasOwn(body, 'information') || Object.hasOwn(body, 'job_description')) { body.information = body.information ?? body.job_description; body.job_description = body.information; }

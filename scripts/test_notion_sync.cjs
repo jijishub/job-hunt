@@ -92,7 +92,7 @@ async function run() {
   await moduleObject.exports.pullApplicationsFromNotion();
   assert.equal(records.length, 1, 'Repeated pull must not duplicate a lead');
   assert.equal(records[0].notes, 'First part. Second part.', 'Pull must preserve all text chunks');
-  records = [{ ...adminApp, sync_status: 'SYNCED', information: 'Old description', job_description: 'Old description', notes: 'Old notes', priority: 'DREAM', work_model: 'REMOTE' }];
+  records = [{ ...adminApp, sync_status: 'SYNCED', information: 'Old description', job_description: 'Old description', notes: 'Old notes', priority: 'DREAM', work_model: 'REMOTE', offer_amount: 65000, offer_currency: 'PHP', offer_pay_period: 'MONTHLY' }];
   pages = [{ id: 'page-existing', properties: {
     'Company Name': { title: [{ plain_text: 'ByteDance' }] },
     Information: { rich_text: [{ plain_text: 'Job description. ' }, { text: { content: 'Requirements.' } }] },
@@ -102,6 +102,8 @@ async function run() {
   assert.equal(records[0].information, 'Job description. Requirements.');
   assert.equal(records[0].job_description, records[0].information);
   assert.equal(records[0].notes, 'Personal note. Follow up.');
+  assert.equal(records[0].offer_amount, 65000, 'Notion pull must preserve local offer data');
+  assert.equal(records[0].offer_currency, 'PHP');assert.equal(records[0].offer_pay_period, 'MONTHLY');
   assert.equal(records[0].priority, 'DREAM', 'Missing Notion priority must preserve the local choice');
   assert.equal(records[0].work_model, 'REMOTE', 'Missing Notion work model must preserve the local choice');
   assert.equal(records[0].date_applied, adminApp.date_applied, 'Missing Notion date must not become today');

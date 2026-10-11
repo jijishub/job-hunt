@@ -16,6 +16,7 @@ export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'DREAM';
 export type JobType = 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERNSHIP';
 
 export type WorkModel = 'REMOTE' | 'HYBRID' | 'ON_SITE';
+export type OfferPayPeriod = 'MONTHLY' | 'ANNUAL' | 'HOURLY';
 
 export type SyncStatus = 'SYNCED' | 'PENDING' | 'ERROR';
 
@@ -54,6 +55,9 @@ export interface JobApplication {
   salary_min?: number;
   salary_max?: number;
   salary_currency: string;
+  offer_amount?: number | null;
+  offer_currency?: string | null;
+  offer_pay_period?: OfferPayPeriod | null;
   job_url?: string;
   source?: 'LINKEDIN' | 'JOBSTREET' | 'INDEED' | 'GOOGLE' | 'DIRECT' | 'OTHER';
   owner?: string;
