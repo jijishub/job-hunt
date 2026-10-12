@@ -24,7 +24,7 @@ Save the roles that interest you, keep your notes close, and explore how your ap
 
 I started by tracking my internship applications. As I moved into regular employment, I wanted to keep that history while giving my current search its own focus.
 
-The details are the part I get excited about: which roles reach interviews, how fit ratings compare with outcomes, and how salary offers line up with expectations. Job Hunt gives those questions a place to live.
+The analytics are the part I get excited about: which roles reach interviews, how fit ratings compare with outcomes, and how salary offers line up with expectations. Job Hunt gives those questions a place to live.
 
 ## ✧ Inside the workspace
 
@@ -120,12 +120,6 @@ For troubleshooting, `npm run diagnose:ai` checks AI configuration and tests aut
 ### Company icons
 
 The icon job requires a signed-in Codex CLI and `POSTGRES_URL` in `.env.local`. It researches official logos, fills empty icons, preserves existing ones, and skips uncertain matches. Backups and source references go to `.data/company-icons/`. It uses your signed-in Codex account separately from the app's AI API.
-
-## Project references
-
-`LLM.txt` holds project feedback and requests. The `references/` folder keeps application JSON, resumes, and research material; these remain separate from the app's source code.
-
-For future application questions, the local `references/application-answer-reference.md` explains how to reuse the submitted answers in `references/thinkingmachines_submitted_application.json` and adapt them to the role. The retired Thinking Machines RPA has been removed following the completed application on its replacement site.
 
 ---
 
