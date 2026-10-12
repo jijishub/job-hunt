@@ -4,11 +4,10 @@ import { NextResponse } from 'next/server';
 import { getCompanies, getOrCreateCompany, getApplications, updateCompany, deleteCompany } from '@/lib/db';
 import { pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
-    const userParam = user.email;
     const isAdmin = user.role === 'admin';
     let companies = await getCompanies();
     let applications = (await getApplications()).filter(app => ownsApplication(app, user));

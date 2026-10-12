@@ -4,13 +4,13 @@ import {
   getApplications,
   createApplication,
   updateApplication,
-  getApplicationByNotionId,
   getCompanies,
   updateCompany,
   getOrCreateCompany,
   getUsers,
 } from './db';
 import { getStatusCategory, canonicalStatusName } from './statuses';
+import { isArchivedApplication } from './application-workflow';
 
 async function isAppEligibleForNotionSync(app: JobApplication): Promise<boolean> {
   if (app.status === 'LEAD') return false;
@@ -59,7 +59,7 @@ export async function testNotionConnection() {
       configured: true,
       databaseTitle: title,
     };
-  } catch (error: any) {
+  } catch {
     // Check if any database is accessible via search
     try {
       const search = await (notion as any).search({ page_size: 10 });
@@ -307,6 +307,7 @@ function buildNotionProperties(app: JobApplication) {
 }
 
 export async function pushApplicationToNotion(app: JobApplication, onError?: (message: string) => void): Promise<string | null> {
+  if (isArchivedApplication(app)) return app.notion_page_id || null;
   const isEligible = await isAppEligibleForNotionSync(app);
   if (!isEligible) {
     return null;
@@ -513,15 +514,16 @@ export async function pullApplicationsFromNotion() {
 
         if (existingApp) {
           // Pending or failed local edits must survive the pull so they can be retried.
-          if (existingApp.sync_status !== 'SYNCED') continue;
+          if (existingApp.sync_status !== 'SYNCED' || isArchivedApplication(existingApp)) continue;
+          const preserveLocalRestore = existingApp.not_proceeding === false && isArchivedApplication({ status, notion_status });
           await updateApplication(existingApp.id, {
             company_id: company.id,
             company_name: company.name,
             company_logo: company.logo_url,
             role_title: existingApp.role_title.replace(/,/g, ' -') === roleTitle
               ? existingApp.role_title : roleTitle,
-            status,
-            notion_status,
+            status: preserveLocalRestore ? existingApp.status : status,
+            notion_status: preserveLocalRestore ? existingApp.notion_status : notion_status,
             service,
             ...textFields,
             priority,
@@ -600,6 +602,7 @@ export async function performTwoWaySync() {
   const failed: { id: string; company: string; role: string; error?: string }[] = [];
 
   for (const app of allApps) {
+    if (isArchivedApplication(app)) continue;
     const isEligible = await isAppEligibleForNotionSync(app);
     if (!isEligible) {
       continue;

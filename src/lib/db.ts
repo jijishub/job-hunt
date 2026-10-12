@@ -3,6 +3,7 @@ import type { PersonalPreferences } from './preferences';
 import { Company, JobApplication, UserAccount, UserRole } from '@/types/job';
 import fs from 'fs';
 import path from 'path';
+import { randomUUID } from 'node:crypto';
 import { neon } from '@neondatabase/serverless';
 
 const isServer = typeof window === 'undefined';
@@ -27,17 +28,13 @@ export const INITIAL_USERS: UserAccount[] = [
     name: 'Jizelle Casia',
     email: getAdminEmail(),
     role: 'admin',
-    industry: 'IT / AI & Forward-Deployed Software',
+    industry: 'IT / AI & Software',
     avatar: '🌸',
     notion_enabled: true,
     created_at: '2026-10-06T09:34:43.840Z',
     updated_at: '2026-10-06T11:47:20.892Z',
   },
 ];
-
-const INITIAL_COMPANIES: Company[] = [];
-
-const INITIAL_APPLICATIONS: JobApplication[] = [];
 
 function getPostgresClient() {
   const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
@@ -57,7 +54,7 @@ function readLocalDb(): LocalDatabase {
         applications: [],
         users: [...INITIAL_USERS],
       };
-      fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2), 'utf-8');
+      writeLocalDb(initial);
       return initial;
     }
     const content = fs.readFileSync(DB_FILE, 'utf-8');
@@ -123,14 +120,18 @@ function readLocalDb(): LocalDatabase {
 
 function writeLocalDb(data: LocalDatabase): void {
   if (!isServer) return;
+  const temporaryFile = `${DB_FILE}.${randomUUID()}.tmp`;
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    fs.writeFileSync(temporaryFile, JSON.stringify(data, null, 2), { encoding: 'utf-8', flag: 'wx' });
+    fs.renameSync(temporaryFile, DB_FILE);
   } catch (error) {
     console.error('Error writing local db file:', error);
     throw error;
+  } finally {
+    if (fs.existsSync(temporaryFile)) fs.unlinkSync(temporaryFile);
   }
 }
 
@@ -239,7 +240,7 @@ async function initPostgresSchema(sql: any) {
         'Jizelle Casia',
         ${adminEmail},
         'admin',
-        'IT / AI & Forward-Deployed Software',
+        'IT / AI & Software',
         '🌸',
         TRUE,
         NOW(),
@@ -776,6 +777,10 @@ export async function getUsers(): Promise<UserAccount[]> {
         await sql`UPDATE users SET name = ${cleanName} WHERE id = ${r.id};`;
         r.name = cleanName;
       }
+      if (r.id === 'user_ji' && r.industry === 'IT / AI & Forward-Deployed Software') {
+        await sql`UPDATE users SET industry = ${INITIAL_USERS[0].industry} WHERE id = ${r.id};`;
+        r.industry = INITIAL_USERS[0].industry;
+      }
     }
 
     if (rows.length > 0) return rows as UserAccount[];
@@ -787,7 +792,7 @@ export async function getUsers(): Promise<UserAccount[]> {
       name: 'Jizelle Casia',
       email: adminEmail,
       role: 'admin',
-      industry: 'IT / AI & Forward-Deployed Software',
+      industry: 'IT / AI & Software',
       avatar: '🌸',
       notion_enabled: true,
       created_at: new Date().toISOString(),
@@ -806,6 +811,7 @@ export async function getUsers(): Promise<UserAccount[]> {
     writeLocalDb(db);
   }
   db.users.forEach((u) => {
+    if (u.id === 'user_ji' && u.industry === 'IT / AI & Forward-Deployed Software') u.industry = 'IT / AI & Software';
     if (u.name && u.name.includes('(Ji)')) {
       u.name = u.name.replace(/\s*\(Ji\)/gi, '').trim() || 'Jizelle Casia';
     }
@@ -862,7 +868,7 @@ export async function getOrCreateUser(data: {
     name: data.name || (isAdmin ? 'Jizelle Casia' : 'Job Hunt Member'),
     email: lowerEmail,
     role: isAdmin ? 'admin' : 'member',
-    industry: data.industry || (isAdmin ? 'IT / AI & Forward-Deployed Software' : 'General'),
+    industry: data.industry || (isAdmin ? 'IT / AI & Software' : 'General'),
     avatar: data.avatar || (isAdmin ? '🌸' : '👤'),
     notion_enabled: isAdmin,
     created_at: new Date().toISOString(),

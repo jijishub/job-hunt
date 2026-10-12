@@ -8,6 +8,60 @@ function loader(overrides={}){
 }
 const sample=(values={})=>({id:'app',company_name:'Example',role_title:'Engineer',status:'APPLIED',owner:'user_ji',priority:'MEDIUM',job_type:'FULL_TIME',work_model:'ON_SITE',salary_currency:'PHP',sync_status:'SYNCED',created_at:'2026-10-10T00:00:00Z',updated_at:'2026-10-10T00:00:00Z',...values});
 
+test('admin and member archive and restore preserve recruitment status and never enqueue Notion writes',async()=>{
+ for(const role of ['admin','member']){
+  const user={id:role==='admin'?'user_ji':'member',email:role+'@example.com',role,notion_enabled:role==='admin'};let queued=0;
+  let saved=sample({owner:user.id,status:'INTERVIEWING',notion_status:'Initial Interview',last_synced_at:'2026-10-10',stage_history:[{status:'APPLIED',notion_status:'Applied',at:'2026-10-08'}]});
+  const route=loader({'@/lib/session-account':{getSessionAccount:async()=>user},'@/lib/db':{getApplicationById:async()=>saved,updateApplication:async(_id,updates)=>saved={...saved,...updates}},'@/lib/application-notion-sync':{scheduleApplicationNotionSync:()=>queued++}})('src/app/api/applications/[id]/route.ts');
+  const update=body=>route.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify(body)}),{params:Promise.resolve({id:'app'})});
+  assert.equal((await update({not_proceeding:true,analytics_stage:'OFFER'})).status,200);
+  assert.equal(saved.status,'INTERVIEWING');assert.equal(saved.notion_status,'Initial Interview');assert.equal(saved.analytics_stage,'INTERVIEW');assert.equal(saved.not_proceeding,true);assert.equal(saved.sync_status,'SYNCED');assert.equal(saved.last_synced_at,'2026-10-10');assert.equal(queued,0);
+  assert.equal((await update({not_proceeding:false})).status,200);assert.equal(saved.not_proceeding,false);assert.equal(saved.status,'INTERVIEWING');assert.equal(queued,0);
+  await update({status:'INTERVIEWING',notion_status:'Final Interview'});assert.equal(saved.analytics_stage,'FINAL');assert.equal(queued,role==='admin'?1:0);
+ }
+});
+
+test('legacy withdrawals restore their previous status and historical phase remains automatic',()=>{
+ const workflow=loader()('src/lib/application-workflow.ts');
+ const archived=sample({status:'WITHDRAWN',notion_status:'Not Proceeding',stage_history:[{status:'INTERVIEWING',notion_status:'Final Interview',at:'2026-10-09'}]});
+ const restored=workflow.applicationWorkflowUpdates(archived,{status:'WITHDRAWN',not_proceeding:false});
+ assert.equal(restored.status,'INTERVIEWING');assert.equal(restored.notion_status,'Final Interview');assert.equal(restored.analytics_stage,'FINAL');assert.equal(workflow.isArchivedApplication({...archived,...restored}),false);
+ const source=sample({status:'INTERVIEWING',notion_status:'Interview'});const withdrawn=workflow.applicationWorkflowUpdates(source,{status:'WITHDRAWN',notion_status:'Not Proceeding'});
+ assert.equal(withdrawn.status,'INTERVIEWING');assert.equal(withdrawn.notion_status,'Interview');assert.equal(workflow.displayApplicationStatusLabel({...source,...withdrawn}),'Not Proceeding');
+});
+
+test('existing admin industry preset matches the member option without changing custom or member tags',async()=>{
+ const previous=process.env.POSTGRES_URL;const rows=[{id:'user_ji',name:'Jizelle Casia',industry:'IT / AI & Forward-Deployed Software'},{id:'member',name:'Member',industry:'IT / AI & Forward-Deployed Software'}];const writes=[];
+ const sql=(strings,...values)=>{const query=strings.join('?');if(query.startsWith('SELECT'))return Promise.resolve(rows);writes.push({query,values});return Promise.resolve([]);};
+ try{
+  process.env.POSTGRES_URL='postgres://mock-only';const db=loader({'@neondatabase/serverless':{neon:()=>sql}})('src/lib/db.ts');
+  const users=await db.getUsers();assert.equal(users[0].industry,'IT / AI & Software');assert.equal(users[1].industry,'IT / AI & Forward-Deployed Software');assert.equal(writes.length,1);assert.deepEqual(writes[0].values,['IT / AI & Software','user_ji']);
+  rows[0].industry='My custom industry';writes.length=0;await db.getUsers();assert.equal(rows[0].industry,'My custom industry');assert.equal(writes.length,0);
+ }finally{if(previous===undefined)delete process.env.POSTGRES_URL;else process.env.POSTGRES_URL=previous;}
+});
+
+test('application validation rejects malformed objects and coerced salaries while preserving numeric strings and zero',()=>{
+ const {applicationValidationError}=loader()('src/lib/application-validation.ts');
+ for(const value of [null,[],false,'draft'])assert.match(applicationValidationError(value),/application object/);
+ for(const value of [false,[],{},' '])assert.match(applicationValidationError({salary_min:value}),/nonnegative/);
+ for(const value of [0,'0','12500.50'])assert.equal(applicationValidationError({salary_min:value}),null);
+ assert.match(applicationValidationError({job_url:false}),/http/);
+ assert.match(applicationValidationError({is_lead:'false'}),/lead flag/);
+ assert.match(applicationValidationError({contact_email:123}),/must be text/);
+});
+
+test('Google setup generates a random auth secret once and preserves existing secrets',async()=>{
+ const keys=['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','NEXTAUTH_SECRET'];const previous=Object.fromEntries(keys.map(key=>[key,process.env[key]]));let content='';
+ try{
+  for(const key of keys)delete process.env[key];
+  const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'admin',role:'admin'})},fs:{existsSync:()=>Boolean(content),readFileSync:()=>content,writeFileSync:(_file,value)=>{content=value;}}})('src/app/api/settings/google/route.ts');
+  const request=()=>new Request('http://local/api/settings/google',{method:'POST',body:JSON.stringify({clientId:'example-client',clientSecret:'example-secret'})});
+  assert.equal((await route.POST(request())).status,200);const secret=content.match(/^NEXTAUTH_SECRET=(.+)$/m)?.[1];
+  assert.match(secret,/^[a-f0-9]{64}$/);assert.equal(process.env.NEXTAUTH_SECRET,secret);
+  assert.equal((await route.POST(request())).status,200);assert.equal(content.match(/^NEXTAUTH_SECRET=(.+)$/m)?.[1],secret);
+ }finally{for(const [key,value]of Object.entries(previous)){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
+});
+
 test('application saves return before Notion work, and background failures remain retryable',async()=>{
  const callbacks=[];let saved=sample();let pushes=0;let fail=false;let release;
  const blocked=new Promise(resolve=>release=resolve);

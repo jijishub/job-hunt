@@ -4,7 +4,9 @@ import { getSessionAccount } from '@/lib/session-account';
 import { ownsApplication } from '@/lib/ownership';
 import { validRoleFit } from '@/lib/role-fit';
 import { NextResponse } from 'next/server';
-import { getApplications, createApplication, getOrCreateCompany, getCompanies } from '@/lib/db';
+import { getApplications, createApplication, getOrCreateCompany, getCompanies, getCandidatePreferences } from '@/lib/db';
+import { stageForStatus } from '@/lib/analytics-stages';
+import { isArchivedApplication } from '@/lib/application-workflow';
 import { pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
 import { scheduleApplicationNotionSync } from '@/lib/application-notion-sync';
 import { normalizeOfferFields } from '@/lib/salary-offers';
@@ -93,6 +95,7 @@ export async function POST(request: Request) {
         ) || null;
     }
 
+    const preferences = await getCandidatePreferences(user.id);
     const newApp = await createApplication({
       company_id: company?.id || undefined,
       company_name: company?.name || company_name.trim(),
@@ -100,7 +103,7 @@ export async function POST(request: Request) {
       role_title,
       information: body.information ?? body.job_description,
       job_description: body.information ?? body.job_description,
-      analytics_stage: body.analytics_stage || null,
+      analytics_stage: stageForStatus(body.notion_status || status, status, preferences?.analytics_status_stages),
       not_proceeding: Boolean(body.not_proceeding),
       role_fit: body.role_fit || null,
       role_fit_source: body.role_fit ? (body.role_fit_source === 'ai' ? 'ai' : 'manual') : null,
@@ -131,7 +134,7 @@ export async function POST(request: Request) {
       sync_status: 'PENDING',
     });
 
-    if (!isLead && user.role === 'admin' && user.notion_enabled) {
+    if (!isArchivedApplication(newApp) && !isLead && user.role === 'admin' && user.notion_enabled) {
       scheduleApplicationNotionSync(newApp.id);
     }
 

@@ -125,8 +125,9 @@ test('members can use Guide, master resume, company search, charts, ATS and real
       await dialog.accept();
     });
     await page.getByRole('button', { name: 'Mark applied', exact: true }).click();
-    await page.getByText('No saved leads yet. Save a real posting below.').waitFor();
+    await page.getByText('No saved leads yet. Use Quick Add to save a real posting.').waitFor();
     assert.equal(statusWrites.at(-1).notion_status, 'Applied');
+    await page.getByRole('button', { name: 'Quick Add', exact: true }).click();
     await page.getByLabel('Role title', { exact: true }).fill('Verified Lead');
     await page.getByLabel('Company', { exact: true }).fill('Verified Employer');
     await page.getByLabel('Posting URL', { exact: true }).fill('https://example.com/careers/123');

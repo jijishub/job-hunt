@@ -13,7 +13,8 @@ function loadNotion(env) {
   class Client { constructor() { clients++; } }
   vm.runInNewContext(compiled, {
     exports: moduleObject.exports, module: moduleObject, process: { env }, console,
-    require: name => name === '@notionhq/client' ? { Client } : {},
+    require: name => name === '@notionhq/client' ? { Client }
+      : name === './application-workflow' ? require('./migrate_db.cjs').loadTypescript(path.resolve(__dirname, '../src/lib/application-workflow.ts')) : {},
   });
   return { exports: moduleObject.exports, clientCount: () => clients };
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- Node CommonJS migration entrypoint. */
 const fs = require('node:fs');
 const path = require('node:path');
 const Module = require('node:module');

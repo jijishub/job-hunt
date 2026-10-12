@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { JobApplication, UserAccount, ApplicationStatus, Company } from '@/types/job';
 import JobDiscoveryHub from './JobDiscoveryHub';
 import StatusBadge from './StatusBadge';
+import { displayApplicationStatusLabel, isArchivedApplication } from '@/lib/application-workflow';
 import PriorityBadge from './PriorityBadge';
 import RoleFitBadge from './RoleFitBadge';
 import CloseButton from './CloseButton';
@@ -32,7 +33,7 @@ export default function JobLeadsView({ onAddToTracker, existingApplications, cur
   const [url, setUrl] = useState('');
   const [notes, setNotes] = useState('');
   const quickAddDialog = useRef<HTMLDialogElement>(null);
-  const leads = existingApplications.filter(app => app.status === 'LEAD');
+  const leads = existingApplications.filter(app => app.status === 'LEAD' && !isArchivedApplication(app));
   const shown = leads
     .filter(app => (app.role_title + ' ' + app.company_name).toLowerCase().includes(query.trim().toLowerCase()))
     .sort((a, b) => (a.role_fit ? fitOrder[a.role_fit] : 3) - (b.role_fit ? fitOrder[b.role_fit] : 3));
@@ -82,7 +83,7 @@ export default function JobLeadsView({ onAddToTracker, existingApplications, cur
           <button type="button" className="text-left text-sm font-bold text-[#4A3E44] transition hover:text-[#9D3C5E]" onClick={() => onSelectLead?.(app)}><h3>{app.role_title}</h3></button>
           {app.notes && <p className="line-clamp-2 whitespace-pre-line rounded-xl border border-[#F1DDE9]/60 bg-[#FAF7F9] p-2 text-xs leading-relaxed text-[#736A6D]">{app.notes}</p>}
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <StatusBadge status={app.notion_status || app.status} size="sm" />
+            <StatusBadge status={displayApplicationStatusLabel(app)} size="sm" />
             <button type="button" aria-label={`View profile fit for ${app.role_title} at ${app.company_name}`} onClick={() => onSelectLead?.(app)} className="rounded-full cursor-pointer transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF7AB3] focus-visible:ring-offset-2"><RoleFitBadge app={app} /></button>
             {app.work_model && <span className="rounded-md border border-stone-200 bg-stone-50 px-2 py-0.5 text-[10px] font-semibold text-stone-600">{app.work_model.replaceAll('_', ' ')}</span>}
           </div>

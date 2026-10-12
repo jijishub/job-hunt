@@ -1,10 +1,11 @@
 'use client';
 
 import { ownsApplication } from '@/lib/ownership';
+import { applicationWorkflowUpdates, displayApplicationStatus, displayApplicationStatusLabel, isArchivedApplication } from '@/lib/application-workflow';
 import { isInternship } from '@/lib/analytics';
 import { DefaultView, DEFAULT_VIEWS } from '@/lib/preferences';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import {
@@ -59,6 +60,7 @@ export default function JobHuntDashboard() {
   const [jobTypeFilter, setJobTypeFilter] = useState('ALL');
   const [defaultView, setDefaultView] = useState<DefaultView>('ALL');
   const [roleFitFilter, setRoleFitFilter] = useState('ALL');
+  const [archiveFilter, setArchiveFilter] = useState('ACTIVE');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [notionStatusFilter, setNotionStatusFilter] = useState<string>('ALL');
   const [serviceFilter, setServiceFilter] = useState<string>('ALL');
@@ -71,6 +73,7 @@ export default function JobHuntDashboard() {
 
   useEffect(() => {
     setDefaultView('ALL'); setJobTypeFilter('ALL');
+    setArchiveFilter('ACTIVE');
     if (authStatus !== 'authenticated' || !currentUser?.id) return;
     const controller = new AbortController();
     fetch('/api/preferences', { signal: controller.signal }).then(response => response.json()).then(data => {
@@ -95,7 +98,7 @@ export default function JobHuntDashboard() {
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const [userManagementTab, setUserManagementTab] = useState<'accounts' | 'google'>('accounts');
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const sessionEmail = session?.user?.email?.toLowerCase().trim();
       const sessionRole = (session?.user as any)?.role;
@@ -174,13 +177,13 @@ export default function JobHuntDashboard() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [session]);
 
   useEffect(() => {
     if (authStatus === 'authenticated') {
       fetchData();
     }
-  }, [authStatus]);
+  }, [authStatus, fetchData]);
 
   const handleNotionSync = async () => {
     setIsSyncing(true);
@@ -263,8 +266,7 @@ export default function JobHuntDashboard() {
         a.id === id
           ? {
               ...a,
-              status: newStatus,
-              notion_status: notionStatusName || a.notion_status,
+              ...applicationWorkflowUpdates(a, { status: newStatus, notion_status: notionStatusName }),
             }
           : a
       )
@@ -343,6 +345,8 @@ export default function JobHuntDashboard() {
   const filteredApplications = useMemo(() => {
     return personalApplications
       .filter((app) => {
+        if (archiveFilter === 'ACTIVE' && isArchivedApplication(app)) return false;
+        if (archiveFilter === 'ARCHIVED' && !isArchivedApplication(app)) return false;
         if (jobTypeFilter === 'INTERNSHIP' && !isInternship(app)) return false;
         if (jobTypeFilter === 'OTHER' && isInternship(app)) return false;
         if (roleFitFilter !== 'ALL' && (app.role_fit || 'UNASSESSED') !== roleFitFilter) return false;
@@ -355,7 +359,7 @@ export default function JobHuntDashboard() {
           const matchLocation = app.location?.toLowerCase().includes(q);
           const matchService = app.service?.toLowerCase().includes(q);
           const matchInfo = app.information?.toLowerCase().includes(q);
-          const matchNotionStatus = app.notion_status?.toLowerCase().includes(q);
+          const matchNotionStatus = displayApplicationStatusLabel(app).toLowerCase().includes(q) || app.notion_status?.toLowerCase().includes(q);
           if (
             !matchTitle &&
             !matchCompany &&
@@ -369,7 +373,7 @@ export default function JobHuntDashboard() {
           }
         }
 
-        if (statusFilter !== 'ALL' && app.status !== statusFilter) {
+        if (statusFilter !== 'ALL' && displayApplicationStatus(app) !== statusFilter) {
           return false;
         }
 
@@ -416,7 +420,7 @@ export default function JobHuntDashboard() {
         return 0;
       });
   }, [
-    applications,
+    archiveFilter,
     searchQuery,
     jobTypeFilter,
     roleFitFilter,
@@ -427,8 +431,6 @@ export default function JobHuntDashboard() {
     positionFilter,
     priorityFilter,
     sortBy,
-    users,
-    currentUser,
   ]);
 
   const leads = useMemo(() => {
@@ -617,6 +619,9 @@ export default function JobHuntDashboard() {
               {/* Filter Dropdowns with graceful wrapping */}
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-semibold text-[#9D3C5E]">My pipeline</span>
+                <select aria-label="Application visibility" value={archiveFilter} onChange={event => setArchiveFilter(event.target.value)} className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs bg-white">
+                  <option value="ACTIVE">Active applications</option><option value="ARCHIVED">Archive</option><option value="ALL">Active and archived</option>
+                </select>
                 <select aria-label="Application type" value={jobTypeFilter} onChange={event => setJobTypeFilter(event.target.value)} className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs bg-white">
                   <option value="ALL">All job types</option><option value="INTERNSHIP">Internships only</option><option value="OTHER">Exclude internships</option>
                 </select>
@@ -630,9 +635,10 @@ export default function JobHuntDashboard() {
                     value={notionStatusFilter}
                     onChange={(e) => setNotionStatusFilter(e.target.value)}
                     className="px-3 py-2 rounded-xl border border-[#F1DDE9] text-xs font-semibold text-[#736A6D] focus:outline-none focus:border-[#FF7AB3] bg-white transition cursor-pointer max-w-[150px] truncate"
-                    title="Filter by exact Notion stage"
+                    title="Filter by recorded job status"
+                    aria-label="Recorded status filter"
                   >
-                    <option value="ALL">Notion: All Stages</option>
+                    <option value="ALL">Status: All stages</option>
                     {uniqueNotionStatuses.map((st) => (
                       <option key={st} value={st}>
                         {st}

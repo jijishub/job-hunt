@@ -52,7 +52,7 @@ test('board columns, custom moves, failed moves, add defaults and currency previ
     const { page, state } = await dashboard(browser);
     await page.getByText('PHP 60,000.00 – 80,000.00', { exact: true }).waitFor();
     assert.equal(await page.getByText('USD 1,200.00 – 2,000.00', { exact: true }).count(), 1);
-    await page.getByRole('button', { name: 'Board View', exact: true }).click();
+    await page.getByLabel('Application visibility').selectOption('ALL');await page.getByRole('button', { name: 'Board View', exact: true }).click();
     await page.getByLabel('Move applied engineer at Example').waitFor();
     assert.equal(await page.locator('h4').count(), state.apps.length);
     assert.equal(await page.getByRole('heading', { name: 'Screening', exact: true }).count(), 0);
@@ -66,7 +66,7 @@ test('board columns, custom moves, failed moves, add defaults and currency previ
     // The category deliberately cannot be inferred from this name.
     state.statuses.push({ id: 'custom_review', name: 'Phone review', category: 'SCREENING', color: 'orange' });
     await page.getByRole('button', { name: 'Table View', exact: true }).click();
-    await page.getByRole('button', { name: 'Board View', exact: true }).click();
+    await page.getByLabel('Application visibility').selectOption('ALL');await page.getByRole('button', { name: 'Board View', exact: true }).click();
     await page.getByRole('heading', { name: 'Screening', exact: true }).waitFor();
     await page.getByLabel('Move applied engineer at Example').selectOption('Phone review');
     await page.waitForFunction(() => document.querySelector('select[aria-label="Move applied engineer at Example"]')?.value === 'Phone review');
@@ -93,7 +93,7 @@ test('member board shows every saved category once, including rejected and offer
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     const { page, state } = await dashboard(browser, 'member');
-    await page.getByRole('button', { name: 'Board View', exact: true }).click();
+    await page.getByLabel('Application visibility').selectOption('ALL');await page.getByRole('button', { name: 'Board View', exact: true }).click();
     await page.getByLabel('Move rejected engineer at Example').waitFor();
     assert.equal(await page.locator('h4').count(), state.apps.length);
     for (const app of state.apps) assert.equal(await page.getByRole('heading', { name: app.role_title, exact: true }).count(), 1);

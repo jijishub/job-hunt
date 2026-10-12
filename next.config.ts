@@ -18,8 +18,8 @@ const nextConfig: NextConfig = {
   env: {
     NEXTAUTH_URL: resolvedAuthUrl,
   },
-  typescript: {
-    ignoreBuildErrors: true,
+  turbopack: {
+    root: process.cwd(),
   },
 };
 

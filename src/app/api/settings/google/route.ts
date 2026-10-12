@@ -2,6 +2,7 @@ import { getSessionAccount } from '@/lib/session-account';
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { randomBytes } from 'node:crypto';
 
 const ENV_PATH = path.join(process.cwd(), '.env.local');
 
@@ -66,7 +67,6 @@ export async function POST(req: Request) {
     const newLines: string[] = [];
     let foundClientId = false;
     let foundClientSecret = false;
-    let foundNextAuthUrl = false;
     let foundNextAuthSecret = false;
 
     for (const line of lines) {
@@ -82,7 +82,6 @@ export async function POST(req: Request) {
         foundClientSecret = true;
       } else if (line.startsWith('NEXTAUTH_URL=')) {
         newLines.push(line);
-        foundNextAuthUrl = true;
       } else if (line.startsWith('NEXTAUTH_SECRET=')) {
         newLines.push(line);
         foundNextAuthSecret = true;
@@ -97,11 +96,12 @@ export async function POST(req: Request) {
     if (!foundClientSecret && clientSecret) {
       newLines.push(`GOOGLE_CLIENT_SECRET=${clientSecret}`);
     }
-    if (!foundNextAuthSecret && !process.env.NEXTAUTH_SECRET) {
-      newLines.push(`NEXTAUTH_SECRET=job-hunt-secret-key-${Date.now()}`);
-    }
+    const generatedAuthSecret = !foundNextAuthSecret && !process.env.NEXTAUTH_SECRET
+      ? randomBytes(32).toString('hex') : undefined;
+    if (generatedAuthSecret) newLines.push(`NEXTAUTH_SECRET=${generatedAuthSecret}`);
 
     fs.writeFileSync(ENV_PATH, newLines.join('\n'), 'utf-8');
+    if (generatedAuthSecret) process.env.NEXTAUTH_SECRET = generatedAuthSecret;
 
     return NextResponse.json({
       success: true,

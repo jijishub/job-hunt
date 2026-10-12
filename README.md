@@ -31,6 +31,7 @@ The details are the part I get excited about: which roles reach interviews, how 
 | Feature | What it brings to your search |
 | --- | --- |
 | **Your application pipeline** | Switch between a table and board; keep job descriptions, personal notes, dates, and hiring stages together. |
+| **Automatic progress and reversible archiving** | Analytics follows the highest recorded hiring phase. Not Proceeding archives locally without changing the recorded job status or Notion backup. Use Archive to review a record and uncheck Not Proceeding to restore it. Works for admins and members. |
 | **A home for promising leads** | Browse Saved leads or Discover, and open Quick Add from the same toolbar to save a real posting in a modal. See each lead's profile-fit rating and click it to open that lead's details and saved assessment. |
 | **AI when you need it** | Use your master resume for ATS matching and role-fit assessments, with explanations you can review. |
 | **Analytics you can explore** | Follow submissions, interviews, offers, and rejections. Click charts to review their records and export an aggregate PDF report. |

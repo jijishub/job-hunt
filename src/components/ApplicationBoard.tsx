@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { JobApplication, ApplicationStatus } from '@/types/job';
 import PriorityBadge from './PriorityBadge';
 import StatusBadge from './StatusBadge';
+import { displayApplicationStatusLabel, displayApplicationStatus } from '@/lib/application-workflow';
 import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, applicationStatusLabel, StatusOption } from '@/lib/statuses';
 import { formatSalaryRange } from '@/lib/currencies';
 import {
@@ -56,9 +57,9 @@ export default function ApplicationBoard({
   }, [isMember]);
   const availableStatuses = [...statusOptions];
   for (const app of applications) {
-    const name = app.notion_status?.trim() || applicationStatusLabel(app.status);
+    const name = displayApplicationStatusLabel(app);
     if (!availableStatuses.some(option => option.name === name)) {
-      availableStatuses.push({ id: name, name, category: app.status, color: 'default' });
+      availableStatuses.push({ id: name, name, category: displayApplicationStatus(app), color: 'default' });
     }
   }
   const matchesColumn = (status: ApplicationStatus, column: ApplicationStatus) => {
@@ -87,7 +88,7 @@ export default function ApplicationBoard({
     {moveError && <p role="alert" className="mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">{moveError}</p>}
     <div className="flex gap-4 overflow-x-auto pb-6 pt-1 items-start min-h-[600px]">
       {columns.map((col) => {
-        const colApps = applications.filter(app => matchesColumn(app.status, col.status));
+        const colApps = applications.filter(app => matchesColumn(displayApplicationStatus(app), col.status));
         const preferredLabel = applicationStatusLabel(col.status === 'OFFER' && !isMember ? 'ACCEPTED' : col.status);
         const newStatus = availableStatuses.find(option => option.name === preferredLabel && matchesColumn(option.category, col.status)) ||
           availableStatuses.find(option => option.category === col.status) ||
@@ -163,7 +164,7 @@ export default function ApplicationBoard({
 
                   {/* Notion Stage & Service Categorization Badges */}
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <StatusBadge status={app.notion_status || applicationStatusLabel(app.status)} size="sm" />
+                    <StatusBadge status={displayApplicationStatusLabel(app)} size="sm" />
                       <RoleFitBadge app={app} />
                     {app.service && (
                       <span className="inline-block px-2 py-0.5 rounded-md text-[9px] font-semibold bg-stone-100 text-[#736A6D] border border-stone-200/60 truncate max-w-[120px]" title={app.service}>
@@ -194,7 +195,7 @@ export default function ApplicationBoard({
                     <select
                       aria-label={`Move ${app.role_title} at ${app.company_name}`}
                       disabled={movingIds.includes(app.id)}
-                      value={app.notion_status || applicationStatusLabel(app.status)}
+                      value={displayApplicationStatusLabel(app)}
                       onChange={(e) => { void moveApplication(app, e.target.value); }}
                       className="text-[11px] font-medium text-[#736A6D] bg-stone-50 hover:bg-[#FCE7F3] border border-[#F1DDE9] rounded-lg px-2 py-0.5 focus:outline-none transition max-w-[155px] truncate"
                     >

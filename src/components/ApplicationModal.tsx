@@ -1,7 +1,8 @@
 'use client';
 
 import { CURRENCIES } from '@/lib/currencies';
-import { ANALYTICS_STAGES, STAGE_LABELS, AnalyticsStage } from '@/lib/analytics-stages';
+import { ANALYTICS_STAGES, STAGE_LABELS, reachedStage, AnalyticsStage } from '@/lib/analytics-stages';
+import { isArchivedApplication } from '@/lib/application-workflow';
 import CloseButton from './CloseButton';
 import CurrencyInput from './CurrencyInput';
 import { OFFER_PAY_PERIODS } from '@/lib/salary-offers';
@@ -15,7 +16,6 @@ import ImageDropzone from './ImageDropzone';
 import React, { useState, useEffect } from 'react';
 import { JobApplication, Company, ApplicationStatus, Priority, JobType, WorkModel, UserAccount } from '@/types/job';
 import {
-  X,
   Briefcase,
   Building2,
   Calendar,
@@ -25,7 +25,7 @@ import {
   Plus,
   Upload,
 } from 'lucide-react';
-import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, applicationStatusLabel, getStatusCategory, StatusOption, getStatusStyle } from '@/lib/statuses';
+import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, applicationStatusLabel, getStatusCategory, StatusOption } from '@/lib/statuses';
 
 interface ApplicationModalProps {
   isOpen: boolean;
@@ -73,17 +73,6 @@ function compressImage(file: File, callback: (base64: string) => void) {
   reader.readAsDataURL(file);
 }
 
-const STATUS_OPTIONS: { value: ApplicationStatus; label: string }[] = [
-  { value: 'LEAD', label: 'Lead / Wishlist' },
-  { value: 'APPLIED', label: 'Applied' },
-  { value: 'SCREENING', label: 'Screening' },
-  { value: 'INTERVIEWING', label: 'Interviewing' },
-  { value: 'OFFER', label: 'Offer Received' },
-  { value: 'ACCEPTED', label: 'Accepted 🎉' },
-  { value: 'REJECTED', label: 'Rejected' },
-  { value: 'WITHDRAWN', label: 'Withdrawn' },
-];
-
 const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
   { value: 'DREAM', label: '⭐ Dream Job' },
   { value: 'HIGH', label: '🌸 High' },
@@ -119,7 +108,7 @@ export default function ApplicationModal({
   const [location, setLocation] = useState('');
   const [service, setService] = useState('');
   const [notionStatus, setNotionStatus] = useState('Not started');
-  const [analyticsStage,setAnalyticsStage] = useState<AnalyticsStage>('NOT_SUBMITTED');
+  const [analyticsMapping, setAnalyticsMapping] = useState<Record<string, AnalyticsStage>>({});
   const [notProceeding,setNotProceeding] = useState(false);
   const [salaryMin, setSalaryMin] = useState<string>('');
   const [salaryMax, setSalaryMax] = useState<string>('');
@@ -146,6 +135,16 @@ export default function ApplicationModal({
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
 
   useEffect(() => {
+    setAnalyticsMapping({});
+    if (!isOpen) return;
+    const controller = new AbortController();
+    fetch('/api/preferences', { signal: controller.signal }).then(response => response.json()).then(data => {
+      if (data.success && !controller.signal.aborted) setAnalyticsMapping(data.data?.analytics_status_stages || {});
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [isOpen, currentUserId]);
+
+  useEffect(() => {
     if (isOpen) {
       setStatusOptions(isMember ? MEMBER_STATUS_OPTIONS : SEEDED_STATUS_OPTIONS);
       fetch('/api/statuses')
@@ -167,7 +166,7 @@ export default function ApplicationModal({
     setExpectedSalary(initialData?.expected_salary_amount != null ? String(initialData.expected_salary_amount) : '');
     setExpectedCurrency(initialData?.expected_salary_currency || 'PHP');
     setExpectedPeriod(initialData?.expected_salary_pay_period || 'MONTHLY');
-    setAnalyticsStage(initialData?.analytics_stage || 'NOT_SUBMITTED'); setNotProceeding(initialData?.not_proceeding || false);
+    setNotProceeding(initialData ? isArchivedApplication(initialData) : false);
     setRoleFit(initialData?.role_fit || initialData?.role_fit_analysis?.fit || null);
     setFitAnalysis(initialData?.role_fit_analysis || null);
     setUseAiFit(initialData?.role_fit_source === 'ai');
@@ -277,7 +276,6 @@ export default function ApplicationModal({
         service: service.trim() || undefined,
         notion_status: notionStatus.trim() || undefined,
         information: jobDescription.trim(),
-        analytics_stage: analyticsStage,
         not_proceeding: notProceeding,
         priority,
         job_type: jobType,
@@ -348,6 +346,7 @@ export default function ApplicationModal({
                     <button
                       type="button"
                       onClick={() => setIsAddingCustomStatus(!isAddingCustomStatus)}
+                      disabled={notProceeding}
                       className="text-[11px] font-semibold text-[#FF7AB3] hover:text-[#9D3C5E] transition"
                     >
                       {isAddingCustomStatus ? 'Cancel' : '+ Add Option'}
@@ -357,9 +356,11 @@ export default function ApplicationModal({
                   {!isAddingCustomStatus ? (
                     <select
                       aria-label="Application stage"
+                      disabled={notProceeding}
                       value={notionStatus || 'Not started'}
                       onChange={(e) => {
                         const chosen = e.target.value;
+                        if (getStatusCategory(chosen) === 'WITHDRAWN' || /not proceeding/i.test(chosen)) { setNotProceeding(true); return; }
                         setNotionStatus(chosen);
                         setStatus(getStatusCategory(chosen));
                       }}
@@ -712,9 +713,9 @@ export default function ApplicationModal({
           </section>
 
           <div className="grid gap-3 sm:grid-cols-2 rounded-xl border border-[#F1DDE9] p-3 text-xs">
-            <label>Analytics phase reached<select aria-label="Analytics phase reached" value={analyticsStage} onChange={e=>setAnalyticsStage(e.target.value as AnalyticsStage)} className="mt-1 w-full rounded-lg border p-2">{ANALYTICS_STAGES.map(stage=><option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>)}</select></label>
+            <div>Analytics phase reached<output aria-label="Analytics phase reached" className="mt-1 block rounded-lg border p-2">{STAGE_LABELS[ANALYTICS_STAGES[reachedStage({ ...initialData, status, notion_status: notionStatus } as JobApplication, analyticsMapping)]]}</output></div>
             <label className="flex items-center gap-2"><input type="checkbox" checked={notProceeding} onChange={e=>setNotProceeding(e.target.checked)} />Not Proceeding</label>
-            <p className="sm:col-span-2 text-[#736A6D]">Keep your status label. For ambiguous outcomes, record the phase reached; Not Proceeding does not erase your progress.</p>
+            <p className="sm:col-span-2 text-[#736A6D]">Phase follows your status history. Save with Not Proceeding checked to archive this application while retaining your progress and Notion backup status. Uncheck it to restore.</p>
           </div>
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#F1DDE9]">
             <button

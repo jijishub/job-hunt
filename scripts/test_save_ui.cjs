@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- Node CommonJS browser test entrypoint. */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright-core');

@@ -5,6 +5,7 @@ import RoleFitBadge from './RoleFitBadge';
 import React from 'react';
 import { JobApplication } from '@/types/job';
 import StatusBadge from './StatusBadge';
+import { displayApplicationStatusLabel } from '@/lib/application-workflow';
 import PriorityBadge from './PriorityBadge';
 import { formatSalaryRange } from '@/lib/currencies';
 import {
@@ -130,7 +131,7 @@ export default function ApplicationTable({
                   </td>
 
                   <td className="py-3.5 px-4">
-                    <StatusBadge status={app.notion_status || app.status} size="sm" />
+                    <StatusBadge status={displayApplicationStatusLabel(app)} size="sm" />
                   </td>
 
                   <td className="py-3 px-4"><RoleFitBadge app={app} /></td>

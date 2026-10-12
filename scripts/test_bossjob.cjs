@@ -6,6 +6,7 @@ const crypto=require('node:crypto');
 const {chromium}=require('playwright-core');
 const {parseOptions,main}=require('./bossjob_sync.cjs');
 const {bossjobHelper}=require('./bossjob_browser.cjs');
+const {BUSINESS_PERSONAL_SUMMARY}=require('./bossjob_profile.cjs');
 
 test('Bossjob defaults to business and generates the helper from the exact business PDF',async()=>{
  assert.deepEqual(parseOptions([]),{variant:'business',prepareOnly:false});
@@ -22,11 +23,22 @@ test('Bossjob defaults to business and generates the helper from the exact busin
  assert.equal(payload.auto_sync,true);
  assert.equal(payload.full_profile,true);
  assert.equal(payload.auto_upload,true);
+ assert.equal(payload.data.profile.summary,BUSINESS_PERSONAL_SUMMARY);
+ assert.deepEqual(payload.data.profile.experience.find(entry=>entry.company==='CLOUDJI NOTION TEMPLATES').existing_titles,['Founder']);
  assert.equal(payload.data.source.path,'references/Active Resume/BusinessSolutions/JizelleCasia_Resume.pdf');
  const bytes=fs.readFileSync(path.join(root,payload.data.source.path));
  assert.deepEqual(Buffer.from(payload.resume,'base64'),bytes);
  assert.equal(payload.data.source.sha256,crypto.createHash('sha256').update(bytes).digest('hex'));
  assert.ok(payload.data.profile.experience.every(entry=>entry.company&&entry.title&&entry.description));
+});
+
+test('Bossjob remaining mode prepares only summary and existing Cloudji with upload disabled',async()=>{
+ assert.deepEqual(parseOptions(['--remaining','--prepare']),{variant:'business',prepareOnly:true,remainingOnly:true});
+ await main(['--prepare','--remaining']);
+ const helper=fs.readFileSync(path.resolve(__dirname,'../.data/bossjob/helper.js'),'utf8');
+ const start=('('+bossjobHelper.toString()+')(').length;
+ const payload=JSON.parse(helper.slice(start,helper.indexOf(',\nfunction installBossjobWorkflow',start)));
+ assert.equal(payload.auto_upload,false);assert.equal(payload.update_only,true);assert.deepEqual(payload.only_tasks,['summary','work:CLOUDJI NOTION TEMPLATES']);
 });
 
 test('Bossjob fills work and education independently of PDF parsing and handles accessible labels and native months',async()=>{

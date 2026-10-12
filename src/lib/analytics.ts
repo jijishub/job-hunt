@@ -22,6 +22,7 @@ export function uniqueApplications(applications: JobApplication[]) {
 }
 export function currentOutcome(app: JobApplication, mapping: Record<string, AnalyticsStage> = {}, rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES) {
   if (reachedStage(app, mapping) < 1) return 'NOT_SUBMITTED';
+  if (app.not_proceeding) return 'NOT_PROCEEDING';
   if (isRejection(app, rejectionStatuses)) return 'REJECTED';
   if (app.not_proceeding || app.status === 'WITHDRAWN' || /not proceeding/i.test(canonicalStatusName(app.notion_status || ''))) return 'NOT_PROCEEDING';
   if (['ACCEPTED', 'OFFER'].includes(app.status) || stageForStatus(app.notion_status || app.status, app.status, mapping) === 'OFFER') return 'OFFER';

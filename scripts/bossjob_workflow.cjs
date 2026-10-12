@@ -9,20 +9,22 @@ function installBossjobWorkflow(context) {
  const progress=document.createElement('ol');progress.style.cssText='padding-left:22px;font-size:12px';panel.insertBefore(progress,select);
  const fullProfile=payload.full_profile===true;
  if(fullProfile)sync.textContent='Sync entire business profile';
- const tasks=entries.map((entry,index)=>({entry,index})).filter(({entry})=>fullProfile||['work','education'].includes(entry.kind));
- if(fullProfile)tasks.sort((a,b)=>['work','education','personal','skills','certifications'].indexOf(a.entry.kind)-['work','education','personal','skills','certifications'].indexOf(b.entry.kind));
+ const tasks=entries.map((entry,index)=>({entry,index})).filter(({entry})=>(fullProfile||['work','education'].includes(entry.kind))&&(!payload.only_tasks||payload.only_tasks.includes(entry.kind)||payload.only_tasks.includes(entry.kind+':'+entry.values.company)));
+ if(fullProfile){const order=['summary','work','education','personal','skills','certifications'];tasks.sort((a,b)=>order.indexOf(a.entry.kind)-order.indexOf(b.entry.kind));}
  const rows=tasks.map(({entry})=>{const row=document.createElement('li');row.textContent=entry.label;progress.append(row);return row;});
  let at=0,pending=null,stopped=false,running=false,pickHandler=null,uploaded=false,uploadReady=false;
  const unresolved=[];
  const timeout=payload.timeout_ms||12000;
  const fold=text=>normalize(text).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
  const organization=text=>fold(normalize(text).replace(/\b(?:incorporated|inc|corp(?:oration)?|ltd|limited|llc)\.?$/i,''));
+ const transactionKey=entry=>'bossjob-save:'+JSON.stringify([payload.data.source?.sha256||payload.data.source?.path,entry.kind,entry.values.company,entry.values.title,entry.values.institution,entry.values.qualification]);
+ const previousSave=entry=>sessionStorage.getItem(transactionKey(entry))==='pending';
  const check=()=>{guard();if(stopped||!panel.isConnected)throw Error('Stopped. Any open editor was left for you to review.');};
  const one=(items,name)=>{const unique=[...new Set(items)];if(unique.length>1)throw Error('Multiple '+name+' matches. Nothing saved.');return unique[0];};
  async function waitFor(find,name,duration=timeout){const until=Date.now()+duration;while(Date.now()<until){check();const result=find();if(result)return result;await new Promise(resolve=>setTimeout(resolve,100));}throw Error('Timed out waiting for '+name+'. The sequence is paused.');}
  const editors=()=>[...document.querySelectorAll('[role=dialog],dialog,[aria-modal=true],.ant-modal-content,.ant-drawer-content,form')].filter(visible).filter(el=>el.tagName!=='FORM'||el.querySelector('input,textarea,select,[contenteditable=true]')).filter((el,_,all)=>!all.some(parent=>parent!==el&&parent.contains(el)));
  const editor=()=>one(editors(),'editor');
- const sectionNames={personal:['personal information','personal details','basic information','basic info'],work:['work experience','working experience','employment history','experience'],education:['education','educational background'],skills:['skills','professional skills'],certifications:['certifications','certificates','licenses and certifications']};
+ const sectionNames={summary:['personal summary','professional summary','about me'],personal:['personal information','personal details','basic information','basic info'],work:['work experience','working experience','employment history','experience'],education:['education','educational background'],skills:['skills','professional skills'],certifications:['certifications','certificates','licenses and certifications']};
  function sectionFor(entry){
   const names=sectionNames[entry.kind];
   const headings=[...document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role=heading],p,span,div')].filter(el=>visible(el)&&!el.closest('nav,aside,[role=tablist]')&&names.includes(normalize(el.textContent).replace(/\s*\(\d+\)$/,'')));
@@ -30,7 +32,7 @@ function installBossjobWorkflow(context) {
   if(!heading)throw Error('Cannot identify '+names[0]+'. Open its editor and use Copy editor controls (JSON).');
   const siteRoot=heading.closest(entry.kind==='work'?'.work-experience-wrap':entry.kind==='education'?'.education-wrap':'[data-profile-section]');if(siteRoot)return siteRoot;
   let root=heading.parentElement,last=root;
-  const otherNames=['about me',...Object.values(sectionNames).flat().filter(name=>!names.includes(name))];
+  const otherNames=['about me',...Object.values(sectionNames).flat()].filter(name=>!names.includes(name));
   while(root&&root!==document.body){
    if([...root.querySelectorAll('h1,h2,h3,h4,h5,h6,[role=heading],p,span,div')].some(el=>visible(el)&&!el.contains(heading)&&otherNames.includes(normalize(el.textContent))))break;
    last=root;root=root.parentElement;
@@ -42,7 +44,7 @@ function installBossjobWorkflow(context) {
   if(!['work','education'].includes(entry.kind))return section;
   const primary=entry.kind==='work'?entry.values.title:entry.values.institution;
   const secondary=entry.kind==='work'?entry.values.company:entry.values.qualification;
-  const all=[...section.querySelectorAll('h1,h2,h3,h4,h5,h6,p,span,div,li,article')].filter(el=>visible(el)&&textMatches(el,primary));
+  const all=[...section.querySelectorAll('h1,h2,h3,h4,h5,h6,p,span,div,li,article')].filter(el=>visible(el)&&(textMatches(el,primary)||(entry.values.existing_titles||[]).some(title=>textMatches(el,title))));
   const leaves=all.filter(el=>!all.some(child=>child!==el&&el.contains(child)));
   const records=leaves.map(leaf=>{
    const card=leaf.closest('.experience-item');
@@ -87,10 +89,14 @@ function installBossjobWorkflow(context) {
   }).map(el=>['SVG','IMG','USE','PATH'].includes(el.tagName.toUpperCase())?el.closest('button,[role=button],a,[tabindex],[onclick]')||el:el);
   return one(controls.filter(Boolean).filter(el=>!controls.some(child=>child!==el&&el.contains(child))),action+' control');
  }
- const names={name:['full name','name'],first_name:['first name'],last_name:['last name'],email:['email','email address'],phone:['phone','phone number','mobile number'],website:['website','portfolio','portfolio url'],location:['location','current location'],skills:['skills','professional skills'],certifications:['certifications','certificates'],company:['company','company name','employer'],title:['job title','position','position title','job position','designation'],description:['description','job description','responsibilities','work description','education description','achievements'],institution:['school','school name','institution','university','college university'],qualification:['degree','qualification','course','major course'],start_date:['start date','start time','from'],end_date:['end date','end time','to'],start_year:['start year','from year'],end_year:['end year','graduation year','to year'],start_month:['start month','from month'],end_month:['end month','to month'],current:['currently working here','i currently work here','i am currently working here','i am currently employed here','current job','present']};
+ const names={summary:['personal summary','professional summary','summary','about me','description'],name:['full name','name'],first_name:['first name'],last_name:['last name'],email:['email','email address'],phone:['phone','phone number','mobile number'],website:['website','portfolio','portfolio url'],location:['location','current location'],skills:['skills','professional skills'],certifications:['certifications','certificates'],company:['company','company name','employer'],title:['job title','position','position title','job position','designation'],description:['description','job description','responsibilities','work description','education description','achievements'],institution:['school','school name','institution','university','college university'],qualification:['degree','qualification','course','major course'],start_date:['start date','start time','from'],end_date:['end date','end time','to'],start_year:['start year','from year'],end_year:['end year','graduation year','to year'],start_month:['start month','from month'],end_month:['end month','to month'],current:['currently working here','i currently work here','i am currently working here','i am currently employed here','current job','present']};
  const monthNames='January February March April May June July August September October November December'.split(' ');
  function optionsFor(key,value){const result=[normalize(value)];if(key.endsWith('_month')){const month=monthNames[Number(value)-1];if(month)result.push(normalize(month),normalize(month.slice(0,3)),String(Number(value)),String(value).padStart(2,'0'));}return result;}
  function fieldFor(root,key){
+  if(key==='summary'){
+   const rich=[...root.querySelectorAll('.ql-editor[contenteditable=true]')].filter(visible);
+   if(rich.length===1&&!root.querySelector('.work-experience-form'))return rich[0];
+  }
   if(key==='title'){const custom=root.querySelector('[data-sentry-component=JobTitleCom]');if(custom)return custom;}
   const matching=[...root.querySelectorAll('input,textarea,select,[contenteditable=true],[role=combobox]')].filter(el=>visible(el)&&!el.disabled&&el.getAttribute('aria-disabled')!=='true'&&(key==='current'?el.type==='checkbox':!['file','password','hidden','checkbox','radio'].includes(el.type))&&labels(el).some(text=>names[key].includes(normalize(text))));
   return one(matching.filter(el=>!el.classList.contains('ql-clipboard')&&!matching.some(child=>child!==el&&el.contains(child))),key+' field');
@@ -102,9 +108,11 @@ function installBossjobWorkflow(context) {
    if(values[key]==null||values[key]==='')continue;
    const el=fieldFor(root,key);if(!el)continue;
    let value=values[key],action='fill';
+   if(key==='company'&&entry.kind==='work'&&pending?.targetId){const identity=existingWorkIdentity(root);if(identity&&organization(identity.company)===organization(value))value=identity.company;}
    if(key==='current')action='check';
    else if(el.matches('[data-sentry-component=JobTitleCom]'))action='search';
    else if(el.closest('.ant-picker'))action='calendar';
+   else if(key==='company'&&el.tagName==='INPUT'&&el.closest('[data-sentry-component="CompanyAutoComplete"]'))action='fill';
    else if(el.closest('.ant-select'))action='search';
    else if(el.getAttribute('role')==='combobox')action='combo';
    else if(el.tagName==='SELECT'){
@@ -122,7 +130,7 @@ function installBossjobWorkflow(context) {
   }
   const keys=new Set(plan.map(step=>step.key));
   const required=entry.kind==='work'?['company','title','description','start_date',entry.values.current?'current':'end_date']:entry.kind==='education'?['institution','qualification','start_year','end_year']:entry.kind==='personal'?[]:[entry.kind];
-  const missing=required.filter(key=>!keys.has(key)&&!(key.endsWith('_date')&&keys.has(key.replace('_date','_year'))&&keys.has(key.replace('_date','_month'))));
+  const missing=required.filter(key=>!keys.has(key)&&!(key==='current'&&existingWorkIdentity(root)?.current===true&&entry.values.current===true)&&!(key.endsWith('_date')&&keys.has(key.replace('_date','_year'))&&keys.has(key.replace('_date','_month'))));
   if(entry.kind==='personal'){
    if(!keys.has('name')&&!(keys.has('first_name')&&keys.has('last_name')))missing.push('name');
    for(const key of ['email','phone'])if(values[key]&&!keys.has(key))missing.push(key);
@@ -176,8 +184,13 @@ function installBossjobWorkflow(context) {
   throw Error('Calendar navigation limit reached');
  }
  async function applyPlan(plan){
-  for(const {el,key,value,action} of plan){
-   check();if(!el.isConnected)throw Error('Editor changed while filling. Retry with the current editor.');
+  for(const step of plan){
+   const {key,value,action}=step;let el=step.el;
+   check();if(!el.isConnected){
+    const root=editor();
+    if(!pending?.targetId||existingWorkIdentity(root)?.id!==pending.targetId)throw Error('Editor changed while filling. Retry with the current editor.');
+    pending.root=root;el=fieldFor(root,key);if(!el)throw Error('Editor lost '+key+' while filling. Nothing saved.');
+   }
    if(action==='check'){if(el.checked!==Boolean(value))el.click();}
    else if(action==='search'){if(key==='skills')await selectSkills(el,value);else await searchSelect(el,key,value);}
    else if(action==='calendar')await calendarSelect(el,value);
@@ -197,6 +210,25 @@ function installBossjobWorkflow(context) {
  }
  const errors=root=>[...root.querySelectorAll('[aria-invalid=true],[role=alert],.ant-form-item-explain-error')].filter(el=>visible(el)&&(el.getAttribute('aria-invalid')==='true'||el.textContent.trim()));
  function saveFor(root){return one([...root.querySelectorAll('button,[role=button],input[type=submit],[data-sentry-component=BossButton]')].filter(el=>visible(el)&&!el.disabled&&el.getAttribute('aria-disabled')!=='true'&&!/disabled|loading/i.test(el.className)&&['confirm','save','save changes','save experience','save education','add experience','add education'].includes(normalize(el.getAttribute('aria-label')||el.textContent||el.value))),'Save button');}
+ function existingWorkIdentity(root){
+  const form=root.matches('.work-experience-form')?root:root.querySelector('.work-experience-form');if(!form)return null;
+  let fiber=form[Object.keys(form).find(key=>key.startsWith('__reactFiber$'))];
+  for(let depth=0;fiber&&depth<32;depth++,fiber=fiber.return){const props=fiber.memoizedProps;if(props?.operateType&&props.initialValues?.id)return {operation:props.operateType,id:props.initialValues.id,company:props.initialValues.company,title:props.initialValues.job_title,current:props.initialValues.is_currently_work_here};}
+  return null;
+ }
+ async function recoverExistingWorkEditor(){
+  if(!pending?.record||pending.saveClicked||pending.recovered)throw Error('Existing work record ID is not verified. Nothing saved or added.');
+  pending.recovered=true;
+  const cancel=one([...pending.root.querySelectorAll('button,[role=button],[data-sentry-component="BossButton"]')].filter(el=>visible(el)&&normalize(el.textContent)==='cancel'),'Cancel control');
+  if(!cancel)throw Error('Existing work record ID is not verified. Nothing saved or added.');
+  check();cancel.click();await waitFor(()=>!editor(),'blank editor to close');
+  const section=sectionFor(pending.entry),record=recordFor(pending.entry,section);
+  if(!record)throw Error('Existing Cloudji record could not be matched after closing its blank editor. Nothing added.');
+  const edit=actionFor(record,'edit');if(!edit)throw Error('No verified existing Edit control. Nothing added.');
+  pending.record=record;pending.section=section;edit.scrollIntoView({block:'center'});edit.click();
+  pending.root=await waitFor(editor,'existing work editor to reopen');
+  return await waitFor(()=>existingWorkIdentity(pending.root),'existing work record ID after reopening');
+ }
  function saved(entry,section){
   if(!['work','education'].includes(entry.kind))return Object.entries(entry.values).filter(([key,value])=>value&&(key!=='name'||!entry.values.first_name||!entry.values.last_name)).every(([,value])=>fold(section.textContent).includes(fold(value)));
   const record=recordFor(entry,section);if(!record||!fold(record.textContent).includes(fold(entry.values.description)))return false;
@@ -224,7 +256,7 @@ function installBossjobWorkflow(context) {
  async function openTask(entry,index){
   if(editor())throw Error('Save or close the open editor before starting the sync.');
   if(fullProfile){
-   let section;try{section=sectionFor(entry);}catch{
+   try{sectionFor(entry);}catch{
     const aliases=sectionNames[entry.kind];
     const candidates=[...document.querySelectorAll('button,[role=tab],[role=button],a,li,span,div')].filter(el=>visible(el)&&aliases.includes(normalize(el.textContent)));
     const leaves=candidates.filter(el=>!candidates.some(child=>child!==el&&el.contains(child)));
@@ -235,6 +267,7 @@ function installBossjobWorkflow(context) {
   }
   const section=sectionFor(entry),record=recordFor(entry,section);
   if(record&&saved(entry,section))return {skip:true,section,record};
+  if(previousSave(entry))throw Error('An earlier Save for '+entry.label+' is still unconfirmed. No repeated Save or new entry will be submitted.');
   // If parsing changed a title/school, avoid adding a second copy of that account entry.
   const employer=entry.kind==='work'?entry.values.company:entry.values.institution;
   if(!record&&possiblePartial(entry,section)){
@@ -244,6 +277,7 @@ function installBossjobWorkflow(context) {
    if(unmatched.length===1){pending={entry,index,section,record:unmatched[0],root:null,saveClicked:false};const edit=actionFor(unmatched[0],'edit');if(!edit)throw Error('Missing Edit control');edit.click();pending.root=await waitFor(editor,'existing editor');return pending;}
    throw Error('A possibly incomplete '+employer+' entry already exists. Open its Edit control, choose the matching resume entry, and use Fill open editor; a duplicate was not added.');
   }
+  if(!record&&payload.update_only)throw Error('No unique existing '+entry.label+' record. This retry only edits existing records; nothing was added.');
   pending={entry,index,section,record,root:null,saveClicked:false};
   const button=actionFor(record||section,record?'edit':'add');
   if(!button){pick.hidden=false;throw Error('Paused: this '+(record?'Edit':' +')+' icon has no identifiable label. Click Choose this entry’s Edit / +, then click its real icon.');}
@@ -278,6 +312,13 @@ function installBossjobWorkflow(context) {
      if(opened.skip){rows[at].textContent='Already complete: '+entry.label;at++;continue;}
     }
     report((at+1)+'/'+tasks.length+': correcting '+entry.label);
+    if(entry.kind==='work'&&pending.record&&(pending.root.matches('.work-experience-form')||pending.root.querySelector('.work-experience-form'))){
+     let identity=existingWorkIdentity(pending.root);
+     if(!identity)identity=await recoverExistingWorkEditor();
+     const originalTitle=pending.record.querySelector('.job-title-text')?.textContent;
+     if(!identity||identity.operation!=='edit'||organization(identity.company)!==organization(entry.values.company)||(originalTitle&&fold(identity.title)!==fold(originalTitle)))throw Error('Existing work record ID is not verified. Nothing saved or added.');
+     if(pending.targetId&&pending.targetId!==identity.id)throw Error('Editor record ID changed. Nothing saved.');pending.targetId=identity.id;
+    }
     const current=fieldFor(pending.root,'current');
     if(entry.kind==='work'&&current&&current.checked!==Boolean(entry.values.current)){current.click();await new Promise(resolve=>setTimeout(resolve,0));}
     const plan=makePlan(entry,pending.root);
@@ -286,9 +327,9 @@ function installBossjobWorkflow(context) {
     if(errors(pending.root).length)throw Error('Bossjob reports invalid fields. Correct them before retrying.');
     const required=[...pending.root.querySelectorAll('input,textarea,select,[role=combobox]')].filter(el=>visible(el)&&!el.disabled&&(el.required||el.getAttribute('aria-required')==='true')&&(el.type==='checkbox'?!el.checked:!(el.value||el.textContent.trim())));
     if(required.length)throw Error('Required fields need input: '+required.map(el=>label(el)||el.type).join(', ')+'. Nothing saved.');
-    const save=await waitFor(()=>saveFor(pending.root),'the enabled Save button');check();pending.saveClicked=true;save.click();
+    const save=await waitFor(()=>saveFor(pending.root),'the enabled Save button');check();if(pending.targetId&&existingWorkIdentity(pending.root)?.id!==pending.targetId)throw Error('Editor record ID changed before Save. Nothing saved.');sessionStorage.setItem(transactionKey(entry),'pending');pending.saveClicked=true;save.click();
     await waitFor(()=>{if(errors(pending.root).length){pending.saveClicked=false;throw Error('Bossjob rejected this entry. Review the highlighted fields.');}if(pending.root.isConnected&&visible(pending.root))return false;return saved(entry,sectionFor(entry));},'the complete description and dates appearing after Save');
-    rows[at].textContent='Saved: '+entry.label;pending=null;at++;
+    sessionStorage.setItem(transactionKey(entry),'confirmed');rows[at].textContent='Saved: '+entry.label;pending=null;at++;
    }
    report(unresolved.length?'Synced available sections. Still unavailable: '+unresolved.join(', ')+'. These were not saved.':(fullProfile?'Entire profile':'Work and education')+' sync completed: '+tasks.length+' entries verified with their full descriptions.');sync.textContent=unresolved.length?'Review unavailable sections':'Sync complete';
   }catch(error){report(error.message);sync.textContent='Retry remaining';}

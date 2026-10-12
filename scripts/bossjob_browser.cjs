@@ -9,6 +9,7 @@ function bossjobHelper(payload,workflowInstaller) {
  const select=document.createElement('select');select.style.width='100%';select.setAttribute('aria-label','Resume section');
  const profile=payload.data.profile;
  const entries=[{kind:'personal',label:'Personal details',values:profile.personal},...(profile.experience||[]).map(entry=>({kind:'work',label:entry.title+' — '+entry.company,values:entry})),...(profile.education||[]).map(entry=>({kind:'education',label:entry.institution,values:entry}))];
+ if(profile.summary)entries.push({kind:'summary',label:'Personal summary',values:{summary:profile.summary}});
  if(profile.skills?.length)entries.push({kind:'skills',label:'Skills',values:{skills:profile.skills.join(', ')}});
  if(profile.certifications?.length)entries.push({kind:'certifications',label:'Certifications',values:{certifications:profile.certifications.join('\n')}});
  entries.forEach((entry,index)=>{const option=document.createElement('option');option.value=String(index);option.textContent=entry.label;select.append(option);});
@@ -70,7 +71,7 @@ function bossjobHelper(payload,workflowInstaller) {
  upload.onclick=async()=>{try{await uploadResume();}catch(error){report(error.message);}};
  fill.onclick=()=>{try{
   guard();const entry=entries[Number(select.value)];
-  const aliases={name:['full name','name'],first_name:['first name'],last_name:['last name'],email:['email','email address'],phone:['phone','phone number','mobile number'],website:['website','portfolio','portfolio url'],location:['location','current location'],company:['company','company name'],title:['job title','position','position title','job position'],description:['description','job description','responsibilities','work description','education description'],institution:['school','school name','institution','university','college university'],qualification:['degree','qualification','course','major course'],start_date:['start date','from'],end_date:['end date','to'],start_year:['start year'],end_year:['end year','graduation year'],skills:['skills'],certifications:['certifications','certificates']};
+  const aliases={summary:['personal summary','professional summary','summary','about me','description'],name:['full name','name'],first_name:['first name'],last_name:['last name'],email:['email','email address'],phone:['phone','phone number','mobile number'],website:['website','portfolio','portfolio url'],location:['location','current location'],company:['company','company name'],title:['job title','position','position title','job position'],description:['description','job description','responsibilities','work description','education description'],institution:['school','school name','institution','university','college university'],qualification:['degree','qualification','course','major course'],start_date:['start date','from'],end_date:['end date','to'],start_year:['start year'],end_year:['end year','graduation year'],skills:['skills'],certifications:['certifications','certificates']};
   const dialogs=[...document.querySelectorAll('[role=dialog],dialog,[aria-modal=true]')].filter(visible).filter((el,_,all)=>!all.some(parent=>parent!==el&&parent.contains(el)));
   const forms=[...document.querySelectorAll('form')].filter(visible);
   const roots=dialogs.length?dialogs:forms;
@@ -90,7 +91,7 @@ function bossjobHelper(payload,workflowInstaller) {
    }
   }
   if(!operations.length)throw Error('No verified field labels matched. Download the field inspection to configure this editor.');
-  const anchors={personal:['name','first_name','last_name','email','phone','website','location'],work:['company','title'],education:['institution','qualification'],skills:['skills'],certifications:['certifications']};
+  const anchors={summary:['summary'],personal:['name','first_name','last_name','email','phone','website','location'],work:['company','title'],education:['institution','qualification'],skills:['skills'],certifications:['certifications']};
   if(!operations.some(([, ,key])=>anchors[entry.kind].includes(key)))throw Error('The open editor does not match the selected resume section. Choose the matching section before filling.');
   if(new Set(operations.map(([field])=>field)).size!==operations.length)throw Error('Ambiguous field mapping. Nothing filled.');
   for(const [field,value] of operations){const prototype=field.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:field.tagName==='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value').set.call(field,value);field.dispatchEvent(new Event('input',{bubbles:true}));field.dispatchEvent(new Event('change',{bubbles:true}));}

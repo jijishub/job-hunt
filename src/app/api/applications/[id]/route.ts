@@ -4,7 +4,8 @@ import { getSessionAccount } from '@/lib/session-account';
 import { ownsApplication } from '@/lib/ownership';
 import { validRoleFit } from '@/lib/role-fit';
 import { NextResponse } from 'next/server';
-import { getApplicationById, updateApplication, deleteApplication, getOrCreateCompany } from '@/lib/db';
+import { getApplicationById, updateApplication, deleteApplication, getOrCreateCompany, getCandidatePreferences } from '@/lib/db';
+import { applicationWorkflowUpdates, isArchivedApplication } from '@/lib/application-workflow';
 import { scheduleApplicationNotionSync } from '@/lib/application-notion-sync';
 import { normalizeOfferFields } from '@/lib/salary-offers';
 
@@ -49,6 +50,9 @@ export async function PUT(
       return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });
     }
     delete body.id; delete body.owner; delete body.created_at; delete body.stage_history;
+    const preferences = await getCandidatePreferences(user.id);
+    Object.assign(body, applicationWorkflowUpdates(existingApp, body, preferences?.analytics_status_stages));
+    const localArchiveChange = isArchivedApplication(existingApp) !== isArchivedApplication({ ...existingApp, ...body });
     const ensureCompany = body.ensure_company === true;
     delete body.ensure_company;
     if (ensureCompany) body.company_name ||= existingApp.company_name;
@@ -77,14 +81,14 @@ export async function PUT(
 
     const updated = await updateApplication(id, {
       ...body,
-      sync_status: 'PENDING',
+      sync_status: localArchiveChange || isArchivedApplication({ ...existingApp, ...body }) ? existingApp.sync_status : 'PENDING',
     });
 
     if (!updated) {
       return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });
     }
 
-    if (updated.status !== 'LEAD' && user.role === 'admin' && user.notion_enabled) {
+    if (!localArchiveChange && !isArchivedApplication(updated) && updated.status !== 'LEAD' && user.role === 'admin' && user.notion_enabled) {
       scheduleApplicationNotionSync(updated.id);
     }
 

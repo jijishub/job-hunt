@@ -49,7 +49,7 @@ async function runByteDanceRPA() {
         div.innerHTML = '🌸 <b>Job Hunt RPA:</b> Please sign in below. The assistant will auto-fill your resume once logged in!';
         document.body.appendChild(div);
       });
-    } catch (_) {}
+    } catch {}
 
     // Wait for user to finish login
     while (page.url().includes('/login')) {

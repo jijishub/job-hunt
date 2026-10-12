@@ -2,7 +2,7 @@
 import CloseButton from './CloseButton';
 
 import React, { useState, useEffect } from 'react';
-import { X, RefreshCw, CheckCircle2, AlertCircle, ExternalLink, Copy, Check, Sparkles } from 'lucide-react';
+import { RefreshCw, CheckCircle2, AlertCircle, ExternalLink, Copy, Check, Sparkles } from 'lucide-react';
 
 interface NotionSettingsModalProps {
   isOpen: boolean;

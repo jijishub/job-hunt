@@ -5,14 +5,11 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { UserAccount, UserRole } from '@/types/job';
 import {
-  X,
   UserPlus,
   ShieldCheck,
-  User,
   Trash2,
   Edit3,
   Sparkles,
-  Building,
   CheckCircle2,
   AlertCircle,
   KeyRound,
@@ -86,9 +83,7 @@ export default function UserManagementModal({
 
   useEffect(() => {
     if (isOpen) {
-      if (initialTab && initialTab !== activeTab) {
-        setActiveTab(initialTab);
-      }
+      setActiveTab(initialTab);
       fetchGoogleSettings();
       setErrorMessage(null);
       setSuccessMessage(null);

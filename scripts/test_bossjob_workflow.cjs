@@ -111,8 +111,9 @@ test('Bossjob fills captured custom title, Ant month picker, Quill and div Confi
   await page.evaluate(entry=>{
    document.querySelector('[data-action=edit]').onclick=()=>{
     const form=document.createElement('form');form.className='work-experience-form';form.onsubmit=event=>event.preventDefault();
+    form.__reactFiber$fixture={memoizedProps:{operateType:'edit',initialValues:{id:'parsed',company:entry.company,job_title:entry.title}}};
     form.innerHTML='<div class="ant-form-item"><label>Job title</label><div data-sentry-component="JobTitleCom"><div class="ant-select"><div class="ant-select-selector">Choose</div><input><span class="inputLabel"></span><span class="highlightSpan" hidden>Add</span></div></div></div><label>Company name<input name="company"></label><div class="ant-picker"><input placeholder="Start time" readonly></div><div class="ant-picker"><input placeholder="End time" readonly></div><div class="ant-form-item"><div class="ant-form-item-label"><label>Description</label></div><div class="ql-container"><div class="ql-editor" contenteditable="true"></div><div class="ql-clipboard" contenteditable="true"></div></div></div><div data-sentry-component="BossButton">Confirm</div>';
-    const title=form.querySelector('[data-sentry-component=JobTitleCom]');title.querySelector('.ant-select-selector').onclick=()=>{title.querySelector('.highlightSpan').hidden=false;};title.querySelector('.highlightSpan').onclick=()=>{title.querySelector('.inputLabel').textContent=title.querySelector('input').value;title.querySelector('.highlightSpan').hidden=true;};
+    const title=form.querySelector('[data-sentry-component=JobTitleCom]');title.querySelector('.ant-select-selector').onclick=()=>{title.querySelector('.highlightSpan').hidden=false;};title.querySelector('.highlightSpan').onclick=()=>{title.querySelector('.inputLabel').textContent=title.querySelector('input').value;title.querySelector('.highlightSpan').hidden=true;const old=form.querySelector('.ql-container');const replacement=old.cloneNode(true);replacement.__quill=old.__quill;old.replaceWith(replacement);};
     for(const input of form.querySelectorAll('.ant-picker input'))input.onclick=()=>{
      document.querySelector('.ant-picker-dropdown')?.remove();const picker=document.createElement('div');picker.className='ant-picker-dropdown';picker.innerHTML='<button type="button" class="ant-picker-header-super-prev-btn">Previous</button><button type="button" class="ant-picker-year-btn">2027</button><table><tbody><tr></tr></tbody></table>';
      const render=()=>{const row=picker.querySelector('tr');row.replaceChildren();for(let month=1;month<=12;month++){const cell=document.createElement('td');cell.title=picker.querySelector('.ant-picker-year-btn').textContent+'-'+String(month).padStart(2,'0');cell.textContent=String(month);cell.onclick=()=>{input.value=cell.title;picker.remove();};row.append(cell);}};
@@ -186,4 +187,68 @@ test('Bossjob pauses for truncated parsed role and school names instead of creat
   {profile:{education:[{institution:'Example University - City Campus',qualification:'BS Information Technology',start_year:'2022',end_year:'2026',description:'Honors'}]},initial:[{kind:'education',id:'school',institution:'Example University',qualification:'BS Information Technology',start_year:'2022',end_year:'2026',description:'Partial'}]},
  ];
  for(const fixture of cases){const {browser,page}=await setup(fixture.profile,fixture.initial);try{await run(page);assert.match(await page.getByRole('status').innerText(),/possibly incomplete/);assert.equal(await page.evaluate(()=>window.opens.length),0);assert.equal(await page.evaluate(()=>window.saves.length),0);}finally{await browser.close();}}
+});
+
+test('Bossjob update-only retry never creates a missing record',async()=>{
+ const {browser,page}=await setup({experience:[work('Engineer')]},[],{payload:{update_only:true}});
+ try{await run(page);assert.match(await page.getByRole('status').innerText(),/only edits existing records/);assert.equal(await page.evaluate(()=>window.opens.length),0);assert.equal(await page.evaluate(()=>window.saves.length),0);}finally{await browser.close();}
+});
+
+test('Bossjob refuses a live work editor without an existing record ID',async()=>{
+ const entry=work('Engineer');const {browser,page}=await setup({experience:[entry]},[{kind:'work',id:'parsed',...entry,description:'Partial'}]);
+ try{
+  await page.evaluate(()=>{
+   const edit=document.querySelector('[data-action=edit]');const original=edit.onclick;edit.onclick=()=>{original();document.querySelector('[role=dialog]').classList.add('work-experience-form');};
+  });
+  await run(page);assert.match(await page.getByRole('status').innerText(),/record ID is not verified/);assert.equal(await page.evaluate(()=>window.saves.length),0);
+ }finally{await browser.close();}
+});
+
+test('Bossjob persists an unconfirmed save across helper replacement',async()=>{
+ const entry=work('Engineer');const {browser,page}=await setup({experience:[entry]},[{kind:'work',id:'parsed',...entry,description:'Partial'}],{unconfirmed:true});
+ try{
+  await run(page);assert.equal(await page.evaluate(()=>window.saves.length),1);
+  await page.evaluate(()=>document.querySelector('[role=dialog]').remove());
+  const payload={data:{variant:'business',source:{path:'business.pdf'},profile:{personal:{},experience:[entry],education:[]}},resume:'',filename:'business.pdf',timeout_ms:700};
+  await page.evaluate(`(${bossjobHelper.toString()})(${JSON.stringify(payload)},${installBossjobWorkflow.toString()})`);
+  await run(page);assert.match(await page.getByRole('status').innerText(),/earlier Save.*unconfirmed/);assert.equal(await page.evaluate(()=>window.saves.length),1);
+ }finally{await browser.close();}
+});
+
+test('Bossjob remaining mode saves personal summary and legacy Founder in place, leaving other sections alone',async()=>{
+ const entry={...work('Founder & Digital Product Freelancer','CLOUDJI NOTION TEMPLATES'),existing_titles:['Founder']};
+ const summary='Business solutions and digital product founder summary.';
+ const {browser,page}=await setup({summary,experience:[entry,work('Engineer')],skills:['Python']},[{kind:'work',id:'cloudji',...entry,title:'Founder',description:'Partial'}],{payload:{full_profile:true,update_only:true,only_tasks:['summary','work:CLOUDJI NOTION TEMPLATES']}});
+ try{
+  await page.evaluate(()=>{
+   window.summarySaves=0;const section=document.createElement('section');section.dataset.profileSection='summary';section.innerHTML='<h2>Personal summary</h2><p>Old technical summary</p><button>Edit</button>';
+   section.querySelector('button').onclick=()=>{
+    const form=document.createElement('form');form.setAttribute('role','dialog');form.innerHTML='<label>Personal summary<textarea name="summary"></textarea></label><button type="button">Save</button>';
+    form.querySelector('button').onclick=()=>{section.querySelector('p').textContent=form.querySelector('textarea').value;window.summarySaves++;form.remove();};document.body.append(form);
+   };document.body.append(section);
+  });
+  await page.getByRole('button',{name:'Sync entire business profile'}).click();await page.waitForFunction(()=>document.querySelector('#bossjob-helper').dataset.running==='false');
+  assert.match(await page.getByRole('status').innerText(),/sync completed/);assert.equal(await page.evaluate(()=>window.summarySaves),1);
+  assert.deepEqual(await page.evaluate(()=>window.saves.map(save=>save.id)),['cloudji']);assert.equal(await page.evaluate(()=>window.records.length),1);
+  assert.equal(await page.locator('[data-profile-section=summary] p').innerText(),summary);
+  await page.getByRole('button',{name:'Sync complete'}).click();await page.waitForFunction(()=>document.querySelector('#bossjob-helper').dataset.running==='false');
+  assert.equal(await page.evaluate(()=>window.saves.length),1);assert.equal(await page.evaluate(()=>window.summarySaves),1);
+ }finally{await browser.close();}
+});
+
+test('Bossjob closes a blank legacy Cloudji editor and reopens its verified existing ID before saving',async()=>{
+ const entry={...work('Founder & Digital Product Freelancer','CLOUDJI NOTION TEMPLATES'),existing_titles:['Founder']};
+ const {browser,page}=await setup({experience:[entry]},[{kind:'work',id:'cloudji',...entry,title:'Founder',description:'Partial'}],{payload:{update_only:true}});
+ try{
+  await page.evaluate(entry=>{
+   window.editAttempts=0;const card=document.querySelector('[data-record=cloudji]');card.classList.add('experience-item');card.querySelector('p').classList.add('company');
+   const edit=card.querySelector('[data-action=edit]');const original=edit.onclick;edit.onclick=()=>{
+    original();window.editAttempts++;const root=document.querySelector('[role=dialog]');root.classList.add('work-experience-form');
+    if(window.editAttempts===1){const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancel';cancel.onclick=()=>root.remove();root.append(cancel);}
+    else root.__reactFiber$fixture={memoizedProps:{operateType:'edit',initialValues:{id:'cloudji',company:entry.company,job_title:'Founder'}}};
+   };
+  },entry);
+  await run(page);assert.match(await page.getByRole('status').innerText(),/sync completed/);assert.equal(await page.evaluate(()=>window.editAttempts),2);
+  assert.deepEqual(await page.evaluate(()=>window.saves.map(save=>save.id)),['cloudji']);assert.equal(await page.evaluate(()=>window.records.length),1);
+ }finally{await browser.close();}
 });

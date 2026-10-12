@@ -6,6 +6,8 @@ import RoleFitBadge from './RoleFitBadge';
 import React from 'react';
 import { JobApplication } from '@/types/job';
 import StatusBadge from './StatusBadge';
+import { displayApplicationStatusLabel, isArchivedApplication } from '@/lib/application-workflow';
+import { applicationStatusLabel } from '@/lib/statuses';
 import PriorityBadge from './PriorityBadge';
 import { formatSalaryRange } from '@/lib/currencies';
 import {
@@ -156,9 +158,10 @@ export default function ApplicationDetailModal({
                   Status & Stage
                 </span>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <StatusBadge status={app.notion_status || app.status} />
+                  <StatusBadge status={displayApplicationStatusLabel(app)} />
                   <RoleFitBadge app={app} />
                 </div>
+                {isArchivedApplication(app) && <p className="mt-2 text-xs text-[#736A6D]">Last recorded job status: {app.notion_status || applicationStatusLabel(app.status)}</p>}
               </div>
               <div>
                 <span className="text-[11px] font-semibold text-[#736A6D] uppercase tracking-wider block mb-1">
