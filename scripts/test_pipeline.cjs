@@ -8,6 +8,42 @@ function loader(overrides={}){
 }
 const sample=(values={})=>({id:'app',company_name:'Example',role_title:'Engineer',status:'APPLIED',owner:'user_ji',priority:'MEDIUM',job_type:'FULL_TIME',work_model:'ON_SITE',salary_currency:'PHP',sync_status:'SYNCED',created_at:'2026-10-10T00:00:00Z',updated_at:'2026-10-10T00:00:00Z',...values});
 
+test('application saves return before Notion work, and background failures remain retryable',async()=>{
+ const callbacks=[];let saved=sample();let pushes=0;let fail=false;let release;
+ const blocked=new Promise(resolve=>release=resolve);
+ const load=loader({
+  'next/server':{...require('next/server'),after:callback=>callbacks.push(callback)},
+  '@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',role:'admin',notion_enabled:true})},
+  '@/lib/db':{getApplicationById:async()=>saved,getCompanies:async()=>[],getOrCreateCompany:async()=>({id:'company',name:'Example'}),createApplication:async data=>(saved={...sample(),...data}),updateApplication:async(id,data)=>(saved={...saved,...data})},
+  '@/lib/notion':{pushApplicationToNotion:async app=>{pushes++;assert.equal(app.notes,saved.notes);if(fail)throw Error('Notion unavailable');await blocked;saved={...saved,sync_status:'SYNCED'};}}
+ });
+ const req=body=>new Request('http://local',{method:'POST',body:JSON.stringify(body)});
+ const create=load('src/app/api/applications/route.ts');
+ const response=await create.POST(req({company_name:'Example',role_title:'Engineer',status:'APPLIED'}));
+ assert.equal(response.status,201);assert.equal((await response.json()).data.sync_status,'PENDING');assert.equal(pushes,0);assert.equal(callbacks.length,1);
+ saved.notes='Newer saved notes';
+ const running=callbacks.shift()();await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(pushes,1);assert.equal(saved.sync_status,'PENDING');release();await running;assert.equal(saved.sync_status,'SYNCED');
+ const edit=load('src/app/api/applications/[id]/route.ts');
+ assert.equal((await edit.PUT(req({notes:'Updated note'}),{params:Promise.resolve({id:saved.id})})).status,200);
+ assert.equal(pushes,1);assert.equal(callbacks.length,1);
+ fail=true;await callbacks.shift()();assert.equal(saved.sync_status,'ERROR');assert.equal(saved.notes,'Updated note');
+ await create.POST(req({company_name:'Example',role_title:'Lead',status:'LEAD'}));assert.equal(callbacks.length,0);
+});
+
+test('normal PostgreSQL requests skip schema maintenance; migrations run explicitly',async()=>{
+ const previous=process.env.POSTGRES_URL;let queries=[];
+ const sql=(strings)=>{queries.push(strings.join('?'));return Promise.resolve([]);};sql.transaction=async items=>Promise.all(items);
+ try{
+  process.env.POSTGRES_URL='postgres://mock-only';
+  const db=loader({'@neondatabase/serverless':{neon:()=>sql}})('src/lib/db.ts');
+  await db.getCompanies();assert.equal(queries.length,1);assert.match(queries[0],/SELECT/);
+  queries=[];await db.migrateDatabase();assert.ok(queries.some(query=>/CREATE TABLE/.test(query)));assert.ok(queries.some(query=>/duplicate_applications_archive/.test(query)));
+  queries=[];await db.getCompanies();assert.equal(queries.length,1);
+  const migration=require('./migrate_db.cjs');assert.equal(typeof migration.loadTypescript(path.join(ROOT,'src/lib/db.ts')).migrateDatabase,'function');
+ }finally{if(previous===undefined)delete process.env.POSTGRES_URL;else process.env.POSTGRES_URL=previous;}
+});
+
 test('search links keep keywords separate from location and use JobStreet keyword paths',()=>{
  const {JOB_SEARCH_PLATFORMS,jobSearchUrl}=loader()('src/lib/job-search-links.ts');
  assert.equal(JOB_SEARCH_PLATFORMS.length,4);

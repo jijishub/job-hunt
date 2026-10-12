@@ -47,7 +47,7 @@ Verify your repository is updated at: [https://github.com/jijishub/job-hunt](htt
 
 ## Step 2: Database Setup (Free Serverless Postgres)
 
-Our app has built-in auto-migration for PostgreSQL (automatically creates `users`, `companies`, and `applications` tables upon first request).
+Database migrations run before the production build through `npm run build`. They create and update the tables and preserve archived duplicates; normal application requests no longer run schema maintenance. For a local PostgreSQL database, run `npm run db:migrate` after configuring the environment and before starting the app. Local JSON storage does not require a migration.
 
 ### Option A: Neon Serverless Postgres (Recommended - Generous Free Tier)
 1. Go to [Neon.tech](https://neon.tech) and create a free project named `job-hunt-prod`.
@@ -71,7 +71,7 @@ Our app has built-in auto-migration for PostgreSQL (automatically creates `users
 3. In **Project Settings**:
    - **Framework Preset**: `Next.js`
    - **Root Directory**: `./`
-   - **Build Command**: `next build` (default)
+   - **Build Command**: `npm run build` (set by `vercel.json`, includes database migrations)
 4. Expand **Environment Variables** and add:
 
 | Key | Example Value | Description |

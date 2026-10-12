@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/migrate_db.cjs --if-configured && next build",
+    "db:migrate": "node scripts/migrate_db.cjs",
+    "test:save:ui": "node --test scripts/test_save_ui.cjs",
     "start": "next start",
     "lint": "eslint",
     "company-icons": "node scripts/company_icons.cjs",

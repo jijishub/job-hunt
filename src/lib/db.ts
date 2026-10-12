@@ -315,10 +315,15 @@ async function initPostgresSchema(sql: any) {
   }
 }
 
+export async function migrateDatabase() {
+  const sql = getPostgresClient();
+  if (!sql) throw new Error('POSTGRES_URL or DATABASE_URL is required for database migration.');
+  await initPostgresSchema(sql);
+}
+
 export async function getCompanies(forUser?: string, isAdmin: boolean = false): Promise<Company[]> {
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     if (!isAdmin && forUser) {
       const normUser = forUser.toLowerCase().trim();
       const rows = await sql`
@@ -352,7 +357,6 @@ export async function getOrCreateCompany(
   if (!trimmedName) throw new Error('Company name is required.');
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     const existing = await sql`SELECT * FROM companies WHERE LOWER(BTRIM(REGEXP_REPLACE(name, '[[:space:]]+', ' ', 'g'))) = ${companyKey} ORDER BY created_at, id LIMIT 1;`;
     if (existing.length > 0) {
       if (created_by && existing[0].created_by === created_by && logo_url && logo_url !== existing[0].logo_url) {
@@ -423,7 +427,6 @@ export async function getOrCreateCompany(
 export async function updateCompany(id: string, updates: Partial<Company>): Promise<Company | null> {
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     const existing = await sql`SELECT * FROM companies WHERE id = ${id} LIMIT 1;`;
     if (existing.length === 0) return null;
     const name = updates.name ?? existing[0].name;
@@ -469,7 +472,6 @@ export async function updateCompany(id: string, updates: Partial<Company>): Prom
 export async function deleteCompany(id: string): Promise<boolean> {
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     await sql`DELETE FROM companies WHERE id = ${id};`;
     return true;
   }
@@ -483,7 +485,6 @@ export async function deleteCompany(id: string): Promise<boolean> {
 export async function getApplications(includeLeads = true): Promise<JobApplication[]> {
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     const rows = await sql`
       SELECT a.*, coalesce(c.logo_url, a.company_logo) AS company_logo
       FROM applications a LEFT JOIN companies c ON c.id = a.company_id
@@ -501,7 +502,6 @@ export async function getApplications(includeLeads = true): Promise<JobApplicati
 export async function getApplicationById(id: string): Promise<JobApplication | null> {
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     const rows = await sql`SELECT * FROM applications WHERE id = ${id} LIMIT 1;`;
     if (rows[0]) return rows[0] as JobApplication;
     const leads = await sql`SELECT data FROM leads WHERE id = ${id};`;
@@ -514,7 +514,6 @@ export async function getApplicationById(id: string): Promise<JobApplication | n
 export async function getApplicationByNotionId(notionPageId: string): Promise<JobApplication | null> {
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     const rows = await sql`SELECT * FROM applications WHERE notion_page_id = ${notionPageId} LIMIT 1;`;
     if (rows[0]) return rows[0] as JobApplication;
     const leads = await sql`SELECT data FROM leads WHERE data->>'notion_page_id' = ${notionPageId} LIMIT 1;`;
@@ -543,7 +542,6 @@ export async function createApplication(
   if (newApp.status === 'LEAD') {
     const sql = getPostgresClient();
     if (sql) {
-      await initPostgresSchema(sql);
       const rows = await sql`
         INSERT INTO leads (id, data) VALUES (${id}, ${JSON.stringify(newApp)}::jsonb)
         ON CONFLICT DO NOTHING RETURNING data;
@@ -570,7 +568,6 @@ export async function createApplication(
 
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     const inserted = await sql`
       INSERT INTO applications (
         id, company_id, company_name, company_logo, role_title, analytics_stage, not_proceeding, job_description, role_fit, role_fit_source, role_fit_analysis, stage_history, status, notion_status, service, information, priority,
@@ -671,7 +668,6 @@ export async function updateApplication(
   }
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     const existing = await sql`SELECT * FROM applications WHERE id = ${id} LIMIT 1;`;
     if (existing.length === 0) return null;
     const current = existing[0];
@@ -741,7 +737,6 @@ export async function updateApplication(
 export async function deleteApplication(id: string): Promise<boolean> {
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     await sql`DELETE FROM applications WHERE id = ${id};`;
     await sql`DELETE FROM leads WHERE id = ${id};`;
     return true;
@@ -756,7 +751,6 @@ export async function deleteApplication(id: string): Promise<boolean> {
 export async function clearAllApplications(): Promise<boolean> {
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     await sql`DELETE FROM applications;`;
     return true;
   }
@@ -773,7 +767,6 @@ export async function clearAllApplications(): Promise<boolean> {
 export async function getUsers(): Promise<UserAccount[]> {
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     const rows = await sql`SELECT * FROM users ORDER BY created_at ASC;`;
 
     // Auto-clean any legacy "(Ji)" names in existing DB rows
@@ -876,7 +869,6 @@ export async function getOrCreateUser(data: {
 
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     await sql`
       INSERT INTO users (id, name, email, role, industry, avatar, notion_enabled, created_at, updated_at)
       VALUES (
@@ -917,7 +909,6 @@ export async function createUser(data: Partial<UserAccount>): Promise<UserAccoun
 
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     await sql`
       INSERT INTO users (id, name, email, role, industry, avatar, notion_enabled, created_at, updated_at)
       VALUES (
@@ -937,7 +928,6 @@ export async function createUser(data: Partial<UserAccount>): Promise<UserAccoun
 export async function updateUser(id: string, updates: Partial<UserAccount>): Promise<UserAccount | null> {
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     const existing = await sql`SELECT * FROM users WHERE id = ${id} LIMIT 1;`;
     if (existing.length === 0) return null;
     const current = existing[0];
@@ -982,7 +972,6 @@ export async function updateUser(id: string, updates: Partial<UserAccount>): Pro
 export async function deleteUser(id: string): Promise<boolean> {
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     await sql`DELETE FROM users WHERE id = ${id};`;
     return true;
   }
@@ -999,7 +988,6 @@ export async function deleteUser(id: string): Promise<boolean> {
 export async function getCustomStatuses(): Promise<any[]> {
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     const rows = await sql`SELECT * FROM custom_statuses ORDER BY created_at ASC;`;
     return rows;
   }
@@ -1020,7 +1008,6 @@ export async function createCustomStatus(data: {
 
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     const inserted = await sql`
       INSERT INTO custom_statuses (id, name, owner, color, category, created_at)
       VALUES (${id}, ${trimmed}, ${data.owner || null}, ${color}, ${category}, NOW())
@@ -1048,7 +1035,6 @@ export async function createCustomStatus(data: {
 export async function deleteCustomStatus(id: string): Promise<boolean> {
   const sql = getPostgresClient();
   if (sql) {
-    await initPostgresSchema(sql);
     await sql`DELETE FROM custom_statuses WHERE id = ${id};`;
     return true;
   }
@@ -1061,22 +1047,22 @@ export async function deleteCustomStatus(id: string): Promise<boolean> {
 
 export async function getCandidateProfile(owner: string): Promise<string | null> {
   const sql = getPostgresClient();
-  if (sql) { await initPostgresSchema(sql); const rows = await sql`SELECT resume_text FROM candidate_profiles WHERE owner = ${owner};`; return rows[0]?.resume_text || null; }
+  if (sql) { const rows = await sql`SELECT resume_text FROM candidate_profiles WHERE owner = ${owner};`; return rows[0]?.resume_text || null; }
   return readLocalDb().profiles?.[owner]?.resume_text || null;
 }
 export async function saveCandidateProfile(owner: string, resumeText: string) {
   const sql = getPostgresClient();
-  if (sql) { await initPostgresSchema(sql); await sql`INSERT INTO candidate_profiles (owner, resume_text) VALUES (${owner}, ${resumeText}) ON CONFLICT (owner) DO UPDATE SET resume_text = EXCLUDED.resume_text, updated_at = NOW();`; return; }
+  if (sql) { await sql`INSERT INTO candidate_profiles (owner, resume_text) VALUES (${owner}, ${resumeText}) ON CONFLICT (owner) DO UPDATE SET resume_text = EXCLUDED.resume_text, updated_at = NOW();`; return; }
   const db = readLocalDb(); db.profiles ??= {}; db.profiles[owner] = { ...db.profiles[owner], resume_text: resumeText, updated_at: new Date().toISOString() }; writeLocalDb(db);
 }
 
 export async function getCandidatePreferences(owner: string): Promise<PersonalPreferences | null> {
   const sql = getPostgresClient();
-  if (sql) { await initPostgresSchema(sql); const rows = await sql`SELECT preferences FROM candidate_profiles WHERE owner = ${owner};`; return rows[0]?.preferences || null; }
+  if (sql) { const rows = await sql`SELECT preferences FROM candidate_profiles WHERE owner = ${owner};`; return rows[0]?.preferences || null; }
   return readLocalDb().profiles?.[owner]?.preferences || null;
 }
 export async function saveCandidatePreferences(owner: string, preferences: PersonalPreferences) {
   const sql = getPostgresClient();
-  if (sql) { await initPostgresSchema(sql); await sql`INSERT INTO candidate_profiles (owner, resume_text, preferences) VALUES (${owner}, '', ${JSON.stringify(preferences)}::jsonb) ON CONFLICT (owner) DO UPDATE SET preferences = EXCLUDED.preferences, updated_at = NOW();`; return; }
+  if (sql) { await sql`INSERT INTO candidate_profiles (owner, resume_text, preferences) VALUES (${owner}, '', ${JSON.stringify(preferences)}::jsonb) ON CONFLICT (owner) DO UPDATE SET preferences = EXCLUDED.preferences, updated_at = NOW();`; return; }
   const db = readLocalDb(); db.profiles ??= {}; db.profiles[owner] = { ...db.profiles[owner], resume_text: db.profiles[owner]?.resume_text || '', preferences, updated_at: new Date().toISOString() }; writeLocalDb(db);
 }

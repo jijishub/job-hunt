@@ -234,11 +234,10 @@ export default function JobHuntDashboard() {
       }
     }
 
-    try {
-      const refreshed = await fetch('/api/companies');
+    void fetch('/api/companies').then(async refreshed => {
       const companyResult = await refreshed.json();
       if (refreshed.ok && companyResult.success) setCompanies(companyResult.data);
-    } catch (error) { console.warn('Company directory refresh failed:', error); }
+    }).catch(error => { console.warn('Company directory refresh failed:', error); });
   };
 
   const handleDeleteApplication = async (id: string) => {

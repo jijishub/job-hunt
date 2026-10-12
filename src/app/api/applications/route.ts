@@ -4,9 +4,12 @@ import { getSessionAccount } from '@/lib/session-account';
 import { ownsApplication } from '@/lib/ownership';
 import { validRoleFit } from '@/lib/role-fit';
 import { NextResponse } from 'next/server';
-import { getApplications, createApplication, getOrCreateCompany, getCompanies, getApplicationById } from '@/lib/db';
-import { pushApplicationToNotion, pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
+import { getApplications, createApplication, getOrCreateCompany, getCompanies } from '@/lib/db';
+import { pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
+import { scheduleApplicationNotionSync } from '@/lib/application-notion-sync';
 import { normalizeOfferFields } from '@/lib/salary-offers';
+
+export const maxDuration = 60;
 
 export async function GET() {
   try {
@@ -128,16 +131,11 @@ export async function POST(request: Request) {
       sync_status: 'PENDING',
     });
 
-    let syncError: string | undefined;
     if (!isLead && user.role === 'admin' && user.notion_enabled) {
-      try {
-        await pushApplicationToNotion(newApp, (message) => { syncError = message; });
-      } catch (notionErr) {
-        console.warn('Notion push background warning:', notionErr);
-      }
+      scheduleApplicationNotionSync(newApp.id);
     }
 
-    return NextResponse.json({ success: true, data: await getApplicationById(newApp.id) || newApp, sync_error: syncError }, { status: 201 });
+    return NextResponse.json({ success: true, data: newApp }, { status: 201 });
   } catch (error: any) {
     console.error('Error in POST /api/applications:', error);
     return NextResponse.json(

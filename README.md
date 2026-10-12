@@ -86,15 +86,21 @@ Local development uses a JSON fallback when PostgreSQL is not configured. Keep c
 
 Start the development server with `npm run dev`, then open [localhost:3000](http://localhost:3000). Google sign-in requires the OAuth configuration above.
 
+When PostgreSQL is configured, run `npm run db:migrate` before local development. `npm run build` runs migrations before the production build; keep that build command in deployment settings so ordinary requests can skip schema maintenance.
+
+Application saves finish after database persistence. Administrator Notion sync runs after the response, and company refresh runs without holding the form open. Failed Notion writes remain marked `ERROR`; pending or failed records can be retried with Sync Notion. Refresh the workspace to see completed background sync state.
+
 ## Useful commands
 
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Start local development. |
-| `npm run build` | Create the production build. |
+| `npm run build` | Migrate configured PostgreSQL, then create the production build. |
+| `npm run db:migrate` | Apply database setup and migrations explicitly. |
 | `npm run start` | Serve the production build. |
 | `npm run test:pipeline` | Check analytics, application APIs, and persistence. |
 | `npm run test:pipeline:ui` | Check browser flows against a running local server. |
+| `npm run test:save:ui` | Verify a slow company refresh does not keep the save form open. |
 | `node --test scripts/test_mobile_ui.cjs` | Check mobile and desktop layouts, Quick Add modal behavior, and clickable lead-fit badges. |
 | `npx tsc --noEmit` | Check TypeScript. |
 | `npm run company-icons:preview` | List companies missing icons without changing records. |

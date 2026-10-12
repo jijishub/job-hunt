@@ -5,8 +5,10 @@ import { ownsApplication } from '@/lib/ownership';
 import { validRoleFit } from '@/lib/role-fit';
 import { NextResponse } from 'next/server';
 import { getApplicationById, updateApplication, deleteApplication, getOrCreateCompany } from '@/lib/db';
-import { pushApplicationToNotion } from '@/lib/notion';
+import { scheduleApplicationNotionSync } from '@/lib/application-notion-sync';
 import { normalizeOfferFields } from '@/lib/salary-offers';
+
+export const maxDuration = 60;
 
 export async function GET(
   request: Request,
@@ -82,14 +84,11 @@ export async function PUT(
       return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });
     }
 
-    let syncError: string | undefined;
-    try {
-      if (user.role === 'admin' && user.notion_enabled) await pushApplicationToNotion(updated, (message) => { syncError = message; });
-    } catch (notionErr) {
-      console.warn('Notion push background warning:', notionErr);
+    if (updated.status !== 'LEAD' && user.role === 'admin' && user.notion_enabled) {
+      scheduleApplicationNotionSync(updated.id);
     }
 
-    return NextResponse.json({ success: true, data: await getApplicationById(id) || updated, sync_error: syncError });
+    return NextResponse.json({ success: true, data: updated });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error?.message }, { status: 500 });
   }
