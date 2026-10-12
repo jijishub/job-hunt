@@ -19,6 +19,9 @@ test('Bossjob defaults to business and generates the helper from the exact busin
  const payloadStart=('('+bossjobHelper.toString()+')(').length;
  const payload=JSON.parse(helper.slice(payloadStart,helper.indexOf(',\nfunction installBossjobWorkflow',payloadStart)));
  assert.equal(payload.data.variant,'business');
+ assert.equal(payload.auto_sync,true);
+ assert.equal(payload.full_profile,true);
+ assert.equal(payload.auto_upload,true);
  assert.equal(payload.data.source.path,'references/Active Resume/BusinessSolutions/JizelleCasia_Resume.pdf');
  const bytes=fs.readFileSync(path.join(root,payload.data.source.path));
  assert.deepEqual(Buffer.from(payload.resume,'base64'),bytes);

@@ -98,6 +98,6 @@ export async function GET(request: Request) {
     platform,
     data: resumeData,
     bookmarklet: bookmarkletCode,
-    local_command: "npm run rpa"
+    local_command: "npm run rpa:bytedance"
   });
 }

@@ -53,7 +53,7 @@ async function setup(profile,initial=[],flags={}){
   };
   document.querySelector('#add-work').onclick=()=>open('work');document.querySelector('#add-education').onclick=()=>open('education');render();
  },{initial,flags});
- const payload={data:{variant:'business',source:{path:'business.pdf'},profile:{personal:{},experience:[],education:[],...profile}},resume:'',filename:'business.pdf',timeout_ms:700};
+ const payload={data:{variant:'business',source:{path:'business.pdf'},profile:{personal:{},experience:[],education:[],...profile}},resume:'',filename:'business.pdf',timeout_ms:700,...flags.payload};
  await page.evaluate(`(${bossjobHelper.toString()})(${JSON.stringify(payload)},${installBossjobWorkflow.toString()})`);
  return {browser,page};
 }
@@ -73,6 +73,75 @@ test('Bossjob updates partial parsed entries in place, adds missing work and edu
   assert.equal(result.deleted,undefined);
   await page.getByRole('button',{name:'Sync complete'}).click();await page.waitForFunction(()=>document.querySelector('#bossjob-helper').dataset.running==='false');
   assert.equal(await page.evaluate(()=>window.saves.length),3);
+ }finally{await browser.close();}
+});
+
+test('Bossjob full profile automatically uploads once and saves every supported section without clicks',async()=>{
+ const personal={name:'Example Candidate',email:'business@example.com',phone:'+63 912 345 6789',website:'example.com',location:'Manila'};
+ const {browser,page}=await setup({personal,experience:[work('Engineer')],education:[{institution:'Example University',qualification:'BS Information Technology',start_year:'2022',end_year:'2026',description:'Education honors'}],skills:['Python','Power BI'],certifications:['Cisco Networking']});
+ try{
+  await page.evaluate(()=>{
+   window.extraSaves=[];window.uploads=0;
+   const input=document.createElement('input');input.type='file';input.accept='application/pdf';input.hidden=true;
+   input.onchange=()=>{window.uploads++;const ack=document.createElement('p');ack.textContent=input.files[0].name;document.body.append(ack);};document.body.append(input);
+   for(const [kind,title,fields] of [['personal','Personal Information',['name','email','phone','website','location']],['skills','Skills',['skills']],['certifications','Certifications',['certifications']]]){
+    const section=document.createElement('section');section.dataset.profileSection=kind;const heading=document.createElement('h2');heading.textContent=title;const content=document.createElement('p');const edit=document.createElement('button');edit.textContent='Edit';
+    edit.onclick=()=>{
+     const form=document.createElement('form');form.setAttribute('role','dialog');form.onsubmit=event=>event.preventDefault();
+     for(const key of fields){const label=document.createElement('label');label.textContent=key;const control=document.createElement('textarea');control.name=key;label.append(control);form.append(label);}
+     const save=document.createElement('div');save.dataset.sentryComponent='BossButton';save.textContent='Confirm';save.onclick=()=>{const values=[...form.querySelectorAll('textarea')].map(el=>el.value);content.textContent=values.join(' ');window.extraSaves.push(kind);form.remove();};form.append(save);document.body.append(form);
+    };section.append(heading,content,edit);document.body.append(section);
+   }
+  });
+  const payload={data:{variant:'business',source:{path:'business.pdf'},profile:{personal,experience:[work('Engineer')],education:[{institution:'Example University',qualification:'BS Information Technology',start_year:'2022',end_year:'2026',description:'Education honors'}],skills:['Python','Power BI'],certifications:['Cisco Networking']}},resume:btoa('%PDF-business'),filename:'business.pdf',full_profile:true,auto_sync:true,auto_upload:true,timeout_ms:1500};
+  await page.evaluate(`(${bossjobHelper.toString()})(${JSON.stringify(payload)},${installBossjobWorkflow.toString()})`);
+  await page.waitForFunction(()=>document.querySelector('#bossjob-helper').dataset.running==='false');
+  assert.match(await page.getByRole('status').innerText(),/Entire profile sync completed/);
+  assert.deepEqual(await page.evaluate(()=>window.extraSaves),['personal','skills','certifications']);
+  assert.equal(await page.evaluate(()=>window.saves.length),2);assert.equal(await page.evaluate(()=>window.uploads),1);
+  await page.getByRole('button',{name:'Sync complete'}).click();await page.waitForFunction(()=>document.querySelector('#bossjob-helper').dataset.running==='false');
+  assert.equal(await page.evaluate(()=>window.uploads),1);assert.equal(await page.evaluate(()=>window.extraSaves.length),3);
+ }finally{await browser.close();}
+});
+
+test('Bossjob fills captured custom title, Ant month picker, Quill and div Confirm controls',async()=>{
+ const entry=work('Custom Business Engineer','Example Company');
+ const {browser,page}=await setup({experience:[entry]},[{kind:'work',id:'parsed',...entry,description:'Partial'}]);
+ try{
+  await page.evaluate(entry=>{
+   document.querySelector('[data-action=edit]').onclick=()=>{
+    const form=document.createElement('form');form.className='work-experience-form';form.onsubmit=event=>event.preventDefault();
+    form.innerHTML='<div class="ant-form-item"><label>Job title</label><div data-sentry-component="JobTitleCom"><div class="ant-select"><div class="ant-select-selector">Choose</div><input><span class="inputLabel"></span><span class="highlightSpan" hidden>Add</span></div></div></div><label>Company name<input name="company"></label><div class="ant-picker"><input placeholder="Start time" readonly></div><div class="ant-picker"><input placeholder="End time" readonly></div><div class="ant-form-item"><div class="ant-form-item-label"><label>Description</label></div><div class="ql-container"><div class="ql-editor" contenteditable="true"></div><div class="ql-clipboard" contenteditable="true"></div></div></div><div data-sentry-component="BossButton">Confirm</div>';
+    const title=form.querySelector('[data-sentry-component=JobTitleCom]');title.querySelector('.ant-select-selector').onclick=()=>{title.querySelector('.highlightSpan').hidden=false;};title.querySelector('.highlightSpan').onclick=()=>{title.querySelector('.inputLabel').textContent=title.querySelector('input').value;title.querySelector('.highlightSpan').hidden=true;};
+    for(const input of form.querySelectorAll('.ant-picker input'))input.onclick=()=>{
+     document.querySelector('.ant-picker-dropdown')?.remove();const picker=document.createElement('div');picker.className='ant-picker-dropdown';picker.innerHTML='<button type="button" class="ant-picker-header-super-prev-btn">Previous</button><button type="button" class="ant-picker-year-btn">2027</button><table><tbody><tr></tr></tbody></table>';
+     const render=()=>{const row=picker.querySelector('tr');row.replaceChildren();for(let month=1;month<=12;month++){const cell=document.createElement('td');cell.title=picker.querySelector('.ant-picker-year-btn').textContent+'-'+String(month).padStart(2,'0');cell.textContent=String(month);cell.onclick=()=>{input.value=cell.title;picker.remove();};row.append(cell);}};
+     picker.querySelector('.ant-picker-header-super-prev-btn').onclick=()=>{const year=picker.querySelector('.ant-picker-year-btn');year.textContent=String(Number(year.textContent)-1);render();};render();document.body.append(picker);
+    };
+    form.querySelector('.ql-container').__quill={setText:(text,source)=>{window.quillSource=source;form.querySelector('.ql-editor').textContent=text;}};
+    form.querySelector('[data-sentry-component=BossButton]').onclick=()=>{
+     window.saves.push({title:title.querySelector('.inputLabel').textContent,company:form.querySelector('[name=company]').value,start:form.querySelector('[placeholder="Start time"]').value,end:form.querySelector('[placeholder="End time"]').value,description:form.querySelector('.ql-editor').textContent});
+     const card=document.querySelector('.experience-item')||document.querySelector('[data-record=parsed]');card.querySelectorAll('p')[1].textContent=entry.start_date+' - '+entry.end_date;card.querySelectorAll('p')[2].textContent=entry.description;form.remove();
+    };document.body.append(form);
+   };
+  },entry);
+  await run(page);
+  assert.match(await page.getByRole('status').innerText(),/sync completed/);
+  assert.deepEqual(await page.evaluate(()=>window.saves[0]),{title:entry.title,company:entry.company,start:entry.start_date,end:entry.end_date,description:entry.description});
+  assert.equal(await page.evaluate(()=>window.quillSource),'user');
+ }finally{await browser.close();}
+});
+
+test('Bossjob opens hover-hidden Edit controls inside the exact experience card',async()=>{
+ const entry=work('Engineer');
+ const {browser,page}=await setup({experience:[entry]},[{kind:'work',id:'parsed',...entry,description:'Partial'}],{unnamedEdit:true});
+ try{
+  await page.evaluate(()=>{
+   const card=document.querySelector('[data-record=parsed]');card.classList.add('experience-item');card.querySelector('p').classList.add('company');
+   const edit=card.querySelector('[data-action=edit]');edit.classList.add('btn-edit');const toolbar=document.createElement('span');toolbar.className='ope-btns';toolbar.style.visibility='hidden';card.append(toolbar);toolbar.append(edit);
+  });
+  await run(page);assert.match(await page.getByRole('status').innerText(),/sync completed/);
+  assert.equal(await page.evaluate(()=>window.saves.length),1);assert.equal(await page.evaluate(()=>window.deleted),undefined);
  }finally{await browser.close();}
 });
 

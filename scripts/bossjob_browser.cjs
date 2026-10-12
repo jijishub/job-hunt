@@ -5,7 +5,7 @@ function bossjobHelper(payload,workflowInstaller) {
  const panel=document.createElement('section');panel.id='bossjob-helper';
  panel.style.cssText='position:fixed;right:12px;top:12px;z-index:2147483647;box-sizing:border-box;background:white;color:#4A3E44;padding:18px;border:2px solid #FF7AB3;border-radius:12px;width:min(380px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;font:14px system-ui;box-shadow:0 4px 24px #0004';
  const title=document.createElement('strong');title.textContent='Bossjob — '+(payload.data.variant||'technical')+' resume';
- const status=document.createElement('p');status.setAttribute('role','status');status.textContent='Bossjob’s PDF parsing can leave incomplete details. Sync work & education updates matching entries and adds missing entries from your business resume.';
+ const status=document.createElement('p');status.setAttribute('role','status');status.textContent=payload.full_profile?'One-run profile sync: upload the resume PDF, then fill, save and verify supported profile sections.':'Bossjob’s PDF parsing can leave incomplete details. Sync work & education updates matching entries and adds missing entries from your resume.';
  const select=document.createElement('select');select.style.width='100%';select.setAttribute('aria-label','Resume section');
  const profile=payload.data.profile;
  const entries=[{kind:'personal',label:'Personal details',values:profile.personal},...(profile.experience||[]).map(entry=>({kind:'work',label:entry.title+' — '+entry.company,values:entry})),...(profile.education||[]).map(entry=>({kind:'education',label:entry.institution,values:entry}))];
@@ -39,11 +39,11 @@ function bossjobHelper(payload,workflowInstaller) {
   }
   return '';
  };
- const labels=el=>[el.getAttribute('aria-label'),(el.getAttribute('aria-labelledby')||'').split(/\s+/).filter(Boolean).map(id=>document.getElementById(id)?.textContent||'').join(' '),...[...(el.labels||[])].map(labelText),containerLabel(el),el.placeholder,el.name,el.id].filter(Boolean);
+ const labels=el=>[el.getAttribute('aria-label'),(el.getAttribute('aria-labelledby')||'').split(/\s+/).filter(Boolean).map(id=>document.getElementById(id)?.textContent||'').join(' '),...[...(el.labels||[])].map(labelText),containerLabel(el),el.closest('.ant-form-item')?.querySelector('label .labelTitle, .ant-form-item-label label')?.textContent,el.placeholder,el.name,el.id].filter(Boolean);
  const label=el=>labels(el)[0]||'';
  const normalize=value=>String(value||'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_-]/g,' ').replace(/\(required\)/gi,'').replace(/[＊*:]/g,' ').trim().toLowerCase().replace(/\s+/g,' ');
  const report=message=>{status.textContent=message;};
- upload.onclick=async()=>{try{
+ const uploadResume=async()=>{
   guard();
   const candidates=()=>[...document.querySelectorAll('input[type=file]')].filter(el=>!panel.contains(el)&&!el.disabled&&(/pdf|\.doc/i.test(el.accept)||(!/image\//i.test(el.accept)&&/resume|\bcv\b/i.test(label(el)+' '+el.parentElement?.textContent))));
   let fields=candidates();
@@ -65,7 +65,9 @@ function bossjobHelper(payload,workflowInstaller) {
   const transfer=new DataTransfer();transfer.items.add(new File([bytes],payload.filename,{type:'application/pdf'}));fields[0].files=transfer.files;
   fields[0].dispatchEvent(new Event('input',{bubbles:true}));fields[0].dispatchEvent(new Event('change',{bubbles:true}));
   report('Resume PDF supplied. Wait for Bossjob’s parsing to finish, then sync work & education to correct incomplete entries.');
- }catch(error){report(error.message);}};
+  return fields[0];
+ };
+ upload.onclick=async()=>{try{await uploadResume();}catch(error){report(error.message);}};
  fill.onclick=()=>{try{
   guard();const entry=entries[Number(select.value)];
   const aliases={name:['full name','name'],first_name:['first name'],last_name:['last name'],email:['email','email address'],phone:['phone','phone number','mobile number'],website:['website','portfolio','portfolio url'],location:['location','current location'],company:['company','company name'],title:['job title','position','position title','job position'],description:['description','job description','responsibilities','work description','education description'],institution:['school','school name','institution','university','college university'],qualification:['degree','qualification','course','major course'],start_date:['start date','from'],end_date:['end date','to'],start_year:['start year'],end_year:['end year','graduation year'],skills:['skills'],certifications:['certifications','certificates']};
@@ -113,7 +115,7 @@ function bossjobHelper(payload,workflowInstaller) {
   try{if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');await navigator.clipboard.writeText(json);report('Editor field inspection copied. Paste this JSON into the chat.');}
   catch{inspectionDetails.open=true;inspectionPreview.focus();inspectionPreview.select();report('Inspection JSON selected. Press Ctrl+C, then paste it into the chat.');}
  };
- if(workflowInstaller)workflowInstaller({payload,panel,entries,select,refresh,visible,labels,label,normalize,report,guard,fill,upload,close});
+ if(workflowInstaller)workflowInstaller({payload,panel,entries,select,refresh,visible,labels,label,normalize,report,guard,fill,upload,uploadResume,close});
  return {variant:payload.data.variant,source:payload.data.source};
 }
 module.exports={bossjobHelper};

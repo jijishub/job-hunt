@@ -20,14 +20,14 @@ async function main(args=process.argv.slice(2)){
  const outputDir=path.join(ROOT,'.data/bossjob');
  const {data}=await prepare(variant,outputDir);
  fs.writeFileSync(path.join(outputDir,'profile.json'),JSON.stringify({target:'https://bossjob.ph/en-us/manage-profile',...data},null,2));
- const payload={data,resume:fs.readFileSync(path.join(ROOT,data.source.path)).toString('base64'),filename:path.basename(data.source.path),auto_sync:true};
+ const payload={data,resume:fs.readFileSync(path.join(ROOT,data.source.path)).toString('base64'),filename:path.basename(data.source.path),auto_sync:true,full_profile:true,auto_upload:true};
  const helper=path.join(outputDir,'helper.js');fs.writeFileSync(helper,`(${bossjobHelper.toString()})(${JSON.stringify(payload)},\n${installBossjobWorkflow.toString()});\n`);
  console.log(`Prepared active resume: ${data.source.path}\nHelper: ${helper}`);
  if(prepareOnly)return;
  if(process.platform!=='win32')throw Error('Open Bossjob in your main browser and paste the generated helper into its console.');
  const result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',"Set-Clipboard -Value ([System.IO.File]::ReadAllText($env:BOSSJOB_HELPER_PATH)); Start-Process 'https://bossjob.ph/en-us/manage-profile'"],{env:{...process.env,BOSSJOB_HELPER_PATH:helper},encoding:'utf8',windowsHide:true});
  if(result.error||result.status!==0)throw Error(result.error?.message||result.stderr);
- console.log('Helper copied to clipboard. Bossjob opened in your main browser session. Press F12, open Console, paste and run. Work/education sync starts automatically: correct matching entries, add missing entries, and verify saves. If an icon has no label, use Choose this entry’s Edit / + and click its real icon. PDF upload is separate.');
+ console.log('Helper copied to clipboard. Bossjob opened in your main browser session. Close any editor, press F12, open Console, paste once and run. It supplies the exact resume PDF, waits for upload acknowledgement, then opens, fills, saves and verifies work, education, personal details, skills and certifications. Unavailable sections are reported. Stop and Retry remaining are available in the panel.');
 }
 if(require.main===module)main().catch(error=>{console.error(error.message);process.exitCode=1});
 module.exports={main,parseOptions};

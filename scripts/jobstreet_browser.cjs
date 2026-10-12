@@ -19,6 +19,6 @@ function launchInMainBrowser(data, tasks) {
     if (result.error || result.status !== 0) throw new Error(`Could not copy helper/open browser. Helper is at ${output}. ${result.error?.message || result.stderr}`);
     console.log('Helper copied to clipboard. JobStreet opened in your default browser using its existing session.');
   }
-  console.log(`In the signed-in JobStreet tab: press F12, select Console, paste the helper, and press Enter.\nThe helper automatically opens, fills, and saves each configured task in order. It stops at the first missing mapping or save error.\nIf Chrome blocks pasting, follow its console prompt only after reviewing ${output}.\nRerun npm run jobstreet after changing your resume or mappings, then paste the fresh helper.`);
+  console.log(`In the signed-in JobStreet tab: press F12, select Console, paste the helper, and press Enter.\nThe helper automatically opens, fills, and saves each configured task in order. It stops at the first missing mapping or save error.\nIf Chrome blocks pasting, follow its console prompt only after reviewing ${output}.\nRerun npm run rpa:jobstreet after changing your resume or mappings, then paste the fresh helper.`);
 }
 module.exports = { browserHelper, createHelper, launchInMainBrowser };
