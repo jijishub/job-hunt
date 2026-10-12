@@ -24,7 +24,9 @@ Save the roles that interest you, keep your notes close, and explore how your ap
 
 I started by tracking my internship applications. As I moved into regular employment, I wanted to keep that history while giving my current search its own focus.
 
-The analytics are the part I get excited about: which roles reach interviews, how fit ratings compare with outcomes, and how salary offers line up with expectations. Job Hunt gives those questions a place to live.
+The analytics are the part I get excited about: which roles reach interviews, how fit ratings compare with outcomes, and how salary offers line up with expectations. Job Hunt gives those questions a place to live. 
+
+Furthermore, access is whitelist-only and exclusive to my friends as I made this system for them too.^^
 
 ## ✧ Inside the workspace
 
@@ -39,8 +41,6 @@ The analytics are the part I get excited about: which roles reach interviews, ho
 | **A view that grows with you** | Keep internships and regular employment together or separate. Save your default view, targets, and analytics mappings. |
 | **Companies worth remembering** | Reuse company profiles and logos across applications and leads. |
 | **Connected, personal records** | Sign in with Google to access your own data; administrator tools add two-way Notion sync and account management. |
-
-Furthermore, access is whitelist-only and exclusive to my friends.
 
 ### From a lead to an insight
 
