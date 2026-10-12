@@ -31,7 +31,7 @@ The details are the part I get excited about: which roles reach interviews, how 
 | Feature | What it brings to your search |
 | --- | --- |
 | **Your application pipeline** | Switch between a table and board; keep job descriptions, personal notes, dates, and hiring stages together. |
-| **A home for promising leads** | Save real postings and generate search keywords, then choose where to explore: LinkedIn, JobStreet, Indeed, or Google Jobs. |
+| **A home for promising leads** | Browse Saved leads or Discover, and open Quick Add from the same toolbar to save a real posting in a modal. See each lead's profile-fit rating and click it to open that lead's details and saved assessment. |
 | **AI when you need it** | Use your master resume for ATS matching and role-fit assessments, with explanations you can review. |
 | **Analytics you can explore** | Follow submissions, interviews, offers, and rejections. Click charts to review their records and export an aggregate PDF report. |
 | **Salary expectations, made visible** | Compare actual offers with what you asked for, including median amounts and offer gaps within the same currency and pay period. |
@@ -48,6 +48,10 @@ The details are the part I get excited about: which roles reach interviews, how 
 
 New applications start at **Not started** with today's date; both are editable. Role-fit analysis runs when you request it. AI discovery provides search ideas to research, and leads stay separate until you mark them applied. Salary comparisons pair the same application with matching currency and pay period.
 
+Saved leads show **Strong fit**, **Possible fit**, **Weak fit**, or **Unassessed**, using their saved role-fit data. Open a lead through its title or fit badge to review its details; AI Match opens the resume matcher for that role. Discover generates search keywords for LinkedIn, JobStreet, Indeed, and Google Jobs.
+
+The workspace adapts to mobile screens: lead cards fit the viewport, account menus stay on screen, long job titles leave room for modal actions, and AI model choices wrap inside their card. Account creation places the action below the icon picker on mobile.
+
 ## Built with
 
 **Next.js 16** · **React 19** · **TypeScript** · **Tailwind CSS 4**
@@ -56,14 +60,14 @@ Neon PostgreSQL for storage, NextAuth for authentication, Notion for administrat
 
 ## Getting started
 
-Install Node.js and npm, then run:
+Install Node.js and npm, then install dependencies and copy the environment template:
 
 ```powershell
 npm install
-npm run dev
+Copy-Item .env.example .env.local
 ```
 
-Add your configuration to `.env.local`:
+Set `NEXTAUTH_URL` to `http://localhost:3000` for local development, and add your configuration to `.env.local`:
 
 | Purpose | Variables |
 | --- | --- |
@@ -76,6 +80,8 @@ Add your configuration to `.env.local`:
 
 Local development uses a JSON fallback when PostgreSQL is not configured. Keep credentials in your environment files, outside source control. See the [deployment guide](DEPLOYMENT.md) for hosting and Google OAuth setup.
 
+Start the development server with `npm run dev`, then open [localhost:3000](http://localhost:3000). Google sign-in requires the OAuth configuration above.
+
 ## Useful commands
 
 | Command | Purpose |
@@ -85,6 +91,7 @@ Local development uses a JSON fallback when PostgreSQL is not configured. Keep c
 | `npm run start` | Serve the production build. |
 | `npm run test:pipeline` | Check analytics, application APIs, and persistence. |
 | `npm run test:pipeline:ui` | Check browser flows against a running local server. |
+| `node --test scripts/test_mobile_ui.cjs` | Check mobile and desktop layouts, Quick Add modal behavior, and clickable lead-fit badges. |
 | `npx tsc --noEmit` | Check TypeScript. |
 | `npm run company-icons:preview` | List companies missing icons without changing records. |
 | `npm run company-icons` | Research and fill missing company icons. |
