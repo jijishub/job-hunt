@@ -40,7 +40,7 @@ The analytics are the part I get excited about: which roles reach interviews, ho
 | **Companies worth remembering** | Reuse company profiles and logos across applications and leads. |
 | **Connected, personal records** | Sign in with Google to access your own data; administrator tools add two-way Notion sync and account management. |
 
-Accounts are invite-only. Invited members' Google names and profile photos update on sign-in, including photo changes with the same name. Existing Accounts lists invited accounts, including those who have not signed in; it is not an online-status list.
+Furthermore, access is whitelist-only and exclusive to my friends.
 
 ### From a lead to an insight
 
