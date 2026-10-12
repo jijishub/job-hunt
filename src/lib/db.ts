@@ -846,9 +846,11 @@ export async function getOrCreateUser(data: {
       existing.role = 'member';
       existing.notion_enabled = false;
     }
-    if (data.name && data.name !== existing.name) {
-      await updateUser(existing.id, { name: data.name, avatar: data.avatar || existing.avatar });
-      return { ...existing, name: data.name, avatar: data.avatar || existing.avatar };
+    const name = data.name || existing.name;
+    const avatar = data.avatar || existing.avatar;
+    if (name !== existing.name || avatar !== existing.avatar) {
+      await updateUser(existing.id, { name, avatar });
+      return { ...existing, name, avatar };
     }
     return existing;
   }

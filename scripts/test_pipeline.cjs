@@ -44,6 +44,21 @@ test('normal PostgreSQL requests skip schema maintenance; migrations run explici
  }finally{if(previous===undefined)delete process.env.POSTGRES_URL;else process.env.POSTGRES_URL=previous;}
 });
 
+test('sign-in refreshes a member photo without requiring a name change',async()=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'jobhunt-avatar-'));const original=process.cwd();
+ const env={POSTGRES_URL:process.env.POSTGRES_URL,DATABASE_URL:process.env.DATABASE_URL,VERCEL:process.env.VERCEL};
+ try{
+  for(const key of Object.keys(env))delete process.env[key];process.chdir(directory);
+  const db=loader()('src/lib/db.ts');
+  const invited=await db.createUser({name:'Member Example',email:'photo@example.com',industry:'Tourism',avatar:'https://example.com/old.jpg',role:'member'});
+  const signedIn=await db.getOrCreateUser({name:invited.name,email:invited.email,avatar:'https://example.com/new.jpg'});
+  assert.equal(signedIn.id,invited.id);assert.equal(signedIn.name,invited.name);assert.equal(signedIn.avatar,'https://example.com/new.jpg');
+  const persisted=await db.getUserByEmail(invited.email);assert.equal(persisted.avatar,signedIn.avatar);assert.equal(persisted.industry,'Tourism');assert.equal(persisted.role,'member');assert.equal(persisted.notion_enabled,false);
+  const unchanged=await db.getOrCreateUser({name:invited.name,email:invited.email});assert.equal(unchanged.avatar,signedIn.avatar);
+  const renamed=await db.getOrCreateUser({name:'Updated Member Name',email:invited.email});assert.equal(renamed.name,'Updated Member Name');assert.equal(renamed.avatar,signedIn.avatar);
+ }finally{process.chdir(original);for(const [key,value]of Object.entries(env)){if(value===undefined)delete process.env[key];else process.env[key]=value;}fs.rmSync(directory,{recursive:true,force:true});}
+});
+
 test('search links keep keywords separate from location and use JobStreet keyword paths',()=>{
  const {JOB_SEARCH_PLATFORMS,jobSearchUrl}=loader()('src/lib/job-search-links.ts');
  assert.equal(JOB_SEARCH_PLATFORMS.length,4);

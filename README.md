@@ -39,6 +39,8 @@ The details are the part I get excited about: which roles reach interviews, how 
 | **Companies worth remembering** | Reuse company profiles and logos across applications and leads. |
 | **Connected, personal records** | Sign in with Google to access your own data; administrator tools add two-way Notion sync and account management. |
 
+Accounts are invite-only. Invited members' Google names and profile photos update on sign-in, including photo changes with the same name. Existing Accounts lists invited accounts, including those who have not signed in; it is not an online-status list.
+
 ### From a lead to an insight
 
 1. **Find a role.** Explore search keywords or save a posting you already have.
