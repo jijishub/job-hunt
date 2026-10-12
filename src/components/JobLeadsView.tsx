@@ -54,7 +54,7 @@ export default function JobLeadsView({ onAddToTracker, existingApplications, cur
     {message && <p role="status" className="rounded-xl bg-[#FFF0F6] p-3 text-sm text-[#9D3C5E]">{message}</p>}
     {tab === 'saved' ? <>
       <label className="flex items-center gap-2"><Search className="h-4 w-4 text-[#FF7AB3]" /><input aria-label="Search saved leads" value={query} onChange={e => setQuery(e.target.value)} className={input} placeholder="Search role or company" /></label>
-      <div className="grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">{shown.map(app => <article key={app.id} className="flex flex-col justify-between space-y-3 rounded-2xl border border-[#F1DDE9] bg-white p-4.5 transition hover:border-[#FF7AB3] hover:shadow-xs">
+      <div className="grid max-sm:grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3">{shown.map(app => <article key={app.id} className="flex max-sm:min-w-0 max-sm:break-words flex-col justify-between space-y-3 rounded-2xl border border-[#F1DDE9] bg-white p-4.5 transition hover:border-[#FF7AB3] hover:shadow-xs">
         <div className="space-y-2">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2.5">

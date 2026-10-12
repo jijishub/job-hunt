@@ -55,13 +55,13 @@ export default function ApplicationDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-xs animate-in fade-in duration-150">
-      <div role="dialog" aria-modal="true" aria-label="Application details" className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[#F1DDE9] max-h-[90vh] flex flex-col overflow-hidden">
+      <div role="dialog" aria-modal="true" aria-label="Application details" className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[#F1DDE9] max-h-[90vh] max-sm:max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden">
         <div className="h-28 shrink-0 bg-gradient-to-r from-[#FFB8CA] via-[#FCE7F3] to-[#FFF0F6] relative">
           <CloseButton onClick={onClose} className="absolute right-3 top-3" />
         </div>
 
-        <div className="px-7 pt-0 pb-4 relative flex items-end justify-between border-b border-[#F1DDE9]">
-          <div className="-mt-9 flex items-end gap-3.5">
+        <div className="px-4 sm:px-7 pt-0 pb-4 relative flex flex-col sm:flex-row sm:items-end justify-between max-sm:gap-4 border-b border-[#F1DDE9] shrink-0">
+          <div className="-mt-9 flex min-w-0 items-end gap-3.5">
             <div className="w-16 h-16 rounded-2xl bg-white border-2 border-[#F1DDE9] shadow-md flex items-center justify-center overflow-hidden shrink-0">
               {app.company_logo?.startsWith('emoji:') ? (
                 <span className="text-3xl">{app.company_logo.replace('emoji:', '')}</span>
@@ -76,8 +76,8 @@ export default function ApplicationDetailModal({
                 <Building2 className="w-8 h-8 text-stone-300" />
               )}
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-[#4A3E44] tracking-tight">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-[#4A3E44] tracking-tight max-sm:break-words">
                 {app.role_title}
               </h1>
               <p className="text-sm font-medium text-[#9D3C5E] flex items-center gap-1.5">
@@ -97,7 +97,7 @@ export default function ApplicationDetailModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 pb-1">
+          <div className="flex items-center gap-1.5 pb-1 max-sm:flex-wrap max-sm:self-end max-sm:[&_button]:whitespace-nowrap">
             {onAnalyzeResume && (
               <button
                 type="button"
@@ -130,9 +130,9 @@ export default function ApplicationDetailModal({
           </div>
         </div>
 
-        <div className="p-7 overflow-y-auto space-y-6 text-sm">
+        <div className="p-4 sm:p-7 min-h-0 overflow-y-auto space-y-6 text-sm max-sm:break-words">
           {notionUrl ? (
-            <div className="p-3 rounded-xl bg-purple-50/60 border border-purple-200/80 flex items-center justify-between text-xs">
+            <div className="p-3 rounded-xl bg-purple-50/60 border border-purple-200/80 flex max-sm:flex-wrap gap-3 items-center justify-between text-xs">
               <div className="flex items-center gap-2 text-purple-900">
                 <CheckCircle2 className="w-4 h-4 text-purple-600" />
                 <span>Connected & Live Synced with Notion page</span>
@@ -266,7 +266,7 @@ export default function ApplicationDetailModal({
           </div>
         </div>
 
-        <div className="px-7 py-3 border-t border-[#F1DDE9] bg-[#FAF7F9] flex items-center justify-between text-xs text-[#736A6D]">
+        <div className="px-4 sm:px-7 py-3 shrink-0 border-t border-[#F1DDE9] bg-[#FAF7F9] flex items-center justify-between text-xs text-[#736A6D]">
           <span className="flex items-center gap-1">
             <Clock className="w-3.5 h-3.5" />
             Last updated {new Date(app.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

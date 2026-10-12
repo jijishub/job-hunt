@@ -253,11 +253,11 @@ export default function ResumeAnalyzerView({
             </div>
 
             {/* Model Selector Pill */}
-          <div className="flex items-center gap-2 bg-[#FAF7F9] p-1.5 rounded-xl border border-[#F1DDE9]">
+          <div className="flex max-sm:flex-col max-sm:items-start items-center gap-2 bg-[#FAF7F9] p-1.5 rounded-xl border border-[#F1DDE9]">
             <span className="text-[11px] font-semibold text-[#736A6D] pl-2 flex items-center gap-1">
               Model:
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex max-sm:flex-wrap max-sm:w-full items-center gap-1">
               {AVAILABLE_AI_MODELS.map((m) => {
                 const isSelected = selectedModel === m.id;
                 return (

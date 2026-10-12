@@ -503,7 +503,7 @@ export default function JobHuntDashboard() {
         }}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full flex-1 space-y-4">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full min-w-0 flex-1 space-y-4">
         {/* Unified Control Deck: Navigation Tabs + Filters in ONE Cohesive Card */}
         <div className="bg-white rounded-2xl border border-[#F1DDE9] shadow-2xs overflow-hidden">
           {/* Top Bar: Primary Navigation Tabs & Pipeline Metric */}
@@ -595,7 +595,7 @@ export default function JobHuntDashboard() {
           {(activeView === 'table' || activeView === 'board') && (
             <div className="bg-[#FAF7F9]/40 p-3 sm:p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
               {/* Search Input */}
-              <div className="relative flex-1 min-w-[220px]">
+              <div className="relative flex-1 min-w-0 md:min-w-[220px]">
                 <input
                   type="text"
                   placeholder="Search role, company, location, or notes..."

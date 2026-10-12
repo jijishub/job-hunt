@@ -27,7 +27,7 @@
     "test:jobstreet": "node --test scripts/test_jobstreet.cjs scripts/test_jobstreet_sequence.cjs scripts/test_jobstreet_recipe.cjs",
     "rpa:bossjob": "node scripts/bossjob_sync.cjs",
     "rpa:bossjob:prepare": "node scripts/bossjob_sync.cjs --prepare",
-    "test:bossjob": "node --test --test-name-pattern=Bossjob scripts/test_llm_tasks.cjs scripts/test_bossjob.cjs",
+    "test:bossjob": "node --test --test-name-pattern=Bossjob scripts/test_llm_tasks.cjs scripts/test_bossjob.cjs scripts/test_bossjob_workflow.cjs",
     "test:pipeline": "node --test scripts/test_pipeline.cjs",
     "test:pipeline:ui": "node --test scripts/test_pipeline_ui.cjs scripts/test_rejections_ui.cjs scripts/test_board_ui.cjs scripts/test_member_ui.cjs scripts/test_salary_offers_ui.cjs",
     "rpa:appficiency": "node scripts/appficiency_apply.cjs",

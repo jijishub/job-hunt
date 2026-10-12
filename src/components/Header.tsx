@@ -71,9 +71,9 @@ export default function Header({
     <header className="border-b border-[#F1DDE9] bg-white/85 backdrop-blur-md sticky top-0 z-30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         {/* Left: Brand & Status */}
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <Image src="/job-hunt official text.png" alt="Job Hunt" width={180} height={60} loading="eager" className="w-36 sm:w-44 h-auto object-contain" />
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
 
               {/* RBAC Notion Status vs Member Cloud DB Status */}
@@ -162,7 +162,7 @@ export default function Header({
           </button>
 
           {/* Dynamic User & Account Switcher Dropdown */}
-          <div className="relative" ref={dropdownRef}>
+          <div className="relative max-sm:ml-auto" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#F1DDE9] bg-white hover:bg-[#FAF7F9] transition text-left shadow-2xs"
@@ -199,7 +199,7 @@ export default function Header({
 
             {/* Dropdown Menu */}
             {dropdownOpen && (
-              <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-[#F1DDE9] shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-2rem)] max-h-[70dvh] overflow-y-auto rounded-2xl bg-white border border-[#F1DDE9] shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
                 {/* Active Profile Info */}
                 <div className="p-3 bg-[#FAF7F9] rounded-xl border border-[#F1DDE9]/60 mb-2">
                   <div className="flex items-center gap-2.5 mb-2">
