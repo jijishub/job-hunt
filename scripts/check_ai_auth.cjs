@@ -1,14 +1,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
-const ts = require('typescript');
+const { loadTypescript } = require('./migrate_db.cjs');
 require('@next/env').loadEnvConfig(path.join(__dirname, '..'));
-const moduleObject = { exports: {} };
-vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/lib/ai.ts'), 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS },
-}).outputText, { exports: moduleObject.exports, module: moduleObject, process, fetch, console });
+const { getAIConfig } = loadTypescript(path.join(__dirname, '../src/lib/ai.ts'));
 async function run() {
-  const config = moduleObject.exports.getAIConfig();
+  const config = getAIConfig();
   const raw = config.apiKey || '';
   for (const file of ['.env.local', '.env']) {
     const filename = path.join(__dirname, '..', file);
@@ -42,4 +38,5 @@ async function run() {
   console.log(JSON.stringify({ authenticatedChatStatus: chat.status }));
   await chat.body?.cancel();
 }
-run().catch((error) => { console.error(error.message); process.exitCode = 1; });
+if (require.main === module) run().catch((error) => { console.error(error.message); process.exitCode = 1; });
+module.exports = { run };

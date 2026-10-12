@@ -16,7 +16,8 @@ vm.runInNewContext(compiled, {
   exports: moduleObject.exports, module: moduleObject, console,
   process: { env: {}, cwd: () => directory },
   require: (name) => name === '@neondatabase/serverless'
-    ? { neon: () => { throw new Error('Unexpected network access'); } } : require(name),
+    ? { neon: () => { throw new Error('Unexpected network access'); } }
+    : name === './admin-email' ? { getAdminEmail: () => 'jizelle.casia@gmail.com' } : require(name),
 });
 const db = moduleObject.exports;
 async function run() {

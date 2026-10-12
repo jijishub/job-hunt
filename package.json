@@ -28,6 +28,11 @@
     "rpa:bossjob:prepare": "node scripts/bossjob_sync.cjs --prepare",
     "test:bossjob": "node --test --test-name-pattern=Bossjob scripts/test_llm_tasks.cjs scripts/test_bossjob.cjs scripts/test_bossjob_workflow.cjs",
     "test:pipeline": "node --test scripts/test_pipeline.cjs",
+    "test:core": "node --test scripts/test_pipeline.cjs scripts/test_lead_storage.cjs scripts/test_notion_sync.cjs scripts/test_secret_config.cjs",
+    "test:mobile:ui": "node --test scripts/test_mobile_ui.cjs",
+    "test:report": "node scripts/test_report_export.cjs",
+    "diagnose:ai": "node scripts/check_ai_auth.cjs",
+    "audit:duplicates": "node scripts/audit_postgres_duplicates.cjs",
     "test:pipeline:ui": "node --test scripts/test_pipeline_ui.cjs scripts/test_rejections_ui.cjs scripts/test_board_ui.cjs scripts/test_member_ui.cjs scripts/test_salary_offers_ui.cjs",
     "rpa:appficiency": "node scripts/appficiency_apply.cjs",
     "rpa:appficiency:prepare": "node scripts/appficiency_apply.cjs --prepare"

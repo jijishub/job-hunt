@@ -10,6 +10,8 @@ Run these commands from the `job-hunt` folder.
 | `npm run jobstreet` | Refresh technical resume data and copy the automatic JobStreet profile updater. Uses your main browser session. |
 | `npm run jobstreet:business` | Same updater, using the BusinessSolutions resume. |
 | `npm run bytedance` | Open a separate Chrome profile, upload the ByteDance resume, and autofill the application. Review and submit manually. |
+| `npm run rpa:appficiency` | Copy the Appficiency application helper and open the application in your main browser. Review filled details before submitting. |
+| `npm run rpa:appficiency:prepare` | Generate Appficiency application data and helper locally. |
 | `npm run jobstreet:prepare` | Refresh technical resume JSON only; no browser updates. |
 | `npm run jobstreet:watch` | Watch the technical PDF and refresh JSON when it changes. Stop with Ctrl+C. |
 | `node scripts/jobstreet_sync.cjs --variant business --watch` | Watch the business resume instead. |

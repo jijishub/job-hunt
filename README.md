@@ -52,7 +52,7 @@ New applications start at **Not started** with today's date; both are editable. 
 
 Saved leads show **Strong fit**, **Possible fit**, **Weak fit**, or **Unassessed**, using their saved role-fit data. Open a lead through its title or fit badge to review its details; AI Match opens the resume matcher for that role. Discover generates search keywords for LinkedIn, JobStreet, Indeed, and Google Jobs.
 
-**Copy Prompt**, beside **New App**, copies the Gemini job-to-JSON extraction prompt. Paste it with a job posting in Gemini, then import the returned JSON in the application form.
+For easy-add, click **Copy Prompt** beside **New App** and paste it with the full job-posting text and URL into Gemini. Open **New App → Job description (Information) → Import job JSON**, paste Gemini's JSON, and click **Fill draft from JSON**. Review the extracted fields, salary and dates before saving. Keep **Not started** to save a lead, or choose **Applied** if you have submitted. The in-app **Guide** walks through these steps. This extraction flow uses Gemini directly; importing and saving do not require an in-app AI request or browser automation.
 
 Changing a role to **Weak fit** automatically sets priority to **Low**; changing it to **Strong fit** sets priority to **High**. You can then edit either field independently; changing priority or saving other details keeps your chosen fit and priority. Possible fit leaves priority unchanged.
 
@@ -101,14 +101,20 @@ Application saves finish after database persistence. Administrator Notion sync r
 | `npm run db:migrate` | Apply database setup and migrations explicitly. |
 | `npm run start` | Serve the production build. |
 | `npm run test:pipeline` | Check analytics, application APIs, and persistence. |
+| `npm run test:core` | Check pipeline, lead storage, Notion retry behavior, and secret configuration. |
 | `npm run test:pipeline:ui` | Check browser flows against a running local server. |
 | `npm run test:save:ui` | Verify a slow company refresh does not keep the save form open. |
-| `node --test scripts/test_mobile_ui.cjs` | Check mobile and desktop layouts, Quick Add modal behavior, and clickable lead-fit badges. |
+| `npm run test:mobile:ui` | Check mobile and desktop layouts, Quick Add modal behavior, and clickable lead-fit badges. |
+| `npm run test:report` | Check ATS report rendering and pagination in Chrome. |
 | `npx tsc --noEmit` | Check TypeScript. |
 | `npm run company-icons:preview` | List companies missing icons without changing records. |
 | `npm run company-icons` | Research and fill missing company icons. |
 
 Browser checks use Chrome and `http://localhost:3100` by default. Start the app with `npx next dev -p 3100`, or set `PIPELINE_TEST_URL` to your local server.
+
+The `scripts/` directory contains active database migrations, company-icon tooling, application/profile automation and their helpers, diagnostics, and regression tests. `resume_data.json` is required by the ByteDance automation. See [RPA-COMMANDS.md](RPA-COMMANDS.md) for application helpers.
+
+For troubleshooting, `npm run diagnose:ai` checks AI configuration and tests authentication with a small model request when using the app's default AI gateway. `npm run audit:duplicates` reads application records and writes a local backup and duplicate report without changing database records. These commands use the configured services; the audit keeps artifacts in `.data/`. Neither is needed for normal app startup.
 
 ### Company icons
 

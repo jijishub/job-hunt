@@ -16,7 +16,7 @@ async function main() {
  fs.writeFileSync(snapshot,JSON.stringify({applications:rows,duplicates},null,2));
  console.log(JSON.stringify({snapshot,applications:rows.length,duplicateGroups:duplicates.length,extraRows:duplicates.reduce((n,g)=>n+g.length-1,0)}));
  if(!process.argv.includes('--apply'))return;
- // Use precisely the same migration as application startup, in one transaction.
+ // Use precisely the same migration as the build-time database setup, in one transaction.
  const source=fs.readFileSync('src/lib/db.ts','utf8');
  const start=source.indexOf('// Preserve every superseded row');
  const end=source.indexOf('    schemaInitialized = true;',start);

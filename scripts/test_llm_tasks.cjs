@@ -3,21 +3,19 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
-const ts=require('typescript');
+const {loadTypescript}=require('./migrate_db.cjs');
 const {chromium}=require('playwright-core');
 const {bossjobHelper}=require('./bossjob_browser.cjs');
 
 test('duplicate Notion applications retain pending edits, archive alternatives, and reject repeated identities',async()=>{
  const root=path.resolve(__dirname,'..');const original=process.cwd();const directory=fs.mkdtempSync(path.join(os.tmpdir(),'job-hunt-dedup-'));
- const compiled=path.join(root,'.data',`db-test-${process.pid}.cjs`);
  const savedEnv={POSTGRES_URL:process.env.POSTGRES_URL,DATABASE_URL:process.env.DATABASE_URL,VERCEL:process.env.VERCEL};
  try {
   for(const key of Object.keys(savedEnv))delete process.env[key];
-  fs.mkdirSync(path.join(directory,'.data'));fs.mkdirSync(path.dirname(compiled),{recursive:true});
+  fs.mkdirSync(path.join(directory,'.data'));
   const base={company_name:'Example',role_title:'Engineer',status:'APPLIED',owner:'user_ji',notion_page_id:'ABC-DEF',priority:'MEDIUM',job_type:'FULL_TIME',work_model:'REMOTE',salary_currency:'PHP',created_at:'2026-01-01T00:00:00Z'};
   fs.writeFileSync(path.join(directory,'.data/db.json'),JSON.stringify({companies:[],users:[{id:'user_ji'}],applications:[{...base,id:'older',sync_status:'PENDING',updated_at:'2026-01-01T00:00:00Z'},{...base,id:'newer',status:'REJECTED',sync_status:'SYNCED',updated_at:'2026-02-01T00:00:00Z'}]}));
-  fs.writeFileSync(compiled,ts.transpileModule(fs.readFileSync(path.join(root,'src/lib/db.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText);
-  process.chdir(directory);const db=require(compiled);
+  process.chdir(directory);const db=loadTypescript(path.join(root,'src/lib/db.ts'));
   assert.deepEqual((await db.getApplications()).map(row=>row.id),['older']);
   assert.equal(JSON.parse(fs.readFileSync('.data/db.json','utf8')).duplicate_applications[0].id,'newer');
   const repeated=await db.createApplication({...base,id:'third',notion_page_id:'abcdef',sync_status:'SYNCED'});assert.equal(repeated.id,'older');
@@ -26,7 +24,7 @@ test('duplicate Notion applications retain pending edits, archive alternatives, 
   assert.equal((await db.getApplications()).length,3);
  }finally{
   process.chdir(original);for(const [key,value]of Object.entries(savedEnv)){if(value===undefined)delete process.env[key];else process.env[key]=value;}
-  fs.rmSync(directory,{recursive:true,force:true});fs.rmSync(compiled,{force:true});
+  fs.rmSync(directory,{recursive:true,force:true});
  }
 });
 
