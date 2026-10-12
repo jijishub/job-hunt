@@ -50,6 +50,10 @@ New applications start at **Not started** with today's date; both are editable. 
 
 Saved leads show **Strong fit**, **Possible fit**, **Weak fit**, or **Unassessed**, using their saved role-fit data. Open a lead through its title or fit badge to review its details; AI Match opens the resume matcher for that role. Discover generates search keywords for LinkedIn, JobStreet, Indeed, and Google Jobs.
 
+**Copy Prompt**, beside **New App**, copies the Gemini job-to-JSON extraction prompt. Paste it with a job posting in Gemini, then import the returned JSON in the application form.
+
+Changing a role to **Weak fit** automatically sets priority to **Low**; changing it to **Strong fit** sets priority to **High**. You can then edit either field independently; changing priority or saving other details keeps your chosen fit and priority. Possible fit leaves priority unchanged.
+
 The workspace adapts to mobile screens: lead cards fit the viewport, account menus stay on screen, long job titles leave room for modal actions, and AI model choices wrap inside their card. Account creation places the action below the icon picker on mobile.
 
 ## Built with
@@ -105,6 +109,8 @@ The icon job requires a signed-in Codex CLI and `POSTGRES_URL` in `.env.local`. 
 ## Project references
 
 `LLM.txt` holds project feedback and requests. The `references/` folder keeps application JSON, resumes, and research material; these remain separate from the app's source code.
+
+For future application questions, the local `references/application-answer-reference.md` explains how to reuse the submitted answers in `references/thinkingmachines_submitted_application.json` and adapt them to the role. The retired Thinking Machines RPA has been removed following the completed application on its replacement site.
 
 ---
 

@@ -13,8 +13,11 @@ import {
   LogIn,
   Database,
   KeyRound,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { JobApplication, UserAccount } from '@/types/job';
+import { JOB_JSON_PROMPT } from '@/lib/job-import';
 
 interface HeaderProps {
   applications?: JobApplication[];
@@ -44,6 +47,22 @@ export default function Header({
   const session = sessionContext?.data;
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [promptCopyState, setPromptCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+
+  useEffect(() => {
+    if (promptCopyState !== 'copied') return;
+    const timer = setTimeout(() => setPromptCopyState('idle'), 2500);
+    return () => clearTimeout(timer);
+  }, [promptCopyState]);
+
+  const copyGeminiPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(JOB_JSON_PROMPT);
+      setPromptCopyState('copied');
+    } catch {
+      setPromptCopyState('error');
+    }
+  };
 
   const isNotionConnected = notionStatus?.configured && notionStatus?.status?.success;
 
@@ -114,7 +133,7 @@ export default function Header({
 
             <p className="text-xs text-[#736A6D]">
               {isAdmin
-                ? 'Admin mode: 2-way Notion database & live portfolio discovery'
+                ? 'Admin mode: 2-way Notion DB & live portfolio sync'
                 : `Member pipeline: ${activeIndustry} focus`}
             </p>
           </div>
@@ -161,6 +180,17 @@ export default function Header({
             <span>New App</span>
           </button>
 
+          <div className="relative">
+            <button type="button" onClick={copyGeminiPrompt} aria-label="Copy Gemini job JSON extraction prompt" title="Copy Gemini job JSON extraction prompt" className="inline-flex items-center gap-1.5 rounded-xl border border-[#F1DDE9] bg-white px-2.5 py-2 text-xs font-semibold text-[#9D3C5E] hover:bg-[#FFF0F6] transition">
+              {promptCopyState === 'copied' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              <span aria-live="polite">{promptCopyState === 'copied' ? 'Copied!' : 'Copy Prompt'}</span>
+            </button>
+            {promptCopyState === 'error' && <div className="absolute right-0 z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-[#F1DDE9] bg-white p-3 shadow-xl">
+              <p role="alert" className="text-xs text-[#736A6D]">Clipboard access failed. Select and copy the prompt below.</p>
+              <textarea aria-label="Gemini extraction prompt" readOnly value={JOB_JSON_PROMPT} rows={5} onFocus={event => event.target.select()} className="mt-2 w-full rounded-lg border border-[#F1DDE9] p-2 text-xs" />
+              <button type="button" onClick={() => setPromptCopyState('idle')} className="mt-2 text-xs font-semibold text-[#9D3C5E]">Dismiss</button>
+            </div>}
+          </div>
           {/* Dynamic User & Account Switcher Dropdown */}
           <div className="relative max-sm:ml-auto" ref={dropdownRef}>
             <button

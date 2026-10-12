@@ -7,6 +7,9 @@ test('mobile menus, lead cards, details and model choices stay inside the viewpo
   try {
     for (const width of [320, 375, 390, 480, 1440]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
+      await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { window.copiedPrompt = text; } } });
+      });
       const user = { id: 'mobile_owner', name: 'Mobile Owner', email: 'mobile@example.com', role: 'admin' };
       const app = { id: 'mobile_lead', owner: user.id, company_name: 'Thinking Machines Data Science', role_title: 'Graduate Development Program (E-commerce, Philippines) - 2027 Start', status: 'LEAD', notion_status: 'Not started', priority: 'MEDIUM', job_type: 'FULL_TIME', work_model: 'REMOTE', notion_page_id: 'abc123', created_at: '2026-10-10', updated_at: '2026-10-10', sync_status: 'SYNCED' };
       app.role_fit = 'STRONG';
@@ -29,7 +32,27 @@ test('mobile menus, lead cards, details and model choices stay inside the viewpo
       const noOverflow = async () => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Page overflow at ${width}px`);
       await page.goto(process.env.PIPELINE_TEST_URL || 'http://localhost:3100');
       await page.getByRole('button', { name: 'Table View', exact: true }).waitFor();
+      const copyPrompt = page.getByRole('button', { name: 'Copy Gemini job JSON extraction prompt' });
+      await inside(copyPrompt);
+      await copyPrompt.click();
+      assert.equal(await copyPrompt.textContent(), 'Copied!');
+      assert.match(await page.evaluate(() => window.copiedPrompt), /Extract this job posting into ONE JSON object/);
       await noOverflow();
+      await page.getByRole('button', { name: 'New App', exact: true }).click();
+      await page.getByLabel('Priority', { exact: true }).selectOption('HIGH');
+      await page.getByLabel('Role fit', { exact: true }).selectOption('WEAK');
+      assert.equal(await page.getByLabel('Priority', { exact: true }).inputValue(), 'LOW');
+      await page.getByLabel('Priority', { exact: true }).selectOption('HIGH');
+      assert.equal(await page.getByLabel('Role fit', { exact: true }).inputValue(), 'WEAK');
+      await page.getByLabel('Role fit', { exact: true }).selectOption('STRONG');
+      assert.equal(await page.getByLabel('Priority', { exact: true }).inputValue(), 'HIGH');
+      await page.getByLabel('Priority', { exact: true }).selectOption('LOW');
+      assert.equal(await page.getByLabel('Role fit', { exact: true }).inputValue(), 'STRONG');
+      await page.getByLabel('Role fit', { exact: true }).selectOption('POSSIBLE');
+      assert.equal(await page.getByLabel('Priority', { exact: true }).inputValue(), 'LOW');
+      await page.getByLabel('Role fit', { exact: true }).selectOption('STRONG');
+      assert.equal(await page.getByLabel('Priority', { exact: true }).inputValue(), 'HIGH');
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click();
       await page.locator('header button').filter({ has: page.locator('svg.lucide-chevron-down') }).click();
       await inside(page.getByText('Google SSO Invite-Only').locator('..').locator('..'));
       await page.locator('header button').filter({ has: page.locator('svg.lucide-chevron-down') }).click();

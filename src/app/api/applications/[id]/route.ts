@@ -51,6 +51,8 @@ export async function PUT(
     delete body.ensure_company;
     if (ensureCompany) body.company_name ||= existingApp.company_name;
     if (body.role_fit != null && !validRoleFit(body.role_fit)) return NextResponse.json({ success: false, error: 'Invalid role fit.' }, { status: 400 });
+    if (body.role_fit === 'WEAK' && existingApp.role_fit !== 'WEAK' && body.priority == null) body.priority = 'LOW';
+    if (body.role_fit === 'STRONG' && existingApp.role_fit !== 'STRONG' && body.priority == null) body.priority = 'HIGH';
     if (existingApp.status === 'LEAD' && body.status && body.status !== 'LEAD') {
       body.company_name ||= existingApp.company_name;
       body.date_applied ||= new Date().toISOString();

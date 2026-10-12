@@ -175,6 +175,31 @@ test('role-fit AI validates evidence, protects manual ratings, and rejects forei
  const request=body=>new Request('http://local',{method:'POST',body:JSON.stringify(body)});
  assert.equal((await route.POST(request({id:'app'}))).status,200);assert.equal(calls,0);app={...app,owner:'user_friend'};assert.equal((await route.POST(request({id:'app',force:true}))).status,404);app=sample();assert.equal((await route.POST(request({id:'app'}))).status,422);app={...app,job_description:'Experience building Python services with SQL databases.'};raw={fit:'INVENTED'};assert.equal((await route.POST(request({id:'app'}))).status,502);assert.equal(writes,0);raw={fit:'POSSIBLE',explanation:'Python transfers; SQL is missing.',strengths:['Python'],gaps:['SQL']};const data=await (await route.POST(request({id:'app'}))).json();assert.equal(data.application.role_fit,'POSSIBLE');assert.equal(data.application.role_fit_source,'ai');assert.equal(writes,1);raw=new DOMException('timeout','TimeoutError');const timedOut=await route.POST(request({id:'app'}));assert.equal(timedOut.status,502);assert.match((await timedOut.json()).error,/leave this role unassessed/);assert.equal(writes,1);
 });
+test('weak and strong fit default priority and preserve independent overrides',async()=>{
+ let saved=sample({job_description:'Experience building Python services with SQL databases.'});
+ const load=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',role:'member'})},'@/lib/notion':{},'@/lib/db':{getCompanies:async()=>[],createApplication:async data=>(saved={...sample(),...data}),getApplicationById:async()=>saved,updateApplication:async(id,data)=>(saved={...saved,...data})},'@/lib/ai':{callGeminiJSON:async()=>({fit:'WEAK',explanation:'Missing required experience.',strengths:[],gaps:['SQL']})}});
+ const req=body=>new Request('http://local',{method:'POST',body:JSON.stringify(body)});
+ const create=load('src/app/api/applications/route.ts');
+ assert.equal((await create.POST(req({company_name:'Example',role_title:'Engineer',role_fit:'WEAK'}))).status,201);
+ assert.equal(saved.priority,'LOW');
+ const edit=load('src/app/api/applications/[id]/route.ts');const params={params:Promise.resolve({id:saved.id})};
+ await edit.PUT(req({priority:'HIGH'}),params);assert.equal(saved.priority,'HIGH');assert.equal(saved.role_fit,'WEAK');
+ await edit.PUT(req({role_fit:'WEAK',notes:'Keep my chosen priority'}),params);assert.equal(saved.priority,'HIGH');
+ await edit.PUT(req({role_fit:'STRONG'}),params);assert.equal(saved.priority,'HIGH');
+ await edit.PUT(req({priority:'LOW'}),params);assert.equal(saved.role_fit,'STRONG');
+ await edit.PUT(req({role_fit:'STRONG',notes:'Keep my strong-fit override'}),params);assert.equal(saved.priority,'LOW');
+ await edit.PUT(req({role_fit:'POSSIBLE'}),params);assert.equal(saved.priority,'LOW');
+ await edit.PUT(req({role_fit:'STRONG'}),params);assert.equal(saved.priority,'HIGH');
+ await edit.PUT(req({role_fit:'WEAK'}),params);assert.equal(saved.priority,'LOW');
+ await edit.PUT(req({role_fit:'STRONG'}),params);
+ await edit.PUT(req({role_fit:'WEAK',priority:'HIGH'}),params);assert.equal(saved.priority,'HIGH');
+ saved={...saved,role_fit:'STRONG',role_fit_source:'ai',job_description:'Experience building Python services with SQL databases.'};
+ const ai=load('src/app/api/role-fit/route.ts');
+ assert.equal((await ai.POST(req({id:saved.id}))).status,200);assert.equal(saved.priority,'LOW');
+ saved.priority='HIGH';
+ await ai.POST(req({id:saved.id}));assert.equal(saved.priority,'HIGH');
+});
+
 test('salary offer statistics use recorded amounts, retain zero, and separate currencies and pay periods',()=>{
  const {pipelineAnalytics}=loader()('src/lib/analytics.ts');
  const rows=[sample({id:'zero',offer_amount:0}),sample({id:'one',offer_amount:50000}),sample({id:'two',offer_amount:'70000.00',status:'WITHDRAWN'}),sample({id:'two',offer_amount:1000,updated_at:'2026-10-01'}),sample({id:'three',offer_amount:90000}),sample({id:'annual',offer_amount:840000,offer_pay_period:'ANNUAL'}),sample({id:'usd',offer_amount:2000,offer_currency:'USD'}),sample({id:'advertised',salary_min:40000,salary_max:80000}),sample({id:'blank',offer_amount:null}),sample({id:'invalid',offer_amount:-1})];

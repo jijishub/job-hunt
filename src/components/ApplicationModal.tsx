@@ -253,6 +253,8 @@ export default function ApplicationModal({
     const result = await response.json();
     if (!response.ok || !result.success) throw new Error(result.error || 'Role fit analysis failed.');
     setRoleFit(result.data.fit); setFitAnalysis(result.data); setUseAiFit(true); setFitError('');
+    if (result.data.fit === 'WEAK' && roleFit !== 'WEAK') setPriority('LOW');
+    if (result.data.fit === 'STRONG' && roleFit !== 'STRONG') setPriority('HIGH');
     return result.data as RoleFitAnalysis;
   };
 
@@ -363,14 +365,14 @@ export default function ApplicationModal({
                       }}
                       className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
                     >
-                      {notionStatus && !statusOptions.some(option => option.name === notionStatus) && (
-                        <option value={notionStatus}>{notionStatus}</option>
-                      )}
-                      {statusOptions.map((opt) => (
+                      {[...statusOptions].sort((a, b) => Number(b.name === 'Applied') - Number(a.name === 'Applied')).map((opt) => (
                         <option key={opt.id || opt.name} value={opt.name}>
                           {opt.name}
                         </option>
                       ))}
+                      {notionStatus && !statusOptions.some(option => option.name === notionStatus) && (
+                        <option value={notionStatus}>{notionStatus}</option>
+                      )}
                     </select>
                   ) : (
                     <div className="flex items-center gap-1.5">
@@ -677,6 +679,19 @@ export default function ApplicationModal({
               <textarea aria-label="Job description" rows={4} value={jobDescription} onChange={event => setJobDescription(event.target.value)} placeholder="Paste the actual job description, required skills, and experience. A job title alone is not enough to assess fit." className="mt-1 w-full rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs font-normal" />
             </label>
           </section>
+          <section className="space-y-3 rounded-xl border border-[#F1DDE9] p-3 bg-[#FFF5F8]">
+            <h3 className="font-semibold text-xs text-[#9D3C5E]">Role fit analysis</h3>
+            <label className="block text-xs font-semibold">Role fit
+              <select aria-label="Role fit" value={roleFit || 'UNASSESSED'} onChange={event => { setUseAiFit(false); setRoleFit(event.target.value === 'UNASSESSED' ? null : event.target.value as RoleFit); if (event.target.value === 'WEAK') setPriority('LOW'); if (event.target.value === 'STRONG') setPriority('HIGH'); }} className="ml-2 rounded-lg border border-[#F1DDE9] bg-white p-2">
+                <option value="UNASSESSED">Leave unassessed</option>{ROLE_FITS.map(fit => <option key={fit.value} value={fit.value}>{fit.label}</option>)}
+              </select>
+            </label>
+            <p className="text-xs text-[#736A6D]">{useAiFit && roleFit ? 'Selected from the AI assessment. Choose another rating to set a manual fit.' : (ROLE_FITS.find(fit => fit.value === roleFit)?.description || 'Choose a rating manually, or click Reanalyze role fit to assess this role with AI. Saving does not run analysis.')}</p>
+            {fitAnalysis && useAiFit && <p className="text-xs text-[#9D3C5E]">{ROLE_FITS.find(fit => fit.value === fitAnalysis.fit)?.label}: {fitAnalysis.explanation}{fitAnalysis.preference_notes ? ` Preferences: ${fitAnalysis.preference_notes}` : ''}</p>}
+            <button type="button" disabled={isSubmitting || jobDescription.trim().length < 30} onClick={async () => { setIsSubmitting(true); setFitError(''); try { await analyzeFit(); } catch (error) { setFitError(error instanceof Error ? error.message : 'Analysis failed.'); } finally { setIsSubmitting(false); } }} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E] disabled:opacity-50">Reanalyze role fit</button>
+
+            {fitError && <p role="alert" className="text-xs text-rose-700">{fitError} Select a manual fit or leave this role unassessed and retry.</p>}
+          </section>
           <div>
             <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">Personal comments (Post Notes)</label>
             <textarea aria-label="Personal comments" rows={3} placeholder="Add key talking points, technical questions, salary negotiations, or links..." value={notes} onChange={event => setNotes(event.target.value)} className="w-full px-3.5 py-2.5 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs text-[#4A3E44] placeholder-stone-400 transition" />
@@ -694,19 +709,6 @@ export default function ApplicationModal({
               <label className="text-xs font-semibold">Pay period<select aria-label="Offer pay period" value={offerPayPeriod} onChange={event => setOfferPayPeriod(event.target.value as OfferPayPeriod)} className="mt-1 w-full rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs font-normal">{OFFER_PAY_PERIODS.map(period => <option key={period.value} value={period.value}>{period.label}</option>)}</select></label>
             </div>
             <p className="text-[11px] text-[#736A6D]">Record the employer&apos;s actual base-pay offer, excluding bonuses and benefits.</p>
-          </section>
-          <section className="space-y-3 rounded-xl border border-[#F1DDE9] p-3 bg-[#FFF5F8]">
-            <h3 className="font-semibold text-xs text-[#9D3C5E]">Role fit analysis</h3>
-            <label className="block text-xs font-semibold">Role fit
-              <select aria-label="Role fit" value={roleFit || 'UNASSESSED'} onChange={event => { setUseAiFit(false); setRoleFit(event.target.value === 'UNASSESSED' ? null : event.target.value as RoleFit); }} className="ml-2 rounded-lg border border-[#F1DDE9] bg-white p-2">
-                <option value="UNASSESSED">Leave unassessed</option>{ROLE_FITS.map(fit => <option key={fit.value} value={fit.value}>{fit.label}</option>)}
-              </select>
-            </label>
-            <p className="text-xs text-[#736A6D]">{useAiFit && roleFit ? 'Selected from the AI assessment. Choose another rating to set a manual fit.' : (ROLE_FITS.find(fit => fit.value === roleFit)?.description || 'Choose a rating manually, or click Reanalyze role fit to assess this role with AI. Saving does not run analysis.')}</p>
-            {fitAnalysis && useAiFit && <p className="text-xs text-[#9D3C5E]">{ROLE_FITS.find(fit => fit.value === fitAnalysis.fit)?.label}: {fitAnalysis.explanation}{fitAnalysis.preference_notes ? ` Preferences: ${fitAnalysis.preference_notes}` : ''}</p>}
-            <button type="button" disabled={isSubmitting || jobDescription.trim().length < 30} onClick={async () => { setIsSubmitting(true); setFitError(''); try { await analyzeFit(); } catch (error) { setFitError(error instanceof Error ? error.message : 'Analysis failed.'); } finally { setIsSubmitting(false); } }} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E] disabled:opacity-50">Reanalyze role fit</button>
-
-            {fitError && <p role="alert" className="text-xs text-rose-700">{fitError} Select a manual fit or leave this role unassessed and retry.</p>}
           </section>
 
           <div className="grid gap-3 sm:grid-cols-2 rounded-xl border border-[#F1DDE9] p-3 text-xs">

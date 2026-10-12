@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       company_website,
       role_title,
       status = 'LEAD',
-      priority = 'MEDIUM',
+      priority = body.role_fit === 'WEAK' ? 'LOW' : body.role_fit === 'STRONG' ? 'HIGH' : 'MEDIUM',
       job_type = 'FULL_TIME',
       work_model = 'ON_SITE',
       location,

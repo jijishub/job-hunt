@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       undefined, { timeoutMs: 25000 }
     );
     const data = validateFitAnalysis(raw);
-    const application = app ? await updateApplication(app.id, { role_fit: data.fit, role_fit_source: 'ai', role_fit_analysis: data }) : undefined;
+    const application = app ? await updateApplication(app.id, { role_fit: data.fit, role_fit_source: 'ai', role_fit_analysis: data, ...(data.fit !== app.role_fit && (data.fit === 'WEAK' || data.fit === 'STRONG') ? { priority: data.fit === 'WEAK' ? 'LOW' as const : 'HIGH' as const } : {}) }) : undefined;
     return NextResponse.json({ success: true, data, application });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name) ? 'AI did not respond in time. Try again later, choose a manual fit, or leave this role unassessed.' : error instanceof Error ? error.message : 'Role fit analysis failed.' }, { status: 502 });
