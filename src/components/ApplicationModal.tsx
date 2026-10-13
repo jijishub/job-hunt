@@ -259,6 +259,8 @@ export default function ApplicationModal({
       if (job.salary_max != null) setSalaryMax(String(job.salary_max));
       if (job.salary_currency) setSalaryCurrency(job.salary_currency);
       if (job.job_url) setJobUrl(job.job_url);
+      if (job.job_platform) setJobPlatform(job.job_platform);
+      if (job.first_response_at) setFirstResponse(localDateTime(job.first_response_at));
       setFitAnalysis(null); setRoleFit(null); setUseAiFit(false);
       setImportMessage('Job fields filled in the draft. Review them before saving. No application has been created yet.');
     } catch (error) { setImportMessage(error instanceof Error ? error.message : 'JSON import failed.'); }

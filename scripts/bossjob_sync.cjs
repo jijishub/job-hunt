@@ -24,7 +24,8 @@ async function main(args=process.argv.slice(2)){
  const prepared=await prepare(variant,outputDir);
  const data=bossjobProfile(prepared.data);
  fs.writeFileSync(path.join(outputDir,'profile.json'),JSON.stringify({target:'https://bossjob.ph/en-us/manage-profile',...data},null,2));
- const payload={data,resume:fs.readFileSync(path.join(ROOT,data.source.path)).toString('base64'),filename:path.basename(data.source.path),auto_sync:true,full_profile:true,auto_upload:!remainingOnly,update_only:Boolean(remainingOnly),...(remainingOnly?{only_tasks:['summary','work:CLOUDJI NOTION TEMPLATES']}:{})};
+ const remainingTasks=['summary',...data.profile.experience.filter(entry=>entry.existing_titles?.length).map(entry=>`work:${entry.company}`)];
+ const payload={data,resume:fs.readFileSync(path.join(ROOT,data.source.path)).toString('base64'),filename:path.basename(data.source.path),auto_sync:true,full_profile:true,auto_upload:!remainingOnly,update_only:Boolean(remainingOnly),...(remainingOnly?{only_tasks:remainingTasks}:{})};
  const helper=path.join(outputDir,'helper.js');fs.writeFileSync(helper,`(${bossjobHelper.toString()})(${JSON.stringify(payload)},\n${installBossjobWorkflow.toString()});\n`);
  console.log(`Prepared active resume: ${data.source.path}\nHelper: ${helper}`);
  if(prepareOnly)return;

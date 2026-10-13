@@ -48,3 +48,7 @@ LLM.txt
 # references
 /references
 sample.txt
+
+# Personal resume payloads stay local; keep generic scripts and migrations tracked.
+/scripts/resume_data.json
+/src/lib/active-resume.json

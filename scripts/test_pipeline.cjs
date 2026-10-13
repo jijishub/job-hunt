@@ -8,6 +8,32 @@ function loader(overrides={}){
 }
 const sample=(values={})=>({id:'app',company_name:'Example',role_title:'Engineer',status:'APPLIED',owner:'user_ji',priority:'MEDIUM',job_type:'FULL_TIME',work_model:'ON_SITE',salary_currency:'PHP',sync_status:'SYNCED',created_at:'2026-10-10T00:00:00Z',updated_at:'2026-10-10T00:00:00Z',...values});
 
+test('RPA API reads private inputs only after admin authentication and has no published fallback',async()=>{
+ let user=null,reads=0,profile=null;
+ const load=loader({'@/lib/session-account':{getSessionAccount:async()=>user},'@/lib/rpa-profile':{readPrivateRpaProfile:async()=>{reads++;return profile;}}});
+ const route=load('src/app/api/rpa/route.ts');const request=new Request('http://local/api/rpa');
+ assert.equal((await route.GET(request)).status,401);assert.equal(reads,0);
+ user={id:'member',role:'member'};assert.equal((await route.GET(request)).status,403);assert.equal(reads,0);
+ user={id:'admin',role:'admin'};assert.equal((await route.GET(request)).status,422);assert.equal(reads,1);
+ profile={basic_information:{name:'Test Applicant',email:'test@example.com',mobile:'test-phone',preferred_work_location:'Test Country'},self_introduction:'Test introduction'};
+ const response=await route.GET(request);assert.equal(response.headers.get('Cache-Control'),'private, no-store');
+ const result=await response.json();assert.deepEqual(result.data,profile);assert.match(result.bookmarklet,/Test Applicant/);assert.equal(result.local_command,'npm run rpa:bytedance');
+});
+
+test('private RPA profile supports environment and local input, rejects malformed data without exposing it',async()=>{
+ const previous=process.env.RPA_PROFILE_JSON;let fileReads=0;
+ const profile={basic_information:{name:'Test Applicant',mobile:'test-phone',email:'test@example.com',preferred_work_location:'Test Country'},self_introduction:'Test introduction'};
+ try{
+  delete process.env.RPA_PROFILE_JSON;
+  const {readPrivateRpaProfile}=loader({'node:fs/promises':{readFile:async()=>{fileReads++;return JSON.stringify(profile);}}})('src/lib/rpa-profile.ts');
+  assert.deepEqual(await readPrivateRpaProfile(),profile);assert.equal(fileReads,1);
+  process.env.RPA_PROFILE_JSON=JSON.stringify({...profile,self_introduction:'Environment input'});assert.equal((await readPrivateRpaProfile()).self_introduction,'Environment input');assert.equal(fileReads,1);
+  for(const raw of ['{bad','{}','[]',JSON.stringify({basic_information:{},self_introduction:'Missing fields'})]){process.env.RPA_PROFILE_JSON=raw;assert.equal(await readPrivateRpaProfile(),null);}
+  delete process.env.RPA_PROFILE_JSON;
+  const missing=loader({'node:fs/promises':{readFile:async()=>{throw Error('ENOENT');}}})('src/lib/rpa-profile.ts');assert.equal(await missing.readPrivateRpaProfile(),null);
+ }finally{if(previous===undefined)delete process.env.RPA_PROFILE_JSON;else process.env.RPA_PROFILE_JSON=previous;}
+});
+
 test('analytics scopes and exports work without AI, and changes refresh deterministic metrics',async()=>{
  const user={id:'member',email:'member@example.com',role:'member'};
  let rows=[sample({owner:'member',date_applied:'2026-10-01'}),sample({id:'intern',owner:'member',job_type:'INTERNSHIP',role_title:'Junior Software Developer',date_applied:'2026-10-02'})];
@@ -27,10 +53,12 @@ test('analytics scopes and exports work without AI, and changes refresh determin
 test('role normalization, response cohorts and incomplete history use only recorded evidence',()=>{
  const load=loader();const {normalizedRole,seniority}=load('src/lib/analytics-dimensions.ts');
  assert.equal(normalizedRole('Jr. Software Developer'),'software engineer');assert.equal(normalizedRole('Custom Role',{'custom role':'configured'}),'configured');
+ assert.equal(normalizedRole('Constructor'),'constructor');assert.equal(normalizedRole('Senior Constructor'),'constructor');
  assert.equal(seniority('Senior Engineer'),'SENIOR');assert.equal(seniority('Engineer'),'UNSPECIFIED');
  const {pipelineAnalytics}=load('src/lib/analytics.ts');
  const rows=[sample({id:'a',role_title:'Junior Software Developer',date_applied:'2026-10-01',first_response_at:'2026-10-04T00:00:00Z',status:'OFFER',source:'LINKEDIN',stage_history:[{status:'APPLIED',at:'2026-10-01'},{status:'SCREENING',at:'2026-10-04'},{status:'OFFER',at:'2026-10-08'}]}),sample({id:'b',date_applied:'2026-10-01',status:'WITHDRAWN',stage_history:[{status:'WITHDRAWN',at:'2026-10-03'}]}),sample({id:'c',role_title:undefined,date_applied:'bad',status:'REJECTED',stage_history:[{status:'REJECTED',at:'2026-10-05'}]}),sample({id:'d',date_applied:'2026-10-02',status:'OFFER'})];
  const stats=pipelineAnalytics(rows,{},undefined,new Date('2026-10-13'));
+ assert.equal(pipelineAnalytics([sample({role_title:'Constructor'})]).dimensions.roles[0].label,'constructor');
  const cohort=stats.dimensions.cohorts.find(row=>row.label==='2026-10');assert.equal(cohort.submitted,3);assert.equal(cohort.responses,1);assert.equal(cohort.medianCallbackDays,3);
  assert.equal(stats.dimensions.cohorts.find(row=>row.label==='Unknown').responses,0);
  assert.equal(stats.dimensions.qualifications[0].label,'UNASSESSED');assert.equal(stats.dimensions.missingResponseDates,3);
@@ -536,6 +564,25 @@ test('job JSON preserves structured descriptions, responsibilities and qualifica
  const bullets=parseJobImport(JSON.stringify({description:['Build APIs.','Support users.'],responsibilities:['Review deployments.'],requirements:'Experience with Python.'}));assert.match(bullets.job_description,/- Build APIs\.\n- Support users\./);assert.match(bullets.job_description,/Responsibilities:\n- Review deployments\./);assert.match(bullets.job_description,/Qualifications:\nExperience with Python\./);
  assert.throws(()=>parseJobImport(JSON.stringify({description:{overview:123}})),/must contain text/);
  assert.throws(()=>parseJobImport(JSON.stringify({candidate:{professional_summary:'Python developer',qualifications:['Python']}})),/Candidate\/profile JSON/);
+});
+
+test('Gemini JSON supports new fields while classification remains deterministic',()=>{
+ const {parseJobImport,JOB_JSON_PROMPT}=loader()('src/lib/job-import.ts');
+ for(const key of ['seniority_level','role_family','job_platform','first_response_at'])assert.ok(JOB_JSON_PROMPT.includes(key));
+ assert.match(JOB_JSON_PROMPT,/do not classify them with AI/);assert.match(JOB_JSON_PROMPT,/application_age/);
+ const junior=parseJobImport(JSON.stringify({role_title:'Junior Software Developer',seniority_level:'SENIOR',seniority_level_source:'manual',role_family:'Invented family',role_family_source:'manual',job_url:'https://www.linkedin.com/jobs/view/123',first_response_at:null}));
+ assert.equal(junior.seniority_level,'JUNIOR');assert.equal(junior.seniority_level_source,'derived');assert.equal(junior.role_family,'software engineer');assert.equal(junior.role_family_source,'derived');assert.equal(junior.job_platform,'LINKEDIN');assert.equal(junior.first_response_at,undefined);
+ const bare=parseJobImport(JSON.stringify({role_title:'AI Engineer',seniority_level:'MID_LEVEL'}));assert.equal(bare.seniority_level,'UNSPECIFIED');
+ for(const field of ['work_model','job_type'])assert.throws(()=>parseJobImport(JSON.stringify({role_title:'Constructor',[field]:'constructor'})),/must be/);
+ const referral=parseJobImport(JSON.stringify({title:'Engineer',job_platform:'Referral',job_url:'https://app.example.com/jobs/1',first_response_at:'2026-10-05T12:30:00+08:00'}));
+ assert.equal(referral.job_platform,'REFERRAL');assert.equal(referral.first_response_at,'2026-10-05T04:30:00.000Z');
+ assert.equal(parseJobImport(JSON.stringify({title:'Associate',job_platform:'WALK_IN'})).job_platform,'Walk-in');
+ assert.equal(parseJobImport(JSON.stringify({title:'Engineer',job_platform:'Custom channel'})).job_platform,'Custom channel');
+ assert.equal(parseJobImport(JSON.stringify({title:'Engineer',job_url:'https://appficiency.bamboohr.com/careers/123'})).job_platform,'BAMBOOHR');
+ assert.equal(parseJobImport(JSON.stringify({title:'Engineer',published_at:'2026-10-01',date_applied:'2026-10-02',status:'SCREENING'})).first_response_at,undefined);
+ for(const value of ['invalid','2026-10-05','2026-02-30T12:00:00Z'])assert.throws(()=>parseJobImport(JSON.stringify({title:'Engineer',first_response_at:value})),/response/);
+ assert.throws(()=>parseJobImport(JSON.stringify({title:'Engineer',job_platform:42})),/must be text/);
+ assert.throws(()=>parseJobImport(JSON.stringify({title:'Engineer',job_platform:'x'.repeat(201)})),/200/);
 });
 
 test('salary displays group numeric database strings, retain zero and default to PHP',()=>{

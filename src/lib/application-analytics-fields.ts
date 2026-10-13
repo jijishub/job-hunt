@@ -28,7 +28,7 @@ export function normalizedRole(title = '', aliases = ROLE_ALIASES) {
   const key = title.normalize('NFKC').toLowerCase()
     .replace(/\b(junior|jr|senior|sr|lead|principal|staff|associate|mid[ -]level|intermediate|entry[ -]level|fresh[ -]grad(?:uate)?|graduate|trainee|apprentice|intern(?:ship)?)\b\.?/g, ' ')
     .replace(/[^\p{L}\p{N}+#]+/gu, ' ').trim().replace(/\s+/g, ' ');
-  return aliases[key] || key || 'Unknown';
+  return (Object.hasOwn(aliases, key) ? aliases[key] : undefined) || key || 'Unknown';
 }
 export function effectiveSeniority(app: Partial<JobApplication>) {
   return SENIORITY_LEVELS.some(item => item.value === app.seniority_level) ? app.seniority_level! : seniorityLevel(app.role_title);

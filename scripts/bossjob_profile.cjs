@@ -1,8 +1,16 @@
-// Authored from the BusinessSolutions resume; kept separate from PDF extraction.
-const BUSINESS_PERSONAL_SUMMARY = 'IT graduate (Cum Laude) with PROFESSIONAL experience in client-facing business solutions, project management, AI automation, and digital product entrepreneurship. At GDS Capital, I translated business requirements into enterprise solutions that accelerated manual workflows by up to 80% and reduced operational costs by 60%. As the founder of Cloudji, I manage product development, client consultations, pricing, branding, and marketing, growing the business to over 15,000 downloads, 140 paying customers, and an audience of 6,500+ followers. I bring analytical problem-solving, cross-functional collaboration, and hands-on technical execution to roles in business operations, project coordination, and digital product growth.';
+const fs = require('node:fs');
+const path = require('node:path');
+const configPath = path.resolve(__dirname, '../references/rpa/bossjob-profile.json');
+let config = null;
+try { config = JSON.parse(process.env.BOSSJOB_PROFILE_JSON || fs.readFileSync(configPath, 'utf8')); } catch {}
+const BUSINESS_PERSONAL_SUMMARY = typeof config?.summary === 'string' ? config.summary : '';
 
 function bossjobProfile(data) {
  if(data.variant!=='business')return data;
- return {...data,profile:{...data.profile,summary:BUSINESS_PERSONAL_SUMMARY,experience:data.profile.experience.map(entry=>entry.company==='CLOUDJI NOTION TEMPLATES'?{...entry,existing_titles:['Founder']}:entry)}};
+ if(!BUSINESS_PERSONAL_SUMMARY.trim())throw Error('Configure a private Bossjob profile in references/rpa/bossjob-profile.json or BOSSJOB_PROFILE_JSON.');
+ return {...data,profile:{...data.profile,summary:BUSINESS_PERSONAL_SUMMARY,experience:data.profile.experience.map(entry=>{
+  const titles=config.existing_titles_by_company?.[entry.company];
+  return Array.isArray(titles)&&titles.every(title=>typeof title==='string')?{...entry,existing_titles:titles}:entry;
+ })}};
 }
 module.exports={BUSINESS_PERSONAL_SUMMARY,bossjobProfile};

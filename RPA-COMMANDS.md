@@ -13,6 +13,8 @@ Run commands from the project root. Personal browser helpers are owner-specific 
 
 These workflows depend on the owner's resume and application configuration. Profile helpers can save edits; application submission requires manual review. Generated helpers, browser profiles, and reports belong in the ignored `.data/` directory. Personal inputs should be backed up privately rather than included in a public showcase.
 
+Personal JSON payloads are ignored at `scripts/resume_data.json` and `src/lib/active-resume.json`. The generic scripts remain tracked, including the deployment migration. Bossjob's summary and company-title aliases load from ignored `references/rpa/bossjob-profile.json` (or the process environment variable `BOSSJOB_PROFILE_JSON`). The admin-only RPA API loads ignored `references/rpa/bytedance-profile.json` locally, or server-only `RPA_PROFILE_JSON` when deployed. Missing private inputs produce a configuration error; there is no hardcoded personal-profile fallback. Ignored inputs are not backed up to GitHub.
+
 Detailed owner operating notes are kept locally at `references/rpa/RPA-OPERATIONS.md`, outside the public documentation. That ignored file is not included in a clone of the repository. Browser tests use local fixtures and do not verify a live account.
 
 Validation: `npm run test:bossjob` and `npm run test:jobstreet`.

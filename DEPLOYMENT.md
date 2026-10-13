@@ -97,6 +97,8 @@ The analytics changes require nullable application columns for `seniority_level`
 
 Analytics uses persisted application data and saved fit results. Loading, scope changes, comparisons, age-range changes, and PDF export must work with the AI key missing or the provider unavailable. **Analyze my pipeline with AI** is the optional exception and runs only after a click. An AI error must leave the dashboard and exports usable.
 
+The optional admin RPA helper requires a server-side `RPA_PROFILE_JSON` containing its private profile when deployed. Its local fallback file is Git-ignored and will not be present in a Git-based deployment. Do not use a `NEXT_PUBLIC_` variable for this data. Without a configured profile, the helper returns a configuration error while the application and analytics remain available. Keep personal inputs and credentials out of public source control; ignore rules do not remove earlier commits.
+
 5. Click **Deploy** and check the build logs for both migration completion and a successful production build. Then perform the smoke checks below.
 
 ---
