@@ -41,10 +41,10 @@ export async function POST(request: Request) {
       data: generatedLeads, kind: 'SEARCH_IDEAS',
     });
   } catch (error: any) {
-    console.error('AI lead discovery error:', error);
+    const timedOut = error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name);
     return NextResponse.json(
-      { success: false, error: error?.message || 'Failed to generate tailored leads with AI.' },
-      { status: 500 }
+      { success: false, error: timedOut ? 'AI did not respond in time. Your last keywords are still available. Try again later.' : error?.message || 'Failed to generate tailored leads with AI.' },
+      { status: timedOut ? 504 : 502 }
     );
   }
 }

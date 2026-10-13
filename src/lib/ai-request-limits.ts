@@ -4,3 +4,7 @@ export const DEFAULT_AI_TIMEOUT_MS = 25_000;
 export const ATS_AI_TIMEOUT_MS = 150_000;
 export const ATS_BROWSER_TIMEOUT_MS = 185_000;
 export const ATS_MAX_OUTPUT_TOKENS = 3_500;
+
+// Keep short optional features within their 60-second routes and insight lease.
+export const OPTIONAL_AI_TIMEOUT_MS = 45_000;
+export const OPTIONAL_AI_BROWSER_TIMEOUT_MS = 65_000;

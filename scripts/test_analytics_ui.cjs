@@ -136,7 +136,7 @@ test('AI is optional: filters and PDF work during requests and after failures; l
     await page.getByText('Recorded observations.',{exact:true}).waitFor();
     assert.equal(aiCalls,beforeReload);
     await page.getByRole('button', { name: 'Table View', exact: true }).click();
-    await page.getByText('Junior Software Developer', { exact: true }).last().click();
+    await page.getByText('Junior Software Developer', { exact: true }).filter({ visible: true }).last().click();
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
     assert.equal(await page.getByLabel('Seniority level', { exact: true }).inputValue(), '');
     await page.getByLabel('Job title', { exact: true }).fill('AI Engineer');
@@ -153,7 +153,7 @@ test('AI is optional: filters and PDF work during requests and after failures; l
     await page.getByRole('heading', { name: 'Edit Application', exact: true }).waitFor({ state: 'hidden' });
     assert.equal(apps[0].seniority_level, 'JUNIOR'); assert.equal(apps[0].seniority_level_source, 'manual');
     assert.equal(apps[0].job_platform, 'REFERRAL'); assert.equal(apps[0].first_response_at, '2026-10-05T04:30:00.000Z');
-    await page.getByText('AI Engineer', { exact: true }).last().click(); await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.getByText('AI Engineer', { exact: true }).filter({ visible: true }).last().click(); await page.getByRole('button', { name: 'Edit', exact: true }).click();
     await page.getByLabel('Job title', { exact: true }).fill('Senior AI Engineer');
     assert.equal(await page.getByLabel('Seniority level', { exact: true }).inputValue(), 'JUNIOR');
     assert.equal(await page.getByLabel('Role family', { exact: true }).count(),0);

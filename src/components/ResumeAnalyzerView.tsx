@@ -180,8 +180,13 @@ export default function ResumeAnalyzerView({
     }
   };
 
-  const copyToClipboard = (text: string, isPitch: boolean, bulletIdx?: number) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string, isPitch: boolean, bulletIdx?: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      setError('Could not copy to the clipboard. Select and copy the text manually.');
+      return;
+    }
     if (isPitch) {
       setCopiedPitch(true);
       setTimeout(() => setCopiedPitch(false), 2000);

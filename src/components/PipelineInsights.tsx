@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DefaultView } from '@/lib/preferences';
 import type { PipelineInsight } from '@/lib/pipeline-insights';
+import { readAIResponse } from '@/lib/ai-response';
+import { OPTIONAL_AI_BROWSER_TIMEOUT_MS } from '@/lib/ai-request-limits';
 
 type SavedInsight = { report: PipelineInsight | null; currentVersion: string; outdated: boolean; checkedDataVersion: string };
 const button = 'rounded-xl border border-[#F1DDE9] bg-[#FFF0F6] px-3 py-2 text-xs font-semibold text-[#9D3C5E] disabled:opacity-50';
@@ -14,10 +16,13 @@ export default function PipelineInsights({ scope, dataVersion, total }: { scope:
   const [pending, setPending] = useState<DefaultView | null>(null);
   const [expanded, setExpanded] = useState(false);
   const inFlight = useRef(false);
+  const analysisController = useRef<AbortController | null>(null);
   const generation = useRef<Partial<Record<DefaultView, number>>>({});
   const entry = saved[scope];
   const report = entry?.report;
   const outdated = Boolean(report && (entry?.outdated || entry?.checkedDataVersion !== dataVersion));
+
+  useEffect(() => () => analysisController.current?.abort(), []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -38,23 +43,26 @@ export default function PipelineInsights({ scope, dataVersion, total }: { scope:
   async function analyze() {
     if (inFlight.current) return;
     inFlight.current = true;
+    const controller = new AbortController();
+    analysisController.current = controller;
     const requestedScope = scope, requestedVersion = dataVersion;
     generation.current[requestedScope] = (generation.current[requestedScope] || 0) + 1;
     setPending(requestedScope);
     setErrors(previous => ({ ...previous, [requestedScope]: '' }));
     try {
-      const response = await fetch('/api/analytics/analyze', { method: 'POST', signal: AbortSignal.timeout(35000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope: requestedScope }) });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || 'AI insights are unavailable. Your charts and PDF remain available.');
+      const response = await fetch('/api/analytics/analyze', { method: 'POST', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(OPTIONAL_AI_BROWSER_TIMEOUT_MS)]), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope: requestedScope }) });
+      const data = await readAIResponse<{ success: boolean; error?: string; data: Omit<SavedInsight, 'checkedDataVersion'> }>(response, 'AI insights are unavailable. Your charts and PDF remain available.');
+      if (controller.signal.aborted) return;
       generation.current[requestedScope] = (generation.current[requestedScope] || 0) + 1;
       setSaved(previous => ({ ...previous, [requestedScope]: { ...data.data, checkedDataVersion: requestedVersion } }));
       setExpanded(true);
     } catch (error) {
+      if (controller.signal.aborted) return;
       const message = error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name)
         ? 'AI did not respond in time. Your saved insights, charts and PDF remain available.'
         : error instanceof Error ? error.message : 'AI insights are unavailable. Your charts and PDF remain available.';
       setErrors(previous => ({ ...previous, [requestedScope]: message }));
-    } finally { inFlight.current = false; setPending(null); }
+    } finally { inFlight.current = false; if (!controller.signal.aborted) setPending(null); }
   }
 
   return <section aria-labelledby="pipeline-insights-title" className="rounded-2xl border border-[#F1DDE9] bg-white p-5 shadow-xs">

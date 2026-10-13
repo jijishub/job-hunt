@@ -59,6 +59,15 @@ test('ATS requests are on-demand, deduplicated, bounded and preserve a successfu
   assert.equal(calls,1);assert.ok(await page.getByRole('button',{name:/Analyzing with/}).isDisabled());assert.deepEqual(await page.evaluate(()=>window.__atsSignals),[true]);
   await pending.fulfill({status:200,contentType:'application/json',body:JSON.stringify({success:true,data:{matchScore:80,matchTier:'Strong Match',summary:'Saved retail experience matches customer service requirements.',matchingSkills:['Customer service'],missingKeywords:[],strengths:['Retail experience'],gaps:[],bulletRewrites:[],interviewTips:[],tailoredPitch:'A brief application pitch.',modelUsed:'luna',analyzedAt:'2026-10-14T00:00:00Z'}})});
   await page.getByText('Saved retail experience matches customer service requirements.',{exact:true}).first().waitFor();
+  await page.getByRole('button',{name:'ATS Keywords (0 gaps)',exact:true}).click();
+  await page.getByRole('button',{name:'Bullet Rewrites (0)',exact:true}).click();
+  await page.getByRole('button',{name:'Tailored Pitch',exact:true}).click();
+  await page.evaluate(()=>{window.__copied='';Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.__copied=text;}}});});
+  await page.getByRole('button',{name:'Copy Pitch',exact:true}).click();
+  await page.getByRole('button',{name:'Copied Pitch!',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.__copied),'A brief application pitch.');
+  await page.getByRole('button',{name:'Fit & Gaps',exact:true}).click();
+  const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Download PDF',exact:true}).click();
+  const pdf=await downloaded;assert.match(pdf.suggestedFilename(),/\.pdf$/);assert.equal(await pdf.failure(),null);assert.equal(calls,1);
   const retry=page.waitForRequest('**/api/ai/analyze');await analyze.click();await retry;await pending.fulfill({status:504,contentType:'text/html',body:'Gateway timeout'});
   await page.getByText('The server did not finish the ATS report in time. Try again later or choose a faster model.',{exact:true}).waitFor();assert.ok(await page.getByText('Saved retail experience matches customer service requirements.',{exact:true}).first().isVisible());assert.equal(calls,2);
   const third=page.waitForRequest('**/api/ai/analyze');await analyze.click();await third;await pending.fulfill({status:504,contentType:'application/json',body:JSON.stringify({success:false,error:'The AI service did not finish the ATS report in time. Try again later or choose a faster model.',code:'AI_TIMEOUT'})});

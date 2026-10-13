@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Building2, Check, ExternalLink, FileText, Globe, Search, Sparkles, Upload } from 'lucide-react';
 import { GeneratedLead } from '@/lib/ai-types';
 import { JOB_SEARCH_PLATFORMS, jobSearchUrl } from '@/lib/job-search-links';
 import { UserAccount } from '@/types/job';
+import { readAIResponse } from '@/lib/ai-response';
+import { OPTIONAL_AI_BROWSER_TIMEOUT_MS } from '@/lib/ai-request-limits';
 
 const input = 'w-full rounded-xl border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#4A3E44] focus:outline-none focus:border-[#FF7AB3]';
 const secondary = 'inline-flex items-center gap-1.5 rounded-xl border border-[#F1DDE9] bg-white px-3 py-2 text-xs font-semibold text-[#9D3C5E] transition hover:bg-[#FFF0F6] disabled:opacity-50';
@@ -20,6 +22,8 @@ export default function JobDiscoveryHub({ currentUser }: { currentUser: UserAcco
   const [busy, setBusy] = useState<'upload' | 'scout' | ''>('');
   const [message, setMessage] = useState('');
   const [ideas, setIdeas] = useState<GeneratedLead[]>([]);
+  const inFlight = useRef(false);
+  const scoutController = useRef<AbortController | null>(null);
   const presets = [...new Set([industry, ...(currentUser?.role === 'admin' ? ['Forward-Deployed Engineer', 'AI & Automation Engineer'] : []), 'Tourism Management', 'Hotel Front Office & Reservations', 'Guest Relations Officer', 'Software Engineer', 'Marketing & Growth'].filter(Boolean))];
 
   useEffect(() => {
@@ -30,7 +34,11 @@ export default function JobDiscoveryHub({ currentUser }: { currentUser: UserAcco
     return () => controller.abort();
   }, []);
 
+  useEffect(() => () => scoutController.current?.abort(), []);
+
   async function upload(file: File) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy('upload'); setMessage('');
     try {
       const body = new FormData(); body.append('file', file);
@@ -43,19 +51,27 @@ export default function JobDiscoveryHub({ currentUser }: { currentUser: UserAcco
       setResumeReady(true); setFilename(file.name); setIdeas([]);
       setMessage('Master resume updated. New keywords will use this version.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Resume upload failed.'); }
-    finally { setBusy(''); }
+    finally { inFlight.current = false; setBusy(''); }
   }
 
   async function scout(event: React.FormEvent) {
-    event.preventDefault(); setBusy('scout'); setMessage('');
+    event.preventDefault();
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const controller = new AbortController();
+    scoutController.current = controller;
+    setBusy('scout'); setMessage('');
     try {
-      const response = await fetch('/api/leads/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetRole: target.trim(), industry, locationPreference: location.trim(), useResumeContext: useResume, count: 6 }) });
-      const data = await response.json();
-      if (!response.ok || !data.success || !Array.isArray(data.data)) throw new Error(data.error || 'Keywords could not be generated.');
+      const response = await fetch('/api/leads/generate', { method: 'POST', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(OPTIONAL_AI_BROWSER_TIMEOUT_MS)]), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetRole: target.trim(), industry, locationPreference: location.trim(), useResumeContext: useResume, count: 6 }) });
+      const data = await readAIResponse<{ success: boolean; error?: string; data: GeneratedLead[] }>(response, 'Keywords could not be generated. Please try again.');
+      if (controller.signal.aborted) return;
+      if (!Array.isArray(data.data)) throw new Error('Keywords could not be generated. Please try again.');
       setIdeas(data.data);
       if (!data.data.length) setMessage('No keywords returned. Try another role or update your resume.');
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'Keyword generation failed.'); }
-    finally { setBusy(''); }
+    } catch (error) {
+      if (!controller.signal.aborted) setMessage(error instanceof Error && error.name === 'TimeoutError' ? 'AI did not respond in time. Your last keywords are still available. Try again later.' : error instanceof Error ? error.message : 'Keyword generation failed.');
+    }
+    finally { inFlight.current = false; if (!controller.signal.aborted) setBusy(''); }
   }
 
   return <div className="space-y-6">

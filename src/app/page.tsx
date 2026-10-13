@@ -53,9 +53,13 @@ export default function JobHuntDashboard() {
   const [activeView, setActiveView] = useState<'table' | 'board' | 'companies' | 'leads' | 'analytics' | 'resume' | 'guide'>('table');
   const [resumeTargetAppId, setResumeTargetAppId] = useState<string | null>(null);
   const [resumeVisited, setResumeVisited] = useState(false);
+  const [leadsVisited, setLeadsVisited] = useState(false);
+  const [analyticsVisited, setAnalyticsVisited] = useState(false);
   const navigateTo = (view: typeof activeView) => {
     if (view === 'resume') setResumeVisited(true);
     else setResumeTargetAppId(null);
+    if (view === 'leads') setLeadsVisited(true);
+    if (view === 'analytics') setAnalyticsVisited(true);
     setActiveView(view);
   };
   const [isLoading, setIsLoading] = useState(true);
@@ -790,8 +794,10 @@ export default function JobHuntDashboard() {
             }}
             onDeleteCompany={handleDeleteCompany}
           />
-        ) : activeView === 'leads' ? (
+        ) : activeView === 'guide' ? <GuideView onOpenPreferences={() => setIsPreferencesOpen(true)} onNavigate={navigateTo} /> : null}
+        {leadsVisited && currentUser && <div hidden={activeView !== 'leads'}>
           <JobLeadsView
+            key={session.user?.email || currentUser.id}
             companies={companies}
             onAddToTracker={handleSaveApplication}
             existingApplications={personalApplications}
@@ -807,9 +813,10 @@ export default function JobHuntDashboard() {
               navigateTo('resume');
             }}
           />
-        ) : activeView === 'analytics' ? (
-          <AnalyticsView applications={personalApplications} companies={filteredCompanies} accountName={currentUser?.name || 'My account'} preferenceVersion={preferenceVersion} defaultScope={defaultView} onEditApp={app => { setEditingApp(app); setIsAppModalOpen(true); }} />
-        ) : activeView === 'guide' ? <GuideView onOpenPreferences={() => setIsPreferencesOpen(true)} onNavigate={navigateTo} /> : null}
+        </div>}
+        {analyticsVisited && currentUser && <div hidden={activeView !== 'analytics'}>
+          <AnalyticsView key={session.user?.email || currentUser.id} applications={personalApplications} companies={filteredCompanies} accountName={currentUser?.name || 'My account'} preferenceVersion={preferenceVersion} defaultScope={defaultView} onEditApp={app => { setEditingApp(app); setIsAppModalOpen(true); }} />
+        </div>}
         {resumeVisited && currentUser && <div hidden={activeView !== 'resume'}>
           <ResumeAnalyzerView key={session.user?.email || currentUser.id} preferenceVersion={preferenceVersion} onOpenPreferences={() => setIsPreferencesOpen(true)}
             applications={personalApplications}

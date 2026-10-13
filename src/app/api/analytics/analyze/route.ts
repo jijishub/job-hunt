@@ -5,6 +5,7 @@ import { claimPipelineInsight, savePipelineInsight, releasePipelineInsight } fro
 import { insightScope, pipelineInsightContext } from '@/lib/pipeline-insight-context';
 import { PIPELINE_INSIGHT_PROMPT, validatePipelineInsight } from '@/lib/pipeline-insights';
 import { callGeminiJSON } from '@/lib/ai';
+import { OPTIONAL_AI_TIMEOUT_MS } from '@/lib/ai-request-limits';
 export const maxDuration = 60;
 export async function POST(request: Request) {
     const user = await getSessionAccount();
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
         claimed = await claimPipelineInsight(user.id, scope, token);
         if (!claimed)
             return NextResponse.json({ success: false, error: 'An analysis is already running for this scope. Please wait before trying again.' }, { status: 409 });
-        const raw = await callGeminiJSON<unknown>(PIPELINE_INSIGHT_PROMPT, JSON.stringify(context.payload), undefined, { timeoutMs: 25000 });
+        const raw = await callGeminiJSON<unknown>(PIPELINE_INSIGHT_PROMPT, JSON.stringify(context.payload), undefined, { timeoutMs: OPTIONAL_AI_TIMEOUT_MS, maxOutputTokens: 2200 });
         const report = validatePipelineInsight(raw, context.catalog, { scope, generatedAt: new Date().toISOString(), snapshotVersion: context.snapshotVersion, reportingDate: context.stats.asOf }, context.limitations);
         if (!await savePipelineInsight(user.id, scope, report, token))
             throw new Error('The insight could not be saved. Your last successful analysis is still available.');

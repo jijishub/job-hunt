@@ -55,6 +55,8 @@ New applications start at **Not started** with today's date; both are editable. 
 
 Saved leads show **Strong fit**, **Possible fit**, **Weak fit**, or **Unassessed**, using their saved role-fit data. Open a lead through its title or fit badge to review its details; AI Match opens the resume matcher for that role. Discover generates search keywords for LinkedIn, JobStreet, Indeed, and Google Jobs.
 
+AI reports and search keywords stay available when switching tabs; failed retries preserve the last successful result.
+
 For easy-add, use **Copy Prompt** with **Ask Gemini** in Chrome on the shared job-posting tab. Include the posting URL and full text if needed; the Gemini website is the fallback. Gemini extracts the posting directly, and the in-app **Guide** explains the steps.
 
 The Guide starts with saving your master resume. When a newer deployment is available, a persistent update bar asks you to save any open draft and choose **Reload now**.

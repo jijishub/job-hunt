@@ -1,5 +1,5 @@
 import { AIModelId, ResumeAnalysisResult, AILeadMatch, GeneratedLead } from './ai-types';
-import { DEFAULT_AI_TIMEOUT_MS, ATS_AI_TIMEOUT_MS, ATS_MAX_OUTPUT_TOKENS } from './ai-request-limits';
+import { DEFAULT_AI_TIMEOUT_MS, ATS_AI_TIMEOUT_MS, ATS_MAX_OUTPUT_TOKENS, OPTIONAL_AI_TIMEOUT_MS } from './ai-request-limits';
 export * from './ai-types';
 
 export function getAIConfig() {
@@ -223,7 +223,7 @@ Desired Count: ${count}
 
 Return ${count} distinct search keyword suggestions as JSON.`;
 
-  const result = await callGeminiJSON<{ leads: GeneratedLead[] }>(systemPrompt, userContent, params.model);
+  const result = await callGeminiJSON<{ leads: GeneratedLead[] }>(systemPrompt, userContent, params.model, { timeoutMs: OPTIONAL_AI_TIMEOUT_MS, maxOutputTokens: 1600 });
   const leads = Array.isArray(result.leads) ? result.leads : [];
   return leads.filter(lead => typeof lead?.title === 'string' && lead.title.trim()).slice(0, Math.min(12, count)).map(lead => ({ ...lead, title: lead.title.trim(), company_name: typeof lead.company_name === 'string' ? lead.company_name : '', salary_range: undefined, company_logo: undefined }));
 }
