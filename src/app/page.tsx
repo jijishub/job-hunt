@@ -40,6 +40,7 @@ import {
   BarChart3,
   Sparkles,
   BookOpen,
+  FileJson,
 } from 'lucide-react';
 
 export default function JobHuntDashboard() {
@@ -89,6 +90,7 @@ export default function JobHuntDashboard() {
   const [selectedApp, setSelectedApp] = useState<JobApplication | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isAppModalOpen, setIsAppModalOpen] = useState(false);
+  const [quickJsonImport, setQuickJsonImport] = useState(false);
   const [editingApp, setEditingApp] = useState<JobApplication | null>(null);
 
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
@@ -489,6 +491,7 @@ export default function JobHuntDashboard() {
         applications={personalApplications}
         onOpenPreferences={() => setIsPreferencesOpen(true)}
         onNewApp={() => {
+          setQuickJsonImport(false);
           setEditingApp(null);
           setIsAppModalOpen(true);
         }}
@@ -504,7 +507,7 @@ export default function JobHuntDashboard() {
         }}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full min-w-0 flex-1 space-y-4">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-24 w-full min-w-0 flex-1 space-y-4">
         {/* Unified Control Deck: Navigation Tabs + Filters in ONE Cohesive Card */}
         <div className="bg-white rounded-2xl border border-[#F1DDE9] shadow-2xs overflow-hidden">
           {/* Top Bar: Primary Navigation Tabs & Pipeline Metric */}
@@ -835,11 +838,16 @@ export default function JobHuntDashboard() {
       />
 
       {/* Add / Edit Application Modal */}
+      {!isAppModalOpen && !isDetailOpen && !isPreferencesOpen && !isCompanyModalOpen && !isNotionModalOpen && !isUserManagementOpen && <button type="button" aria-haspopup="dialog" onClick={() => { setEditingApp(null); setQuickJsonImport(true); setIsAppModalOpen(true); }} className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-30 inline-flex items-center gap-2 rounded-2xl border border-[#F1DDE9] bg-[#9D3C5E] px-4 py-3 text-xs font-semibold text-white shadow-lg transition hover:bg-[#87334F] sm:right-6">
+        <FileJson className="h-4 w-4" />Import job JSON
+      </button>}
       <ApplicationModal
+        startWithJsonImport={quickJsonImport && !editingApp}
         isMember={currentUser?.role === 'member'}
         isOpen={isAppModalOpen}
         onClose={() => {
           setIsAppModalOpen(false);
+          setQuickJsonImport(false);
           setEditingApp(null);
         }}
         onSave={handleSaveApplication}

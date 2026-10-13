@@ -3,6 +3,9 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright-core');
 const fs = require('node:fs');
 const path = require('node:path');
+const Module=require('node:module'),ts=require('typescript'),cache=new Map();
+function load(file){const name=path.resolve(file);if(cache.has(name))return cache.get(name).exports;const m=new Module(name,module);m.filename=name;m.paths=Module._nodeModulePaths(path.dirname(name));cache.set(name,m);const original=m.require.bind(m);m.require=id=>{const target=id.startsWith('@/')?path.join(process.cwd(),'src',id.slice(2)):id.startsWith('.')?path.resolve(path.dirname(name),id):null;return target&&fs.existsSync(target+'.ts')?load(target+'.ts'):original(id);};m._compile(ts.transpileModule(fs.readFileSync(name,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,name);return m.exports;}
+const {pipelineAnalytics}=load('src/lib/analytics.ts');
 
 test('rejection preferences update metrics and PDF; structured job JSON fills a draft without AI', async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -39,7 +42,8 @@ test('rejection preferences update metrics and PDF; structured job JSON fills a 
       else if (url.pathname === '/api/applications') {
         if (request.method() !== 'GET') applicationWrites++;
         data = { success: true, data: apps };
-      } else if (url.pathname === '/api/role-fit') aiCalls++;
+      } else if (url.pathname === '/api/analytics' && url.searchParams.get('format') === 'export') data.data = { applications: apps, preferences, stats: pipelineAnalytics(apps,preferences.analytics_status_stages,preferences.analytics_rejection_statuses) };
+      else if (url.pathname === '/api/role-fit') aiCalls++;
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(data) });
     });
     await page.goto(process.env.PIPELINE_TEST_URL || 'http://localhost:3100');

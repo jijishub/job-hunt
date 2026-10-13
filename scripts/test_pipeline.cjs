@@ -1,11 +1,26 @@
-﻿const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');const os=require('node:os');const Module=require('node:module');const ts=require('typescript');
+const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');const os=require('node:os');const Module=require('node:module');const ts=require('typescript');
 const ROOT=path.resolve(__dirname,'..');
 function loader(overrides={}){
- if(overrides['@/lib/db']) overrides['@/lib/db']={getCandidatePreferences:async()=>null,getCandidateProfile:async()=> 'Saved member master resume',...overrides['@/lib/db']};
+ if(overrides['@/lib/db']) overrides['@/lib/db']={getCandidatePreferences:async()=>null,getCandidateProfile:async()=> 'Saved member master resume',claimPipelineInsight:async()=>true,savePipelineInsight:async()=>true,releasePipelineInsight:async()=>{},getPipelineInsight:async()=>null,...overrides['@/lib/db']};
  const cache=new Map();
- function load(file){const filename=path.resolve(ROOT,file);if(cache.has(filename))return cache.get(filename).exports;const m=new Module(filename,module);m.filename=filename;m.paths=Module._nodeModulePaths(path.dirname(filename));cache.set(filename,m);const original=m.require.bind(m);m.require=id=>{if(Object.hasOwn(overrides,id))return overrides[id];const target=id.startsWith('@/')?path.join(ROOT,'src',id.slice(2)):id.startsWith('.')?path.resolve(path.dirname(filename),id):null;if(target){if(target.endsWith('.json'))return original(target);if(fs.existsSync(target+'.ts'))return load(target+'.ts');}return original(id);};m._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,filename);return m.exports;}
+ function load(file){
+  const filename=path.resolve(ROOT,file);if(cache.has(filename))return cache.get(filename).exports;
+  const m=new Module(filename,module);m.filename=filename;m.paths=Module._nodeModulePaths(path.dirname(filename));cache.set(filename,m);
+  const original=m.require.bind(m);
+  m.require=id=>{
+   if(Object.hasOwn(overrides,id))return overrides[id];
+   const target=id.startsWith('@/')?path.join(ROOT,'src',id.slice(2)):id.startsWith('.')?path.resolve(path.dirname(filename),id):null;
+   if(target){
+    if(target.endsWith('.png')){const bytes=fs.readFileSync(target);return {src:'data:image/png;base64,'+bytes.toString('base64'),width:bytes.readUInt32BE(16),height:bytes.readUInt32BE(20)};}
+    if(target.endsWith('.json'))return original(target);if(fs.existsSync(target+'.ts'))return load(target+'.ts');
+   }
+   return original(id);
+  };
+  m._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,filename);return m.exports;
+ }
  return load;
 }
+function insightFixture(){return {summary:'Saved history suggests reviewing targeting.',observations:[{text:'Review the submitted pipeline.',evidence:['pipeline.submitted'],claims:[]}],implications:[{text:'Recorded outcomes describe this history rather than predict hiring.',evidence:['pipeline.offerRate'],claims:[]}],recommendations:[{text:'Review relevant role requirements against your qualifications.',evidence:['pipeline.unassessed'],claims:[]}],limitations:[]};}
 const sample=(values={})=>({id:'app',company_name:'Example',role_title:'Engineer',status:'APPLIED',owner:'user_ji',priority:'MEDIUM',job_type:'FULL_TIME',work_model:'ON_SITE',salary_currency:'PHP',sync_status:'SYNCED',created_at:'2026-10-10T00:00:00Z',updated_at:'2026-10-10T00:00:00Z',...values});
 
 test('RPA API reads private inputs only after admin authentication and has no published fallback',async()=>{
@@ -320,12 +335,12 @@ test('charts partition unique records, distinguish inferred interviews, and excl
 test('member AI uses the saved master resume and ATS uses requirements, never personal notes',async()=>{
  const member={id:'member',email:'member@example.com',role:'member'};let input,profile='Master version 1';
  const app=sample({id:'mine',owner:'member',information:'Build Python APIs and maintain reliable SQL databases.',notes:'Private interview feedback, not job requirements.'});
- const load=loader({'@/lib/session-account':{getSessionAccount:async()=>member},'@/lib/db':{getCandidateProfile:async id=>{assert.equal(id,'member');return profile;},getApplicationById:async()=>app,getAnalyticsApplications:async()=>[app]},'@/lib/portfolio-evidence':{portfolioEvidence:async()=>{throw Error('Member accessed admin portfolio');}},'@/lib/ai':{analyzeResumeWithGemini:async data=>{input=data;return {};},generateTailoredLeads:async data=>{input=data;return [];},matchLeadsWithProfile:async data=>{input=data;return [];},generateLeadPitch:async data=>{input=data;return {};},callGeminiJSON:async(system,data)=>{input=JSON.parse(data);return {summary:'Grounded interpretation',nextSteps:['Review targeting']};}}});
+ const load=loader({'@/lib/session-account':{getSessionAccount:async()=>member},'@/lib/db':{getCandidateProfile:async id=>{assert.equal(id,'member');return profile;},getApplicationById:async()=>app,getAnalyticsApplications:async()=>[app]},'@/lib/portfolio-evidence':{portfolioEvidence:async()=>{throw Error('Member accessed admin portfolio');}},'@/lib/ai':{analyzeResumeWithGemini:async data=>{input=data;return {};},generateTailoredLeads:async data=>{input=data;return [];},matchLeadsWithProfile:async data=>{input=data;return [];},generateLeadPitch:async data=>{input=data;return {};},callGeminiJSON:async(system,data)=>{input=JSON.parse(data);return insightFixture();}}});
  const request=data=>new Request('http://local',{method:'POST',body:JSON.stringify(data)});
  const ats=load('src/app/api/ai/analyze/route.ts');assert.equal((await ats.POST(request({applicationId:'mine',resumeText:'Forged stale resume',jobDescription:'Wrong requirement'}))).status,200);assert.equal(input.resumeText,profile);assert.equal(input.jobDescription,app.information);assert.equal(input.jobDescription.includes(app.notes),false);
  profile='Master version 2';const pipeline=load('src/app/api/analytics/analyze/route.ts');assert.equal((await pipeline.POST(request({owner:'other',stats:{total:999}}))).status,200);assert.equal(input.total,1);assert.equal(input.candidate.resume,profile);assert.equal(input.candidate.source,'master_resume');
  for(const [path,body] of [['generate',{targetRole:'Developer'}],['ai-match',{leads:[{id:'x',title:'Developer',company_name:'Example'}]}],['pitch',{leadTitle:'Developer',companyName:'Example'}]]){assert.equal((await load('src/app/api/leads/'+path+'/route.ts').POST(request({...body,profileText:'Forged'}))).status,200);assert.equal(input.profileText,profile);}
- profile='';assert.equal((await pipeline.POST(request({}))).status,422);
+ profile='';assert.equal((await pipeline.POST(request({}))).status,200);assert.equal(input.candidate.source,'missing');
  assert.equal((await ats.POST(request({jobDescription:'Job title only'}))).status,400);
 });
 
@@ -515,29 +530,29 @@ test('offer PDF contains distributions and medians without company/application l
  fs.writeFileSync(path.join(ROOT,'.data','salary-offer-report-preview.pdf'),Buffer.from(pdf.output('arraybuffer')));
 });
 
-test('PDF stays compact for 500 applications and includes targets and AI without individual records or resume',async()=>{
+test('PDF stays compact for 500 applications and includes targets without AI, individual records or resume',async()=>{
  const {analyticsPdf}=loader()('src/lib/analytics-export.ts');
  const rows=Array.from({length:500},(_,i)=>sample({id:String(i),company_name:'Private Employer '+i,role_title:i % 2 ? 'Junior Private Role' : 'Senior Private Role',role_fit:'STRONG',notes:'PRIVATE_APPLICATION_NOTES',information:'PRIVATE_JOB_DESCRIPTION',role_fit_analysis:{explanation:'PRIVATE_FIT_EXPLANATION'}}));
  const targets={target_roles:['Solutions Architect'],target_companies:['Target Employer'],preferred_locations:['Las Piñas'],work_models:['REMOTE'],job_types:['FULL_TIME'],salary_min:60000,salary_currency:'PHP',dealbreakers:'Daytime schedule',portfolio_summary:'PRIVATE_RESUME_CONTENT',resumeText:'PRIVATE_RESUME_CONTENT'};
  const insight={summary:'Recorded progress suggests reviewing targeting.',nextSteps:['Review relevant role requirements.']};
- const pdf=await analyticsPdf(rows,'Jizelle Casia','All my roles',insight,{},undefined,targets);
- const smaller=await analyticsPdf(rows.slice(0,35),'Jizelle Casia','All my roles',insight,{},undefined,targets);
+ const pdf=await analyticsPdf(rows,'Jizelle Casia','All my roles',{},undefined,targets);
+ const smaller=await analyticsPdf(rows.slice(0,35),'Jizelle Casia','All my roles',{},undefined,targets);
  assert.equal(pdf.getNumberOfPages(),smaller.getNumberOfPages());assert.ok(pdf.getNumberOfPages() <= 5);
  const {extractText}=require('unpdf');const result=await extractText(new Uint8Array(pdf.output('arraybuffer')),{mergePages:true});
- for(const expected of ['Jizelle Casia','500','Role fit and outcomes','Unassessed: 0','Target Employer','Solutions Architect','Las Pinas','PHP 60,000.00','Daytime schedule',insight.summary,insight.nextSteps[0]])assert.ok(result.text.includes(expected),expected);
- assert.doesNotMatch(result.text,/Private Employer|Private Role|PRIVATE_|Application details/);
+ for(const expected of ['Jizelle Casia','500','Role fit and outcomes','Unassessed: 0','Target Employer','Solutions Architect','Las Pinas','PHP 60,000.00','Daytime schedule'])assert.ok(result.text.includes(expected),expected);
+ assert.doesNotMatch(result.text,/Private Employer|Private Role|PRIVATE_|Application details|AI interpretation|No AI/);
  fs.mkdirSync(path.join(ROOT,'.data'),{recursive:true});fs.writeFileSync(path.join(ROOT,'.data','analytics-report-preview.pdf'),Buffer.from(pdf.output('arraybuffer')));
 });
 
-test('PDF handles empty analytics and paginates long insights without losing content',async()=>{
+test('PDF handles empty analytics and paginates long preferences without losing content',async()=>{
  const {analyticsPdf}=loader()('src/lib/analytics-export.ts');const {extractText,getDocumentProxy}=require('unpdf');
  const empty=await analyticsPdf([],'Member','Internships');assert.equal(empty.getNumberOfPages(),4);
  const emptyText=(await extractText(new Uint8Array(empty.output('arraybuffer')),{mergePages:true})).text;
- assert.match(emptyText,/N\/A/);assert.match(emptyText,/No AI interpretation saved/);assert.doesNotMatch(emptyText,/NaN|Infinity/);
- const summary=Array.from({length:70},(_,i)=>`Insight ${i}: review recorded pipeline evidence before adjusting your targets.`).join('\n');
- const long=await analyticsPdf([sample()],'Member','All roles',{summary,nextSteps:['FINAL_NEXT_STEP']});assert.ok(long.getNumberOfPages()>4);
+ assert.match(emptyText,/N\/A/);assert.doesNotMatch(emptyText,/AI interpretation|No AI/);assert.doesNotMatch(emptyText,/NaN|Infinity/);
+ const dealbreakers=Array.from({length:70},(_,i)=>`Preference ${i}: review recorded pipeline evidence before adjusting your targets.`).join('\n');
+ const long=await analyticsPdf([sample()],'Member','All roles',{},undefined,{dealbreakers});assert.ok(long.getNumberOfPages()>4);
  const doc=await getDocumentProxy(new Uint8Array(long.output('arraybuffer')));
- const text=(await extractText(doc,{mergePages:true})).text;assert.match(text,/Insight 69/);assert.match(text,/FINAL_NEXT_STEP/);
+ const text=(await extractText(doc,{mergePages:true})).text;assert.match(text,/Preference 69/);assert.doesNotMatch(text,/AI interpretation|No AI/);
  for(let i=1;i<=doc.numPages;i++){const page=await doc.getPage(i);const content=await page.getTextContent();for(const item of content.items){if(!item.str)continue;assert.ok(item.transform[5]>=15 && item.transform[5]<=page.view[3]-25,`Text outside page ${i}: ${item.str}`);assert.ok(item.transform[4]+item.width<=page.view[2]-25,`Text overflows page ${i}: ${item.str}`);}}
 });
 
@@ -559,6 +574,33 @@ test('visual report groups preserve manual families, submitted denominators and 
  for(const fit of report.fits)assert.equal(fit.outcomes.reduce((sum,row)=>sum+row.count,0),fit.submitted);
 });
 
+test('PDF embeds the original transparent logo on every A4 page and uses plain-language labels',async()=>{
+ const load=loader(),{analyticsPdf}=load('src/lib/analytics-export.ts'),{extractImages,getDocumentProxy,extractText}=require('unpdf');
+ const rows=[sample({id:'brand',role_title:'Junior Software Developer',offer_amount:60000}),sample({id:'long',role_title:'Senior Job Title With A Very Long Description That Must Remain In The Application',role_family:'A very long saved manual role family with many words that should stay readable without overlapping charts',role_family_source:'manual'})];
+ const pdf=await analyticsPdf(rows,'Report member','All (combined)'),bytes=new Uint8Array(pdf.output('arraybuffer')),binary=Buffer.from(bytes),doc=await getDocumentProxy(bytes);
+ assert.equal(doc.numPages,4);assert.ok(binary.includes(Buffer.from('/SMask')),'PNG transparency is embedded');
+ const text=(await extractText(doc,{mergePages:true})).text;
+ assert.doesNotMatch(text,/\bn\s*[=<]\s*\d+/);assert.match(text,/applications/);assert.match(text,/limited\s+application\s+data/);
+ for(let i=1;i<=doc.numPages;i++){
+  const images=await extractImages(doc,i);assert.equal(images.length,1);assert.equal(images[0].width,1774);assert.equal(images[0].height,887);
+  const page=await doc.getPage(i);assert.ok(Math.abs(page.view[2]-595.28)<1);assert.ok(Math.abs(page.view[3]-841.89)<1);
+  const content=await page.getTextContent();assert.ok(content.items.some(item=>item.str?.startsWith('Report date:')));
+  for(const item of content.items){if(!item.str?.trim())continue;assert.ok(item.height>=7.4,`Unreadable text on page ${i}: ${item.str}`);assert.ok(item.transform[4]>=25&&item.transform[4]+item.width<=page.view[2]-25,`Text overflows page ${i}: ${item.str}`);}
+ }
+ fs.writeFileSync(path.join(ROOT,'.data','analytics-branded-stress.pdf'),binary);
+});
+
+test('PDF logo loading reports asset failures, retries safely, and reuses successful image data',async()=>{
+ const originalFetch=global.fetch;let requests=0,available=false;
+ try{
+  const bytes=fs.readFileSync(path.join(ROOT,'public/job-hunt official text.png'));
+  global.fetch=async url=>{assert.equal(url,'/local-logo.png');requests++;return {ok:available,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)};};
+  const {loadAnalyticsLogo}=loader({'../../public/job-hunt official text.png':{src:'/local-logo.png',width:1774,height:887}})('src/lib/analytics-branding.ts');
+  await assert.rejects(loadAnalyticsLogo(),/Could not load the Job Hunt logo/);available=true;
+  const [first,second]=await Promise.all([loadAnalyticsLogo(),loadAnalyticsLogo()]);assert.deepEqual(Buffer.from(first),bytes);assert.equal(first,second);assert.equal(requests,2);
+ }finally{global.fetch=originalFetch;}
+});
+
 test('callback visuals use saved events only and require sufficient dated cohorts for a heatmap',()=>{
  const load=loader(),{analyticsReportData}=load('src/lib/analytics-report.ts'),{pipelineAnalytics}=load('src/lib/analytics.ts');
  const rows=Array.from({length:5},(_,i)=>sample({id:String(i),date_applied:i<3?'2026-08-01':'2026-09-01',first_response_at:i<3?'2026-08-06T00:00:00Z':'2026-09-21T00:00:00Z'}));
@@ -572,7 +614,7 @@ test('callback visuals use saved events only and require sufficient dated cohort
 test('PDF stays four pages across many categories and shows recorded evidence and eligible timing samples',async()=>{
  const load=loader(),{analyticsPdf}=load('src/lib/analytics-export.ts'),{extractText,getDocumentProxy}=require('unpdf');
  const rows=Array.from({length:160},(_,i)=>sample({id:String(i),role_title:'Junior Software Developer',role_family:'Custom family '+i,role_family_source:'manual',job_platform:'Platform '+i,date_applied:i%2?'2026-08-01':'2026-09-01',first_response_at:i%2?'2026-08-06T00:00:00Z':'2026-09-21T00:00:00Z',status:i%3?'APPLIED':'OFFER',role_fit:i%2?'STRONG':null,role_fit_analysis:{preference_alignment:i%2?'ALIGNED':'MIXED'}}));
- const pdf=await analyticsPdf(rows,'Report Member','All (combined)',undefined,{},undefined,{analytics_age_boundaries:[3,10,20]});assert.equal(pdf.getNumberOfPages(),4);
+ const pdf=await analyticsPdf(rows,'Report Member','All (combined)',{},undefined,{analytics_age_boundaries:[3,10,20]});assert.equal(pdf.getNumberOfPages(),4);
  const doc=await getDocumentProxy(new Uint8Array(pdf.output('arraybuffer'))),text=(await extractText(doc,{mergePages:true})).text;
  for(const title of ['Application pipeline','Application effectiveness','Application timing','Career insights','21+ days','Top 6 of 160','eligible','recorded salary offers'])assert.ok(text.includes(title),title);
  assert.doesNotMatch(text,/NaN|Infinity/);
@@ -580,7 +622,79 @@ test('PDF stays four pages across many categories and shows recorded evidence an
  fs.writeFileSync(path.join(ROOT,'.data','analytics-visual-report.pdf'),Buffer.from(pdf.output('arraybuffer')));
 });
 test('AI pipeline interpretation uses server-derived statistics for only the signed-in owner',async()=>{
- let stats;const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',email:'ji@example.com'})},'@/lib/db':{getAnalyticsApplications:async()=>[sample()]},'@/lib/ai':{callGeminiJSON:async(system,input)=>{stats=JSON.parse(input);return {summary:'One tracked application',nextSteps:['Review targeting']};}}})('src/app/api/analytics/analyze/route.ts');const response=await route.POST(new Request('http://local',{method:'POST',body:JSON.stringify({owner:'friend',stats:{total:99}})}));assert.equal(response.status,200);assert.equal(stats.total,1);assert.equal(stats.funnel[4].count,0);
+ let stats;const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',email:'ji@example.com'})},'@/lib/db':{getAnalyticsApplications:async()=>[sample()]},'@/lib/ai':{callGeminiJSON:async(system,input)=>{stats=JSON.parse(input);return insightFixture();}}})('src/app/api/analytics/analyze/route.ts');const response=await route.POST(new Request('http://local',{method:'POST',body:JSON.stringify({owner:'friend',stats:{total:99}})}));assert.equal(response.status,200);assert.equal(stats.total,1);assert.equal(stats.funnel[4].count,0);
+});
+
+test('pipeline insights validate evidence and numerical claims and assign server metadata',()=>{
+ const load=loader(),{pipelineAnalytics}=load('src/lib/analytics.ts'),{pipelineMetricCatalog,validatePipelineInsight}=load('src/lib/pipeline-insights.ts');
+ const stats=pipelineAnalytics([sample()]),catalog=pipelineMetricCatalog(stats),metadata={scope:'OTHER',generatedAt:'2026-10-14T00:00:00Z',snapshotVersion:'server-version',reportingDate:'2026-10-14'};
+ const raw=insightFixture();raw.observations[0].claims=[{metric:'pipeline.submitted',value:1}];raw.scope='forged';raw.snapshotVersion='forged';
+ const report=validatePipelineInsight(raw,catalog,metadata,['No usable callback dates.']);assert.equal(report.scope,'OTHER');assert.equal(report.snapshotVersion,'server-version');assert.equal(report.observations[0].evidence[0].display,'1 application');assert.equal(report.limitations[0],'No usable callback dates.');
+ for(const change of [r=>r.observations[0].claims[0].value=999,r=>r.observations[0].evidence=['foreign.metric'],r=>r.summary='You have 999 applications.',r=>r.summary='Private email user@example.com',r=>r.recommendations='invalid',r=>r.implications=Array(4).fill(r.observations[0]),r=>r.observations[0].claims=[{metric:'pipeline.offerRate',value:0}]]){const invalid=structuredClone(raw);change(invalid);assert.throws(()=>validatePipelineInsight(invalid,catalog,metadata,[]),/invalid insight|unsupported numerical claim/);}
+ assert.throws(()=>validatePipelineInsight(null,catalog,metadata,[]),/invalid insight/);
+});
+
+test('insight context minimizes personal data, preserves manual fits and supports missing resumes and nontechnical scopes',async()=>{
+ const user={id:'member',name:'Private Candidate',email:'candidate@example.com',role:'member'};
+ let resume='Private Candidate\nEmail: candidate@example.com\nAddress: SECRET STREET\nPhone: +63 912 345 6789\nRetail sales and customer service experience.\nReferences\nSECRET REFEREE';
+ let preferences={target_roles:['Retail associate'],dealbreakers:'Daytime shifts',salary_currency:'PHP'};
+ const rows=[sample({id:'retail',owner:'member',role_title:'Retail Associate',company_name:'PRIVATE_COMPANY',notes:'PRIVATE_NOTES',information:'PRIVATE_JOB_DESCRIPTION',offer_amount:20000,expected_salary_amount:22000,role_fit:'WEAK',role_fit_source:'manual',role_fit_analysis:{fit:'STRONG',explanation:'Customer service qualifications match this role.',strengths:['Retail sales'],gaps:['Management experience']}}),sample({id:'intern',owner:'member',job_type:'INTERNSHIP',role_title:'Sales Intern',date_applied:'2024-01-01',status:'OFFER'})];
+ const load=loader({'@/lib/db':{getCandidateProfile:async owner=>{assert.equal(owner,user.id);return resume;},getCandidatePreferences:async owner=>{assert.equal(owner,user.id);return preferences;},getAnalyticsApplications:async account=>{assert.equal(account.id,user.id);return rows;}}});
+ const {pipelineInsightContext}=load('src/lib/pipeline-insight-context.ts');const combined=await pipelineInsightContext(user,'ALL');const data=JSON.stringify(combined.payload);
+ assert.doesNotMatch(data,/PRIVATE_COMPANY|PRIVATE_NOTES|PRIVATE_JOB_DESCRIPTION|SECRET STREET|SECRET REFEREE|candidate@example|912 345|Private Candidate/);
+ const retail=combined.payload.applicationContext.records.find(row=>row.role==='Retail Associate');assert.equal(retail.effectiveRoleFit,'WEAK');assert.equal(retail.savedAssessment.fit,'STRONG');assert.equal(retail.fitSource,'manual');assert.match(combined.payload.candidate.resume,/Retail sales/);
+ assert.equal((await pipelineInsightContext(user,'INTERNSHIP')).stats.total,1);assert.equal((await pipelineInsightContext(user,'OTHER')).stats.total,1);
+ const stable=await pipelineInsightContext(user,'ALL');assert.equal(stable.snapshotVersion,combined.snapshotVersion);
+ preferences={...preferences,target_roles:['Store supervisor']};assert.notEqual((await pipelineInsightContext(user,'ALL')).snapshotVersion,combined.snapshotVersion);
+ resume='';const missing=await pipelineInsightContext(user,'OTHER');assert.equal(missing.payload.candidate.source,'missing');assert.ok(missing.limitations.some(text=>text.includes('No master resume')));assert.equal(missing.stats.total,1);
+ rows[0]={...rows[0],status:'OFFER'};assert.notEqual((await pipelineInsightContext(user,'OTHER')).snapshotVersion,missing.snapshotVersion);
+ const largeRows=Array.from({length:220},(_,i)=>sample({id:String(i),owner:user.id,role_title:'Custom role '+i}));rows.splice(0,rows.length,...largeRows);const large=await pipelineInsightContext(user,'ALL');assert.equal(large.payload.applicationContext.records.length,200);assert.equal(large.payload.dimensions.roles.length,12);assert.equal(large.stats.total,220);
+});
+
+test('saved insights are scoped, marked outdated, never auto-generated and retained after invalid AI or provider failures',async()=>{
+ const user={id:'member',name:'Member',email:'member@example.com'};let rows=[sample({owner:'member'})],stored=null,calls=0,mode='valid',saved=0,released=0;
+ const load=loader({'@/lib/session-account':{getSessionAccount:async()=>user},'@/lib/db':{getAnalyticsApplications:async()=>rows,getPipelineInsight:async(owner,scope)=>{assert.equal(owner,'member');return stored?.scope===scope?stored:null;},savePipelineInsight:async(owner,scope,report)=>{assert.equal(owner,'member');assert.equal(scope,'OTHER');stored=report;saved++;return true;},releasePipelineInsight:async()=>released++},'@/lib/ai':{callGeminiJSON:async()=>{calls++;if(mode==='error')throw Error('SECRET_PROVIDER_ERROR');if(mode==='malformed')return {summary:'invalid'};if(mode==='number'){const raw=insightFixture();raw.observations[0].claims=[{metric:'pipeline.submitted',value:999}];return raw;}return insightFixture();}}});
+ const get=load('src/app/api/analytics/insights/route.ts'),post=load('src/app/api/analytics/analyze/route.ts'),request=()=>new Request('http://local/api/analytics/analyze',{method:'POST',body:JSON.stringify({scope:'OTHER',owner:'foreign'})});
+ assert.equal((await (await get.GET(new Request('http://local/api/analytics/insights?scope=OTHER'))).json()).data.report,null);assert.equal(calls,0);
+ const result=await post.POST(request());assert.equal(result.status,200);assert.equal(result.headers.get('cache-control'),'private, no-store');assert.equal(stored.scope,'OTHER');assert.equal(saved,1);
+ const read=async scope=>(await (await get.GET(new Request('http://local/api/analytics/insights?scope='+scope))).json()).data;
+ assert.equal((await read('OTHER')).outdated,false);assert.equal((await read('ALL')).report,null);assert.equal(calls,1);
+ rows.push(sample({id:'new',owner:'member',date_applied:undefined}));assert.equal((await read('OTHER')).outdated,true);assert.equal(calls,1);
+ for(mode of ['error','malformed','number']){const response=await post.POST(request());assert.equal(response.status,502);assert.doesNotMatch(JSON.stringify(await response.json()),/SECRET_PROVIDER_ERROR|999/);assert.equal(saved,1);assert.equal((await read('OTHER')).report.generatedAt,stored.generatedAt);}
+ assert.equal(released,4);
+ const invalid=await post.POST(new Request('http://local',{method:'POST',body:'{"scope":"forged"}'}));assert.equal(invalid.status,400);
+ rows=[];assert.equal((await post.POST(request())).status,422);assert.equal(calls,4);
+ const anonymous=loader({'@/lib/session-account':{getSessionAccount:async()=>null},'@/lib/db':{},'@/lib/ai':{callGeminiJSON:()=>{throw Error('Must not run');}}});assert.equal((await anonymous('src/app/api/analytics/insights/route.ts').GET(new Request('http://local'))).status,401);assert.equal((await anonymous('src/app/api/analytics/analyze/route.ts').POST(request())).status,401);
+});
+
+test('local insight leases prevent duplicate requests and keep profiles and last successful reports intact',async()=>{
+ const original=process.cwd(),directory=fs.mkdtempSync(path.join(os.tmpdir(),'job-hunt-insights-')),env=Object.fromEntries(['POSTGRES_URL','DATABASE_URL','VERCEL'].map(key=>[key,process.env[key]]));
+ try{for(const key of Object.keys(env))delete process.env[key];process.chdir(directory);const db=loader()('src/lib/db.ts');
+  await db.saveCandidateProfile('member','Saved retail resume');await db.saveCandidatePreferences('member',{target_roles:['Retail associate']});
+  assert.deepEqual(await Promise.all([db.claimPipelineInsight('member','ALL','one'),db.claimPipelineInsight('member','ALL','two')]),[true,false]);
+  const report={summary:'Saved report',scope:'ALL',snapshotVersion:'version',generatedAt:'2026-10-14',reportingDate:'2026-10-14',observations:[],implications:[],recommendations:[],limitations:[]};
+  assert.equal(await db.savePipelineInsight('member','ALL',report,'two'),false);assert.equal(await db.savePipelineInsight('member','ALL',report,'one'),true);
+  await db.releasePipelineInsight('member','ALL','two');assert.equal(await db.claimPipelineInsight('member','ALL','three'),false);await db.releasePipelineInsight('member','ALL','one');assert.equal(await db.claimPipelineInsight('member','ALL','three'),true);
+  assert.deepEqual(await db.getPipelineInsight('member','ALL'),report);assert.equal(await db.getPipelineInsight('other','ALL'),null);assert.equal(await db.getPipelineInsight('member','OTHER'),null);assert.equal(await db.getCandidateProfile('member'),'Saved retail resume');assert.deepEqual((await db.getCandidatePreferences('member')).target_roles,['Retail associate']);
+  await db.releasePipelineInsight('member','ALL','three');assert.deepEqual(await db.getPipelineInsight('member','ALL'),report);
+ }finally{process.chdir(original);for(const [key,value]of Object.entries(env)){if(value===undefined)delete process.env[key];else process.env[key]=value;}assert.equal(path.dirname(directory),os.tmpdir());fs.rmSync(directory,{recursive:true,force:true});}
+});
+
+test('simultaneous insight POSTs reject the duplicate before invoking AI',async()=>{
+ let busy=false,calls=0,resolveAI,started;
+ const ready=new Promise(resolve=>{started=resolve;});
+ const load=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'member',name:'Member',email:'member@example.com'})},'@/lib/db':{getAnalyticsApplications:async()=>[sample()],claimPipelineInsight:async()=>{if(busy)return false;busy=true;return true;},releasePipelineInsight:async()=>{busy=false;}},'@/lib/ai':{callGeminiJSON:async()=>{calls++;started();return new Promise(resolve=>{resolveAI=resolve;});}}});
+ const post=load('src/app/api/analytics/analyze/route.ts').POST,request=()=>new Request('http://local',{method:'POST',body:'{"scope":"ALL"}'});
+ const first=post(request());await ready;assert.equal((await post(request())).status,409);assert.equal(calls,1);resolveAI(insightFixture());assert.equal((await first).status,200);assert.equal(busy,false);
+});
+
+test('Postgres insight leases bind ownership and perform atomic guarded writes without replacing resumes',async()=>{
+ const previous=process.env.POSTGRES_URL,queries=[];const sql=async(strings,...values)=>{queries.push({query:strings.join('?'),values});return [{owner:'member'}];};
+ try{process.env.POSTGRES_URL='postgres://mock-only';const db=loader({'@neondatabase/serverless':{neon:()=>sql}})('src/lib/db.ts');
+  assert.equal(await db.claimPipelineInsight('member','OTHER','token'),true);await db.savePipelineInsight('member','OTHER',{summary:'Saved'},'token');await db.releasePipelineInsight('member','OTHER','token');await db.getPipelineInsight('member','OTHER');
+  assert.match(queries[0].query,/ON CONFLICT\(owner\).*DO UPDATE/s);assert.match(queries[0].query,/WHERE coalesce.*expiresAt/s);assert.doesNotMatch(queries[0].query,/SET resume_text/);assert.ok(queries[0].values.includes('member'));assert.ok(queries[0].values.includes('OTHER'));
+  for(const query of queries.slice(1,3)){assert.match(query.query,/WHERE owner=.*token/s);assert.ok(query.values.includes('token'));assert.ok(query.values.includes('member'));}
+ }finally{if(previous===undefined)delete process.env.POSTGRES_URL;else process.env.POSTGRES_URL=previous;}
 });
 test('members can read their own account record but cannot list or modify other accounts',async()=>{
  const me={id:'member',email:'member@example.com',role:'member'};const load=loader({'@/lib/session-account':{getSessionAccount:async()=>me},'@/lib/db':{getUsers:async()=>[me,{id:'other',email:'other@example.com'}],getUserById:async()=>me,updateUser:async()=>{throw Error('Unexpected write');},deleteUser:async()=>{throw Error('Unexpected delete');}}});const list=load('src/app/api/users/route.ts');assert.deepEqual((await (await list.GET()).json()).data.map(user=>user.id),['member']);const route=load('src/app/api/users/[id]/route.ts');assert.equal((await route.GET(new Request('http://local'),{params:Promise.resolve({id:'other'})})).status,404);assert.equal((await route.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({role:'admin'})}),{params:Promise.resolve({id:'member'})})).status,403);assert.equal((await route.DELETE(new Request('http://local',{method:'DELETE'}),{params:Promise.resolve({id:'other'})})).status,403);

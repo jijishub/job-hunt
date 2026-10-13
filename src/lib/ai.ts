@@ -84,9 +84,8 @@ export async function callGeminiJSON<T>(
 
   try {
     return JSON.parse(cleanJson) as T;
-  } catch (err: any) {
-    console.error('Failed to parse AI JSON response:', cleanJson);
-    throw new Error(`AI returned an unparseable response: ${err.message}`);
+  } catch {
+    throw new Error('AI returned an unparseable response. Please try again.');
   }
 }
 

@@ -6,6 +6,7 @@ import { pipelineAnalytics, isInternship, uniqueApplications, currentOutcome, ap
 import AnalyticsComparisons from './AnalyticsComparisons';
 import AnalyticsAging from './AnalyticsAging';
 import AnalyticsCareer from './AnalyticsCareer';
+import PipelineInsights from './PipelineInsights';
 import { analyticsReportData, reportRoleFamily } from '@/lib/analytics-report';
 import { effectiveSeniority, SENIORITY_LEVELS } from '@/lib/application-analytics-fields';
 import { applicationAgeDays, awaitingEmployerResponse } from '@/lib/analytics-timing';
@@ -68,15 +69,12 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
   const stats = useMemo(() => snapshot?.key === snapshotKey ? snapshot.stats : pipelineAnalytics(scopeRecords, mapping, rejectionStatuses, new Date(), preferences?.analytics_age_boundaries), [snapshot, snapshotKey, scopeRecords, mapping, rejectionStatuses, preferences?.analytics_age_boundaries]);
   const report = useMemo(() => analyticsReportData(scoped, stats, mapping, rejectionStatuses), [scoped, stats, mapping, rejectionStatuses]);
   const [busy, setBusy] = useState('');
-  const [aiBusy, setAiBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [selection, setSelection] = useState<ChartSelection | null>(null);
   const [reviewQuery, setReviewQuery] = useState('');
   const [reviewPage, setReviewPage] = useState(0);
   useEffect(() => { setScope(defaultScope); setSelection(null); setReviewPage(0); }, [defaultScope]);
-  const [insight, setInsight] = useState<{ summary: string; nextSteps: string[]; signature: string } | null>(null);
   const signature = JSON.stringify([preferenceVersion, scope, reportDay, preferences?.analytics_age_boundaries, mapping, rejectionStatuses, scoped.map(app => [app.id, app.updated_at])]);
-  const currentInsight = insight?.signature === signature ? insight : null;
   const scopeLabel = scope === 'INTERNSHIP' ? 'Internships' : scope === 'OTHER' ? 'Regular Employment' : 'All (combined)';
   const reviewApps = scoped.filter(app => {
     if (selection?.kind === 'fit' && selection.submittedOnly && reachedStage(app, mapping) < 1) return false;
@@ -108,19 +106,16 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
     setSelection(value); setReviewPage(0); setReviewQuery('');
     document.getElementById('analytics-role-review')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
-  async function analyzePipeline() {
-    setAiBusy(true); setMessage('');
-    try {
-      const response = await fetch('/api/analytics/analyze', { method: 'POST', signal: AbortSignal.timeout(30000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope }) });
-      const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Analysis failed.');
-      setInsight({ ...data.data, signature });
-    } catch (error) { setMessage(error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name) ? 'AI did not respond in time. Your analytics remain available.' : error instanceof Error ? error.message : 'Analysis failed.'); }
-    finally { setAiBusy(false); }
-  }
   async function exportPdf() {
     setBusy('pdf'); setMessage('');
-    try { const pdf = await analyticsPdf(scoped, accountName, scopeLabel, currentInsight || undefined, mapping, rejectionStatuses, preferences, stats); pdf.save('my-job-search-analytics.pdf'); }
-    catch (error) { setMessage(error instanceof Error ? error.message : 'PDF export failed.'); }
+    try {
+      const response = await fetch(`/api/analytics?scope=${scope}&format=export`, { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok || !data.success || !Array.isArray(data.data?.applications) || !data.data?.stats) throw new Error(data.error || 'Latest saved analytics could not be loaded. Please retry the export.');
+      const { applications: latest, stats: latestStats, preferences: latestPreferences } = data.data;
+      const pdf = await analyticsPdf(latest, accountName, scopeLabel, latestPreferences?.analytics_status_stages || {}, latestPreferences?.analytics_rejection_statuses ?? DEFAULT_REJECTION_STATUSES, latestPreferences, latestStats);
+      pdf.save('my-job-search-analytics.pdf');
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'PDF export failed.'); }
     finally { setBusy(''); }
   }
   return <div className="space-y-5">
@@ -131,6 +126,8 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
         <button disabled={busy === 'pdf' || !preferencesReady} className={button} onClick={exportPdf}>{busy === 'pdf' ? 'Exporting…' : 'Export PDF'}</button>
       </div>
     </div>
+    {message && <p role="status" className="rounded-xl bg-[#FFF0F6] p-3 text-xs text-[#9D3C5E]">{message}</p>}
+    <PipelineInsights scope={scope} dataVersion={signature} total={stats.total} />
     {preferenceError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{preferenceError} Reload to retry.</p>}
     {!preferencesReady ? <p role="status" className="text-sm text-[#736A6D]">{preferenceError ? 'Analytics paused until your saved settings load.' : 'Loading your analytics settings…'}</p> : <>
       {scope === 'ALL' && report.types.length > 1 && <p className="rounded-xl bg-[#FFF0F6] p-3 text-xs text-[#736A6D]">All combines internships and non-internship applications. Use the filter to compare them separately; historical and recent records have different observation time.</p>}
@@ -145,7 +142,7 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
       ].map(([label, value, detail]) => <div key={label} className={card}><p className="text-xs font-semibold text-[#736A6D]">{label}</p><p className="my-2 text-3xl font-bold text-[#9D3C5E]">{value}</p><p className="text-[11px] text-[#736A6D]">{detail}</p></div>)}</div>
       <p className="text-[11px] text-[#736A6D]">Rates use {stats.submitted} submitted applications. Offer-stage progress includes declined offers and is separate from {stats.salaryOffers.count} recorded salary offers.</p>
       <AnalyticsCharts stats={stats} onReview={review} section="pipeline" /></section>
-      <section id="analytics-effectiveness" aria-labelledby="analytics-effectiveness-title" className="scroll-mt-72 sm:scroll-mt-32 space-y-4"><div><h3 id="analytics-effectiveness-title" className="text-base font-bold text-[#4A3E44]">Application effectiveness</h3><p className="mt-1 text-xs text-[#736A6D]">What works? Compare submitted samples without treating small groups as predictions.</p></div>
+      <section id="analytics-effectiveness" aria-labelledby="analytics-effectiveness-title" className="scroll-mt-72 sm:scroll-mt-32 space-y-4"><div><h3 id="analytics-effectiveness-title" className="text-base font-bold text-[#4A3E44]">Application effectiveness</h3><p className="mt-1 text-xs text-[#736A6D]">What works? Compare submitted samples without treating limited data as predictions.</p></div>
       <AnalyticsComparisons stats={stats} report={report} onReview={review} />
       <details className={`${card} text-xs`}><summary className="cursor-pointer font-semibold">More fit conversion charts</summary><div className="mt-4"><AnalyticsCharts stats={stats} onReview={review} section="fit" /></div></details>
       <div>
@@ -158,12 +155,8 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
       <section id="analytics-timing" aria-labelledby="analytics-timing-title" className="scroll-mt-72 sm:scroll-mt-32 space-y-4"><div><h3 id="analytics-timing-title" className="text-base font-bold text-[#4A3E44]">Application timing</h3><p className="mt-1 text-xs text-[#736A6D]">How long does it take? Unanswered waiting time and recorded callback latency stay separate.</p></div><AnalyticsAging stats={stats} report={report} onReview={review} /></section>
       <section id="analytics-career" aria-labelledby="analytics-career-title" className="scroll-mt-72 sm:scroll-mt-32 space-y-4"><div><h3 id="analytics-career-title" className="text-base font-bold text-[#4A3E44]">Career insights</h3><p className="mt-1 text-xs text-[#736A6D]">What should I do next? Saved preference alignment, comparable salaries and evidence-based suggestions.</p></div><AnalyticsCareer stats={stats} report={report} onReview={review} /><SalaryOffersChart stats={stats} preferences={preferences} onReview={review} /><SalaryExpectationsChart stats={stats} onReview={review} /><details className={`${card} text-xs`}><summary className="cursor-pointer font-semibold">Current application outcomes</summary><div className="mt-4"><AnalyticsCharts stats={stats} onReview={review} section="outcomes" /></div></details></section>
       <details className={`${card} text-xs`}><summary className="cursor-pointer font-semibold">Data checks & counting rules <span className="ml-2 font-normal text-[#736A6D]">{stats.quality.uncertainPhases} phases to review · {stats.quality.missingDates} missing dates</span></summary>
-        <div className="mt-3 space-y-2 text-[#736A6D]"><p>Rates use submitted applications in the selected scope. Offers include declined offers. Rejections use the current statuses selected in My preferences.</p><p>Earlier phases inferred from a later outcome are lavender, not recorded interview evidence. Each application ID counts once; the newest duplicate is used.</p><p>{stats.quality.duplicateRecords} duplicate records removed · {stats.quality.invalidDates} invalid dates · {stats.quality.futureDates} future dates excluded from activity. Missing dates stay in total counts.</p><p>Fit groups can overlap with recorded outcomes and are not randomized. Small samples and unassessed roles limit comparisons; these rates cannot prove which resume or fit category caused an outcome.</p><p>Assess relevant roles inside their application using Reanalyze role fit. Review past jobs before rating them against your current resume.</p></div>
+        <div className="mt-3 space-y-2 text-[#736A6D]"><p>Rates use submitted applications in the selected scope. Offers include declined offers. Rejections use the current statuses selected in My preferences.</p><p>Earlier phases inferred from a later outcome are lavender, not recorded interview evidence. Each application ID counts once; the newest duplicate is used.</p><p>{stats.quality.duplicateRecords} duplicate records removed · {stats.quality.invalidDates} invalid dates · {stats.quality.futureDates} future dates excluded from activity. Missing dates stay in total counts.</p><p>Fit groups can overlap with recorded outcomes and are not randomized. Limited application data and unassessed roles limit comparisons; these rates cannot prove which resume or fit category caused an outcome.</p><p>Assess relevant roles inside their application using Reanalyze role fit. Review past jobs before rating them against your current resume.</p></div>
       </details>
-      <section className={card}><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-bold">Pipeline insights</h3><p className="mt-1 text-xs text-[#736A6D]">Optional interpretation of computed statistics, your master resume and preferences. Observations and suggested next steps are separate.</p></div><button className={button} disabled={aiBusy || Boolean(busy) || !stats.total} onClick={analyzePipeline}>{aiBusy ? 'Analyzing…' : 'Analyze my pipeline with AI'}</button></div>
-        {currentInsight && <div className="mt-4 text-xs text-[#736A6D]"><p>{currentInsight.summary}</p><ul className="mt-3 list-disc space-y-1 pl-4">{currentInsight.nextSteps.map(step => <li key={step}>{step}</li>)}</ul></div>}
-        {message && <p role="status" className="mt-3 rounded-xl bg-[#FFF0F6] p-3 text-xs text-[#9D3C5E]">{message}</p>}
-      </section>
       <section id="analytics-role-review" className={`${card} scroll-mt-24`}><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-bold">Review your role fits {selection && <span className="ml-2 text-xs font-normal text-[#9D3C5E]">{selection.label}</span>}</h3><div className="flex items-center gap-2"><input aria-label="Search analytics roles" placeholder="Search role or company" value={reviewQuery} onChange={event => { setReviewQuery(event.target.value); setReviewPage(0); }} className="rounded-lg border border-[#F1DDE9] px-2 py-1.5 text-xs" />{selection && <button className={button} onClick={() => { setSelection(null); setReviewPage(0); }}>Show all</button>}</div></div>
         <p className="mt-2 text-[11px] text-[#736A6D]">{reviewApps.length} roles in this review</p>
         <div className="mt-3 space-y-2">{reviewApps.slice(safePage * 10, (safePage + 1) * 10).map(app => {

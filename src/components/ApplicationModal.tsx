@@ -15,7 +15,7 @@ import type { RoleFit, RoleFitAnalysis } from '@/types/job';
 
 import ImageDropzone from './ImageDropzone';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { JobApplication, Company, ApplicationStatus, Priority, JobType, WorkModel, UserAccount } from '@/types/job';
 import {
   Briefcase,
@@ -38,6 +38,7 @@ interface ApplicationModalProps {
   users?: UserAccount[];
   currentUserId?: string;
   isMember?: boolean;
+  startWithJsonImport?: boolean;
 }
 
 function compressImage(file: File, callback: (base64: string) => void) {
@@ -98,6 +99,7 @@ export default function ApplicationModal({
   users,
   currentUserId,
   isMember = false,
+  startWithJsonImport = false,
 }: ApplicationModalProps) {
   const [roleTitle, setRoleTitle] = useState('');
   const [seniorityOverride, setSeniorityOverride] = useState<SeniorityLevel | null>(null);
@@ -139,6 +141,18 @@ export default function ApplicationModal({
   const [notes, setNotes] = useState('');
   const [owner, setOwner] = useState<string>(currentUserId || users?.[0]?.id || 'admin');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFitAnalyzing, setIsFitAnalyzing] = useState(false);
+  const importInput = useRef<HTMLTextAreaElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const fitRequest = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (isOpen && startWithJsonImport && importOpen) {
+      formRef.current?.scrollTo({ top: 0 });
+      importInput.current?.focus();
+    }
+  }, [isOpen, startWithJsonImport, importOpen]);
+  useEffect(() => () => { fitRequest.current?.abort(); }, [isOpen]);
 
   const [statusOptions, setStatusOptions] = useState<StatusOption[]>(isMember ? MEMBER_STATUS_OPTIONS : SEEDED_STATUS_OPTIONS);
   const [isAddingCustomStatus, setIsAddingCustomStatus] = useState(false);
@@ -187,7 +201,8 @@ export default function ApplicationModal({
     setRoleFit(initialData?.role_fit || initialData?.role_fit_analysis?.fit || null);
     setFitAnalysis(initialData?.role_fit_analysis || null);
     setUseAiFit(initialData?.role_fit_source === 'ai');
-    setFitError(''); setImportOpen(false); setImportText(''); setImportMessage('');
+    setFitError(''); setImportOpen(startWithJsonImport && !initialData); setImportText(''); setImportMessage('');
+    setIsSubmitting(false); setIsFitAnalyzing(false);
     if (initialData) {
       setRoleTitle(initialData.role_title || '');
       setCompanyName(initialData.company_name || '');
@@ -232,7 +247,7 @@ export default function ApplicationModal({
       setNotes('');
       setOwner(currentUserId || users?.[0]?.id || 'admin');
     }
-  }, [initialData, isOpen, currentUserId, users, isMember]);
+  }, [initialData, isOpen, currentUserId, users, isMember, startWithJsonImport]);
 
   if (!isOpen) return null;
 
@@ -246,7 +261,8 @@ export default function ApplicationModal({
     c.name.toLowerCase().includes(companyName.toLowerCase())
   );
 
-  const applyJobJson = () => {
+  const applyJobJson = async () => {
+    if (fitRequest.current || isSubmitting) return;
     try {
       const job = parseJobImport(importText);
       if (job.role_title) { if (job.role_title !== roleTitle && !job.job_description) setJobDescription(''); setRoleTitle(job.role_title); }
@@ -263,22 +279,39 @@ export default function ApplicationModal({
       if (job.first_response_at) setFirstResponse(localDateTime(job.first_response_at));
       setFitAnalysis(null); setRoleFit(null); setUseAiFit(false);
       setImportMessage('Job fields filled in the draft. Review them before saving. No application has been created yet.');
+      if (startWithJsonImport) {
+        setImportOpen(false); formRef.current?.scrollTo({ top: 0 });
+        const importedDescription = job.job_description || (job.role_title && job.role_title !== roleTitle ? '' : jobDescription);
+        if (importedDescription.trim().length < 30) {
+          setFitError('Add the full job description to assess role fit. You can save this draft as Unassessed.');
+          return;
+        }
+        setIsSubmitting(true); setIsFitAnalyzing(true); setFitError('');
+        try {
+          await analyzeFit({ roleTitle: job.role_title || roleTitle, jobDescription: importedDescription, jobFacts: { company: job.company_name || companyName, location: job.location || location, work_model: job.work_model || workModel, job_type: job.job_type || jobType, salary_min: job.salary_min ?? (salaryMin ? Number(salaryMin) : undefined), salary_max: job.salary_max ?? (salaryMax ? Number(salaryMax) : undefined), salary_currency: job.salary_currency || salaryCurrency } });
+        } catch (error) { if (!(error instanceof Error && error.name === 'AbortError')) setFitError(error instanceof Error ? error.message : 'Role fit analysis failed.'); }
+        finally { setIsSubmitting(false); setIsFitAnalyzing(false); }
+      }
     } catch (error) { setImportMessage(error instanceof Error ? error.message : 'JSON import failed.'); }
   };
 
-  const analyzeFit = async () => {
-    const response = await fetch('/api/role-fit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roleTitle, jobDescription, jobFacts: { company: companyName, location, work_model: workModel, job_type: jobType, salary_min: salaryMin ? Number(salaryMin) : undefined, salary_max: salaryMax ? Number(salaryMax) : undefined, salary_currency: salaryCurrency } }) });
+  const analyzeFit = async (imported?: { roleTitle: string; jobDescription: string; jobFacts: Record<string, unknown> }) => {
+    if (fitRequest.current) return;
+    const controller = new AbortController(); fitRequest.current = controller;
+    try {
+    const response = await fetch('/api/role-fit', { method: 'POST', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(imported || { roleTitle, jobDescription, jobFacts: { company: companyName, location, work_model: workModel, job_type: jobType, salary_min: salaryMin ? Number(salaryMin) : undefined, salary_max: salaryMax ? Number(salaryMax) : undefined, salary_currency: salaryCurrency } }) });
     const result = await response.json();
     if (!response.ok || !result.success) throw new Error(result.error || 'Role fit analysis failed.');
     setRoleFit(result.data.fit); setFitAnalysis(result.data); setUseAiFit(true); setFitError('');
     if (result.data.fit === 'WEAK' && roleFit !== 'WEAK') setPriority('LOW');
     if (result.data.fit === 'STRONG' && roleFit !== 'STRONG') setPriority('HIGH');
     return result.data as RoleFitAnalysis;
+    } finally { if (fitRequest.current === controller) fitRequest.current = null; }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roleTitle.trim() || !companyName.trim()) return;
+    if (isSubmitting || !roleTitle.trim() || !companyName.trim()) return;
 
     setIsSubmitting(true);
     try {
@@ -330,8 +363,24 @@ export default function ApplicationModal({
     }
   };
 
+  const importPanel = importOpen && <div className="space-y-2 rounded-xl border border-[#F1DDE9] bg-white p-3">
+    {startWithJsonImport && <h3 className="text-sm font-semibold text-[#9D3C5E]">Import job JSON</h3>}
+    <p className="text-xs text-[#736A6D]">{startWithJsonImport ? 'Paste the job JSON from Gemini. We’ll fill a draft and assess role fit using your saved resume. Review before creating.' : 'Ask Gemini to extract the job posting, then paste its JSON here. This fills your draft for review.'}</p>
+    <button type="button" disabled={isSubmitting} onClick={async () => { try { await navigator.clipboard.writeText(JOB_JSON_PROMPT); setImportMessage('Gemini prompt copied. Paste it with the job posting in Gemini.'); } catch { setImportMessage(JOB_JSON_PROMPT); } }} className="text-xs font-semibold text-[#9D3C5E]">Copy Gemini extraction prompt</button>
+    <textarea ref={importInput} aria-label="Job posting JSON" rows={5} disabled={isSubmitting} className="w-full rounded-lg border border-[#F1DDE9] p-2 text-xs font-mono" value={importText} onChange={event => setImportText(event.target.value)} placeholder={'{"role_title":"Developer","company_name":"Example","description":"...","qualifications":["TypeScript"],"location":"Makati","work_model":"ON_SITE","job_type":"FULL_TIME","salary_currency":"PHP"}'} />
+    <button type="button" disabled={isSubmitting || !importText.trim()} onClick={applyJobJson} className="rounded-lg bg-[#9D3C5E] px-3 py-2 text-xs text-white disabled:opacity-50">{startWithJsonImport ? 'Fill draft & assess fit' : 'Fill draft from JSON'}</button>
+    {importMessage && <p role="status" className="text-xs text-[#9D3C5E]">{importMessage}</p>}
+  </div>;
+
+  const saveActions = <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#F1DDE9]">
+    <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-medium text-[#736A6D] hover:bg-stone-100 rounded-xl transition">Cancel</button>
+    <button type="submit" form="application-draft-form" disabled={isSubmitting || !roleTitle.trim() || !companyName.trim()} className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-medium text-white bg-[#FF7AB3] hover:bg-[#F06292] rounded-xl shadow-xs transition disabled:opacity-50">
+      <Sparkles className="w-3.5 h-3.5" />{isSubmitting ? isFitAnalyzing ? 'Assessing role fit…' : 'Saving...' : initialData ? 'Save Changes' : 'Create Application'}
+    </button>
+  </div>;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-xs animate-in fade-in duration-150">
+    <div role="dialog" aria-modal="true" aria-labelledby="application-modal-title" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-xs animate-in fade-in duration-150">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-[#F1DDE9] max-h-[92vh] flex flex-col overflow-hidden">
         <div className="h-16 bg-gradient-to-r from-[#FCE7F3] via-[#FFF0F6] to-[#FAF7F9] relative flex items-center justify-between px-6 border-b border-[#F1DDE9]">
           <div className="flex items-center gap-3">
@@ -339,7 +388,7 @@ export default function ApplicationModal({
               <Briefcase className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-[#4A3E44]">
+              <h2 id="application-modal-title" className="text-base font-semibold text-[#4A3E44]">
                 {initialData ? 'Edit Application' : 'New Application / Lead'}
               </h2>
               <p className="text-xs text-[#736A6D]">Track opportunities & sync with Notion</p>
@@ -348,7 +397,13 @@ export default function ApplicationModal({
           <CloseButton onClick={onClose} />
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 text-sm">
+        <form id="application-draft-form" ref={formRef} onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 text-sm">
+          {startWithJsonImport && importPanel}
+          {startWithJsonImport && !importOpen && importMessage && <p role="status" className="text-xs text-[#9D3C5E]">{importMessage}</p>}
+          {isFitAnalyzing && <p role="status" className="text-xs text-[#9D3C5E]">Assessing role fit… Your draft will stay available if AI fails.</p>}
+          {startWithJsonImport && fitError && <p role="alert" className="text-xs text-rose-700">{fitError} You can leave this role unassessed and save the draft.</p>}
+          {startWithJsonImport && !isFitAnalyzing && useAiFit && fitAnalysis && <p className="text-xs text-[#9D3C5E]"><strong>{ROLE_FITS.find(fit => fit.value === roleFit)?.label}:</strong> {fitAnalysis.explanation}</p>}
+          <fieldset disabled={isSubmitting} className="min-w-0 space-y-5 border-0 p-0">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">
@@ -716,13 +771,7 @@ export default function ApplicationModal({
 
           <section className="space-y-3 rounded-xl border border-[#F1DDE9] p-3 bg-[#FFF5F8]">
             <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-xs text-[#9D3C5E]">Job description (Information)</h3><button type="button" onClick={() => setImportOpen(!importOpen)} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E]">Import job JSON</button></div>
-            {importOpen && <div className="space-y-2 rounded-xl border border-[#F1DDE9] bg-white p-3">
-              <p className="text-xs text-[#736A6D]">Ask Gemini to extract the job posting, then paste its JSON here. This fills your draft for review.</p>
-              <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(JOB_JSON_PROMPT); setImportMessage('Gemini prompt copied. Paste it with the job posting in Gemini.'); } catch { setImportMessage(JOB_JSON_PROMPT); } }} className="text-xs font-semibold text-[#9D3C5E]">Copy Gemini extraction prompt</button>
-              <textarea aria-label="Job posting JSON" rows={5} className="w-full rounded-lg border border-[#F1DDE9] p-2 text-xs font-mono" value={importText} onChange={event => setImportText(event.target.value)} placeholder={'{"role_title":"Developer","company_name":"Example","description":"...","qualifications":["TypeScript"],"location":"Makati","work_model":"ON_SITE","job_type":"FULL_TIME","salary_currency":"PHP"}'} />
-              <button type="button" onClick={applyJobJson} className="rounded-lg bg-[#9D3C5E] px-3 py-2 text-xs text-white">Fill draft from JSON</button>
-              {importMessage && <p role="status" className="text-xs text-[#9D3C5E]">{importMessage}</p>}
-            </div>}
+            {!startWithJsonImport && importPanel}
             <label className="block text-xs font-semibold text-[#9D3C5E]">Job description
               <textarea aria-label="Job description" rows={4} value={jobDescription} onChange={event => setJobDescription(event.target.value)} placeholder="Paste the actual job description, required skills, and experience. A job title alone is not enough to assess fit." className="mt-1 w-full rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs font-normal" />
             </label>
@@ -736,9 +785,9 @@ export default function ApplicationModal({
             </label>
             <p className="text-xs text-[#736A6D]">{useAiFit && roleFit ? 'Selected from the AI assessment. Choose another rating to set a manual fit.' : (ROLE_FITS.find(fit => fit.value === roleFit)?.description || 'Choose a rating manually, or click Reanalyze role fit to assess this role with AI. Saving does not run analysis.')}</p>
             {fitAnalysis && useAiFit && <p className="text-xs text-[#9D3C5E]">{ROLE_FITS.find(fit => fit.value === fitAnalysis.fit)?.label}: {fitAnalysis.explanation}{fitAnalysis.preference_notes ? ` Preferences: ${fitAnalysis.preference_notes}` : ''}</p>}
-            <button type="button" disabled={isSubmitting || jobDescription.trim().length < 30} onClick={async () => { setIsSubmitting(true); setFitError(''); try { await analyzeFit(); } catch (error) { setFitError(error instanceof Error ? error.message : 'Analysis failed.'); } finally { setIsSubmitting(false); } }} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E] disabled:opacity-50">Reanalyze role fit</button>
+            <button type="button" disabled={isSubmitting || jobDescription.trim().length < 30} onClick={async () => { setIsSubmitting(true); setIsFitAnalyzing(true); setFitError(''); try { await analyzeFit(); } catch (error) { if (!(error instanceof Error && error.name === 'AbortError')) setFitError(error instanceof Error ? error.message : 'Analysis failed.'); } finally { setIsSubmitting(false); setIsFitAnalyzing(false); } }} className="rounded-lg border border-[#F1DDE9] bg-white px-3 py-2 text-xs text-[#9D3C5E] disabled:opacity-50">Reanalyze role fit</button>
 
-            {fitError && <p role="alert" className="text-xs text-rose-700">{fitError} Select a manual fit or leave this role unassessed and retry.</p>}
+            {!startWithJsonImport && fitError && <p role="alert" className="text-xs text-rose-700">{fitError} Select a manual fit or leave this role unassessed and retry.</p>}
           </section>
           <div>
             <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">Personal comments (Post Notes)</label>
@@ -764,28 +813,10 @@ export default function ApplicationModal({
             <label className="flex items-center gap-2"><input type="checkbox" checked={notProceeding} onChange={e=>setNotProceeding(e.target.checked)} />Not Proceeding</label>
             <p className="sm:col-span-2 text-[#736A6D]">Phase follows your status history. Save with Not Proceeding checked to archive this application while retaining your progress and Notion backup status. Uncheck it to restore.</p>
           </div>
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#F1DDE9]">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-[#736A6D] hover:bg-stone-100 rounded-xl transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || !roleTitle.trim() || !companyName.trim()}
-              className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-medium text-white bg-[#FF7AB3] hover:bg-[#F06292] rounded-xl shadow-xs transition disabled:opacity-50"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              {isSubmitting
-                ? 'Saving...'
-                : initialData
-                ? 'Save Changes'
-                : 'Create Application'}
-            </button>
-          </div>
+          </fieldset>
+          {!startWithJsonImport && saveActions}
         </form>
+        {startWithJsonImport && <div className="shrink-0 bg-white px-6 pb-4">{saveActions}</div>}
       </div>
     </div>
   );

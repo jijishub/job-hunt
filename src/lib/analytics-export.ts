@@ -5,14 +5,15 @@ import { DEFAULT_REJECTION_STATUSES, type AnalyticsStage } from './analytics-sta
 import type { PersonalPreferences } from './preferences';
 import { formatSalaryRange } from './currencies';
 import { offerPeriodLabel } from './salary-offers';
+import { loadAnalyticsLogo, analyticsLogoSize } from './analytics-branding';
 
-type PipelineInsight = { summary: string; nextSteps: string[] };
 type ReportTargets = Pick<PersonalPreferences, 'target_companies' | 'target_roles' | 'preferred_locations' | 'work_models' | 'job_types' | 'salary_min' | 'salary_currency' | 'dealbreakers' | 'analytics_age_boundaries'>;
 
 export async function analyticsPdf(applications: JobApplication[], accountName: string, scope: string,
-  insight?: string | PipelineInsight, mapping: Record<string, AnalyticsStage> = {},
+  mapping: Record<string, AnalyticsStage> = {},
   rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES, targets?: ReportTargets, snapshot?: PipelineStats) {
   const { default: jsPDF } = await import('jspdf');
+  const logo = await loadAnalyticsLogo();
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
   const stats = snapshot || pipelineAnalytics(applications, mapping, rejectionStatuses, new Date(), targets?.analytics_age_boundaries);
   const report = analyticsReportData(applications, stats, mapping, rejectionStatuses);
@@ -20,13 +21,17 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   const clean = (value: string) => value.replace(/[–—−]/g, '-').replace(/[’‘]/g, "'").replace(/[“”]/g, '"').normalize('NFKD').replace(/[^\x20-\x7E\n]/g, '');
   const percent = (value: number | null) => value === null ? 'N/A' : `${value}%`;
   const count = (value: number) => value.toLocaleString('en-US');
+  const applicationsLabel = (value: number) => `${count(value)} ${value === 1 ? 'application' : 'applications'}`;
   const label = (value: string, x: number, y: number, size = 9, color = colors.ink, bold = false, align: 'left' | 'right' | 'center' = 'left') => {
+    size = Math.max(7.5, size);
     pdf.setFont('helvetica', bold ? 'bold' : 'normal'); pdf.setFontSize(size); pdf.setTextColor(color); pdf.text(clean(value), x, y, { align });
   };
   const lines = (value: string, width: number, size = 8): string[] => {
+    size = Math.max(7.5, size);
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(size); return pdf.splitTextToSize(clean(value), width);
   };
   const wrap = (value: string, x: number, y: number, width: number, size = 8, maxLines = 3, color = colors.muted) => {
+    size = Math.max(7.5, size);
     const all = lines(value, width, size), shown = all.slice(0, maxLines);
     if (all.length > maxLines) {
       let last = shown[maxLines - 1];
@@ -46,14 +51,15 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
     pdf.setFillColor(color); pdf.rect(x, y - 2, 2.4, 2.4, 'F'); label(name, x + 4, y, 7, colors.muted);
   };
   const header = () => {
-    label('job-hunt', 16, 18, 14, colors.rose, true); label('PERSONAL ANALYTICS', 16, 24, 7, colors.muted);
+    pdf.addImage(logo, 'PNG', 16, 5, analyticsLogoSize.width, analyticsLogoSize.height, 'job-hunt-logo', 'FAST');
+    label('PERSONAL ANALYTICS', 65, 16, 8, colors.muted);
     wrap(scope, 120, 18, 74, 8, 1); label(`As of ${stats.asOf}`, 194, 24, 8, colors.muted, false, 'right');
     pdf.setDrawColor(colors.border); pdf.line(16, 30, 194, 30);
   };
   const title = (heading: string, subtitle: string) => { label(heading, 16, 43, 19, colors.ink, true); wrap(subtitle, 16, 51, 178, 9, 1); };
   const page = (heading: string, subtitle: string) => { pdf.addPage(); header(); title(heading, subtitle); };
-  const metric = (x: number, y: number, width: number, name: string, value: string, detail: string) => {
-    panel(x, y, width, 28, colors.pink); label(name, x + 3, y + 6, 8, colors.muted);
+  const metric = (x: number, y: number, width: number, name: string, value: string, detail: string, highlight = false) => {
+    panel(x, y, width, 28, highlight ? colors.pink : '#FFFFFF'); label(name, x + 3, y + 6, 8, colors.muted);
     pdf.setFont('helvetica', 'bold'); pdf.setFontSize(17);
     const size = Math.min(17, 17 * (width - 6) / Math.max(width - 6, pdf.getTextWidth(clean(value))));
     label(value, x + 3, y + 17, size, colors.rose, true); wrap(detail, x + 3, y + 23, width - 6, 6.8, 1);
@@ -68,7 +74,7 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
     ['Offer stage', count(stats.funnel[4].count), `${percent(stats.offerRate)} of submitted`],
     ['Rejections', count(stats.rejections), `${percent(stats.rejectionRate)} of submitted`],
   ];
-  metrics.forEach(([name, value, detail], i) => metric(16 + i * 36.4, 60, 32.4, name, value, detail));
+  metrics.forEach(([name, value, detail], i) => metric(16 + i * 36.4, 60, 32.4, name, value, detail, i === 0));
   label('Reached or passed', 16, 104, 12, colors.ink, true);
   key('Recorded', 121, 104, colors.recorded); key('Inferred', 158, 104, colors.inferred);
   stats.funnel.forEach((stage, i) => {
@@ -88,7 +94,7 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   });
   wrap(`Dates excluded: ${stats.quality.missingDates} missing, ${stats.quality.invalidDates} invalid, ${stats.quality.futureDates} future. Inferred phases indicate later progress, not recorded interviews.`, 16, 270, 178, 7.5, 2);
 
-  page('Application effectiveness', 'Application effectiveness comparisons · submitted samples only');
+  page('Application effectiveness', 'Application effectiveness comparisons · submitted applications only');
   panel(16, 59, 178, 100); label('Role families: volume and conversion', 21, 68, 11, colors.ink, true);
   key('Progression', 124, 68, colors.progression); key('Offer stage', 162, 68, colors.offer);
   const roles = report.roles.slice(0, 6), roleMax = Math.max(1, ...roles.map(row => row.submitted));
@@ -96,42 +102,42 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   if (!roles.length) wrap('Submit an application to start comparing role families.', 21, 90, 168, 9);
   roles.forEach((row, i) => {
     const y = 88 + i * 10.5;
-    wrap(row.label, 21, y, 49, 8, 2, colors.ink); label(`n=${row.submitted}`, 76, y + 1, 7, colors.muted, false, 'right');
+    wrap(row.label, 21, y, 49, 8, 2, colors.ink); label(String(row.submitted), 76, y + 1, 8, colors.muted, false, 'right');
     bar(80, y - 2, 37, 5, row.submitted / roleMax, colors.recorded);
-    bar(128, y - 3, 45, 2.7, (row.progressionRate ?? 0) / 100, colors.progression);
-    bar(128, y + 1, 45, 2.7, (row.offerRate ?? 0) / 100, colors.offer);
+    bar(128, y - 3, 40, 2.7, (row.progressionRate ?? 0) / 100, colors.progression);
+    bar(128, y + 1, 40, 2.7, (row.offerRate ?? 0) / 100, colors.offer);
     label(`${row.progressionRate}% / ${row.offerRate}%`, 189, y + 1, 6.6, colors.muted, false, 'right');
   });
-  wrap(`Top ${roles.length} of ${report.roles.length} families by submissions. Related automatic titles are grouped for this report; manual families stay intact. n < 5 is a small sample.`, 21, 152, 168, 7, 2);
+  wrap(`Top ${roles.length} of ${report.roles.length} families by submissions. Related automatic titles are grouped; manual families stay intact. Smaller groups are based on limited application data.`, 21, 152, 168, 7.5, 2);
   panel(16, 166, 87, 99); panel(107, 166, 87, 99);
   label('Role fit and outcomes', 21, 175, 11, colors.ink, true); label('Current outcome of submitted roles', 21, 182, 7, colors.muted);
   report.fits.forEach((fit, i) => {
     const y = 193 + i * 13;
-    label(fit.label, 21, y, 8); label(`n=${fit.submitted}`, 98, y, 7, colors.muted, false, 'right');
+    label(fit.label, 21, y, 8); label(applicationsLabel(fit.submitted), 98, y, 7.5, colors.muted, false, 'right');
     let x = 21;
     fit.outcomes.forEach(outcome => { const width = 77 * outcome.count / fit.submitted; if (width) { pdf.setFillColor(outcome.color); pdf.rect(x, y + 2, width, 5, 'F'); x += width; } });
   });
-  if (!report.fits.length) wrap('No submitted fit samples yet.', 21, 195, 77, 9);
+  if (!report.fits.length) wrap('No submitted applications to compare yet.', 21, 195, 77, 9);
   const outcomeKeys = report.fits[0]?.outcomes || [];
   outcomeKeys.forEach((item, i) => key(item.label, 21 + i % 2 * 38, 250 + Math.floor(i / 2) * 7, item.color));
   label('Platform effectiveness', 112, 175, 11, colors.ink, true);
   key('Progression', 112, 183, colors.progression); key('Offer stage', 153, 183, colors.offer);
   const platforms = report.platforms.slice(0, 6);
   platforms.forEach((row, i) => {
-    const y = 195 + i * 9;
-    wrap(row.label.replaceAll('_', ' '), 112, y, 36, 7.3, 1, colors.ink); label(`n=${row.submitted}`, 189, y, 7, colors.muted, false, 'right');
-    bar(112, y + 2, 68, 1.8, (row.progressionRate ?? 0) / 100, colors.progression);
-    bar(112, y + 4.5, 68, 1.8, (row.offerRate ?? 0) / 100, colors.offer);
-    label(`${row.progressionRate}/${row.offerRate}%`, 189, y + 5.5, 6, colors.muted, false, 'right');
+    const y = 193 + i * 10;
+    wrap(row.label.replaceAll('_', ' '), 112, y, 42, 8, 1, colors.ink); label(applicationsLabel(row.submitted), 189, y, 7.5, colors.muted, false, 'right');
+    bar(112, y + 2, 58, 1.8, (row.progressionRate ?? 0) / 100, colors.progression);
+    bar(112, y + 4.5, 58, 1.8, (row.offerRate ?? 0) / 100, colors.offer);
+    label(`${row.progressionRate}% / ${row.offerRate}%`, 189, y + 5.5, 6, colors.muted, false, 'right');
   });
-  if (!platforms.length) wrap('No submitted platform samples yet.', 112, 195, 77, 9);
-  wrap(`Top ${platforms.length} of ${report.platforms.length} platforms. Rates use each platform's submitted sample.`, 112, 253, 77, 7, 2);
+  if (!platforms.length) wrap('No submitted applications to compare yet.', 112, 195, 77, 9);
+  wrap(`Top ${platforms.length} of ${report.platforms.length} platforms. Percentages use each platform's submitted applications.`, 112, 253, 77, 7.5, 2);
   wrap(`Assessed: ${stats.assessed} · Unassessed: ${stats.unassessed}. Fit is saved experience alignment; outcomes are not evidence of causation. Full comparisons remain in Analytics.`, 16, 273, 178, 7, 2);
 
   page('Application timing', 'Waiting time and employer response latency answer different questions.');
   metric(16, 60, 55, 'Median callback', stats.timing.callbacks.medianDays === null ? 'N/A' : `${stats.timing.callbacks.medianDays} days`, `${report.responseCount} usable responses`);
   metric(77.5, 60, 55, 'Average callback', stats.timing.callbacks.averageDays === null ? 'N/A' : `${stats.timing.callbacks.averageDays} days`, 'Recorded employer events only');
-  metric(139, 60, 55, 'Unanswered', count(stats.timing.pending), `${stats.timing.pendingUnknownAges} unknown ages`);
+  metric(139, 60, 55, 'Unanswered', count(stats.timing.pending), `${stats.timing.pendingUnknownAges} unknown ages`, true);
   stats.timing.windows.forEach((window, i) => metric(16 + i * 61.5, 95, 55, `Response within ${window.days} days`, percent(window.responseRate), `${window.responded} / ${window.eligible} eligible`));
   panel(16, 130, 87, 66); panel(107, 130, 87, 66);
   label('Unanswered application aging', 21, 139, 10, colors.ink, true);
@@ -154,7 +160,7 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
     const rows = report.responseCohorts.filter(row => row.responses).slice(-5), max = Math.max(1, ...rows.flatMap(row => row.counts));
     report.callbackBins.forEach((bin, i) => label(bin.label, 84 + i * 25, 222, 7, colors.muted, false, 'center'));
     rows.forEach((row, i) => {
-      const y = 227 + i * 5.4; label(`${row.month} (n=${row.responses})`, 21, y + 3.8, 7, colors.muted);
+      const y = 227 + i * 5.4; label(`${row.month} · ${row.responses} responses`, 21, y + 3.8, 7.5, colors.muted);
       row.counts.forEach((value, j) => {
         const intensity = value / max;
         pdf.setFillColor(255 - Math.round(22 * intensity), 240 - Math.round(86 * intensity), 246 - Math.round(60 * intensity));
@@ -163,6 +169,8 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
     });
     label('Latest 5 responding months · cell = recorded response count, not conversion rate.', 21, 258, 7, colors.muted);
   } else {
+    const datedCount = stats.timing.windows[0].eligible + stats.timing.windows[0].immature + stats.timing.windows[0].unknownTiming;
+    label(`${datedCount} dated applications`, 189, 212, 8, colors.muted, false, 'right');
     key('Eligible', 21, 221, colors.progression); key('Too recent', 69, 221, colors.recorded); key('Timing unknown', 123, 221, colors.inferred);
     stats.timing.windows.forEach((window, i) => {
       const y = 231 + i * 7, total = window.eligible + window.immature + window.unknownTiming;
@@ -171,7 +179,6 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
         const width = total ? value / total * 127 : 0;
         if (width) { pdf.setFillColor(color); pdf.rect(x, y - 3, width, 4, 'F'); if (width > 6) label(String(value), x + width / 2, y, 7, colors.ink, false, 'center'); x += width; }
       }
-      label(`n=${total}`, 189, y, 7, colors.muted, false, 'right');
     });
     label('Cohort heatmap: requires 5 usable responses across 2 submission months.', 21, 258, 7, colors.muted);
   }
@@ -197,10 +204,10 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   label('Seniority progression', 112, 68, 11, colors.ink, true);
   report.seniority.forEach((row, i) => {
     const y = 78 + i * 5.6;
-    wrap(row.label, 112, y, 37, 7, 1, colors.ink); bar(151, y - 2, 24, 2.6, (row.progressionRate ?? 0) / 100, colors.progression);
-    label(`${row.progressionRate}% n=${row.submitted}`, 189, y, 6.5, colors.muted, false, 'right');
+    wrap(row.label, 112, y, 34, 8, 1, colors.ink); bar(148, y - 2, 18, 2.6, (row.progressionRate ?? 0) / 100, colors.progression);
+    label(`${row.progressed}/${row.submitted} · ${row.progressionRate}%`, 189, y, 7.5, colors.muted, false, 'right');
   });
-  if (!report.seniority.length) wrap('No submitted seniority samples yet.', 112, 84, 77, 9);
+  if (!report.seniority.length) wrap('No submitted applications to compare yet.', 112, 84, 77, 9);
   label('Explicit title levels; unlabeled roles stay Unspecified.', 112, 124, 6.6, colors.muted);
 
   const salaryGroups = [...stats.salaryOffers.groups].sort((a, b) => b.count - a.count || a.key.localeCompare(b.key)), extraSalaryGroups = salaryGroups.slice(2);
@@ -208,7 +215,7 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   const salaryRow = (group: typeof salaryGroups[number], y: number) => {
     const expected = stats.salaryOffers.expectations.find(item => item.key === group.key);
     const target = group.period === 'MONTHLY' && targets?.salary_currency?.toUpperCase() === group.currency ? targets.salary_min : undefined;
-    wrap(`${group.currency} / ${offerPeriodLabel(group.period)} · n=${group.count}`, 21, y, 57, 8, 1, colors.ink);
+    wrap(`${group.currency} / ${offerPeriodLabel(group.period)} · ${group.count} ${group.count === 1 ? 'offer' : 'offers'}`, 21, y, 57, 8, 1, colors.ink);
     label(`Median ${formatSalaryRange(group.median, undefined, group.currency)}`, 189, y, 8, colors.rose, true, 'right');
     const max = Math.max(1, group.max, expected?.median || 0, target || 0) * 1.1;
     if (group.count >= 2 || expected || target !== undefined) {
@@ -224,7 +231,7 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   salaryGroups.slice(0, 2).forEach((group, i) => salaryRow(group, 154 + i * 18));
   if (!salaryGroups.length) {
     wrap(stats.salaryOffers.expectedCount ? `${stats.salaryOffers.expectedCount} salary expectations saved; no actual offers recorded yet.` : 'No actual salary offers or expectations recorded yet.', 21, 156, 168, 9, 2);
-    stats.salaryOffers.expectations.slice(0, 2).forEach((group, i) => label(`${group.currency} / ${offerPeriodLabel(group.period)}: median expected ${formatSalaryRange(group.median, undefined, group.currency)} (n=${group.count})`, 21, 169 + i * 7, 8, colors.rose));
+    stats.salaryOffers.expectations.slice(0, 2).forEach((group, i) => label(`${group.currency} / ${offerPeriodLabel(group.period)}: median expected ${formatSalaryRange(group.median, undefined, group.currency)}${stats.salaryOffers.expectations.length > 1 ? ` · ${group.count} expectations` : ''}`, 21, 169 + i * 7, 8, colors.rose));
   } else label(`Green = median offer; dot = median expectation; line = monthly minimum${extraSalaryGroups.length ? `; ${extraSalaryGroups.length} more groups in appendix` : ''}.`, 21, 190, 6.8, colors.muted);
   report.findings.forEach((finding, i) => {
     const x = 16 + i * 61.5; panel(x, 201, 55, 36, colors.pink); label(finding.title, x + 3, 208, 9, colors.rose, true); wrap(finding.text, x + 3, 214, 49, 7.8, 6);
@@ -234,15 +241,11 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   const targetLines = lines(targetText, 178, 7.5), longTargets = targetLines.length > 4;
   label('Preference targets', 16, 244, 9, colors.ink, true);
   wrap(longTargets ? 'Your full preference targets continue in the appendix; they remain available in My preferences.' : targetText, 16, 249, 178, 7.5, 4);
-  const summary = typeof insight === 'string' ? insight : insight?.summary;
-  const aiText = summary?.trim() ? [summary, ...(typeof insight === 'string' ? [] : insight?.nextSteps.map((step, i) => `${i + 1}. ${step}`) || [])].join('\n') : '';
-  const longAI = aiText && lines(aiText, 178, 7.5).length > 4;
-  label('Optional AI interpretation', 16, 263, 9, colors.ink, true);
-  wrap(longAI ? 'Saved interpretation continues in the appendix. AI observations and suggestions are separate from calculated results.' : aiText || 'No AI interpretation saved for this snapshot. This report was calculated without AI.', 16, 268, 178, 7.5, 4);
+  wrap('Counts describe saved outcomes. Based on limited application data, comparisons should be treated cautiously; they do not predict your next application.', 16, 269, 178, 7.5, 3);
 
   // Exceptional long saved text or many pay units gets a readable appendix, not clipping.
   let appendixY = 0;
-  const appendix = () => { page('Supporting context', 'Saved preferences and optional interpretation · no individual application records'); appendixY = 63; };
+  const appendix = () => { page('Supporting context', 'Saved preference targets and salary groups · no individual application records'); appendixY = 63; };
   const appendixParagraph = (text: string) => {
     for (const line of lines(text, 178, 9)) { if (!appendixY || appendixY > 272) appendix(); label(line, 16, appendixY, 9); appendixY += 4.5; }
     appendixY += 5;
@@ -252,11 +255,10 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
     if (!appendixY) appendix();
     for (const group of extraSalaryGroups) { if (appendixY > 245) appendix(); salaryRow(group, appendixY); appendixY += 25; }
   }
-  if (longAI) { if (!appendixY || appendixY > 253) appendix(); label('Optional AI interpretation', 16, appendixY, 12, colors.rose, true); appendixY += 9; appendixParagraph(aiText); }
   const pages = pdf.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
     pdf.setPage(i); pdf.setDrawColor(colors.border); pdf.line(16, 283, 194, 283);
-    label('job-hunt / Aggregate analytics · small samples are descriptive', 16, 290, 7, colors.muted); label(`${i} / ${pages}`, 194, 290, 7, colors.muted, false, 'right');
+    label('Personal analytics', 16, 290, 8, colors.muted); label(`Report date: ${stats.asOf}`, 105, 290, 8, colors.muted, false, 'center'); label(`${i} / ${pages}`, 194, 290, 8, colors.muted, false, 'right');
   }
   return pdf;
 }

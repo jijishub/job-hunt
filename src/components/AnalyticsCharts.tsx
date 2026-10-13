@@ -37,7 +37,7 @@ export default function AnalyticsCharts({ stats, onReview, section = 'all' }: { 
           <option value="offerRate">Offers</option><option value="progressionRate">Screening or later</option><option value="rejectionRate">Rejections</option>
         </select>
       </div>
-      <p className="mt-1 mb-4 text-xs text-[#736A6D]">{metricLabel} ÷ submitted in each group. Small samples vary widely.</p>
+      <p className="mt-1 mb-4 text-xs text-[#736A6D]">{metricLabel} ÷ submitted in each group. Limited application data can vary widely.</p>
       <div className="flex justify-between pl-32 text-[10px] text-[#736A6D]"><span>0%</span><span>50%</span><span>100%</span></div>
       <div className="mt-2 space-y-4">{stats.fits.filter(fit => fit.submitted > 0).map(fit => {
         const index = stats.fits.indexOf(fit);
@@ -46,7 +46,7 @@ export default function AnalyticsCharts({ stats, onReview, section = 'all' }: { 
         return <button type="button" key={fit.value} onClick={() => onReview({ kind: 'fit', value: fit.value, label: fit.label })}
           aria-label={`Review ${fit.label} applications`} title={value === null ? 'No submitted applications in this group' : `${count} of ${fit.submitted} submitted (${value}%); ${fit.total} tracked`}
           className="grid w-full grid-cols-[8rem_1fr] items-center gap-2 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-[#9D3C5E]">
-          <span className="text-xs font-semibold">{fit.label}{fit.submitted > 0 && fit.submitted < 5 && <span className="block text-[10px] font-normal text-[#736A6D]">Small sample</span>}</span>
+          <span className="text-xs font-semibold">{fit.label}{fit.submitted > 0 && fit.submitted < 5 && <span className="block text-[10px] font-normal text-[#736A6D]">Based on limited application data</span>}</span>
           <span><span className="mb-1 flex justify-between text-[11px]"><span>{count} / {fit.submitted}</span><strong>{value === null ? '—' : `${value}%`}</strong></span><span className="block h-5 overflow-hidden rounded-lg bg-[#FAF7F9]"><span className="block h-full rounded-lg transition-all" style={{ width: `${value || 0}%`, backgroundColor: fitColors[index] }} /></span></span>
         </button>;
       })}</div>

@@ -20,10 +20,9 @@ export default function SalaryOffersChart({ stats, preferences, onReview }: { st
     </div>
     {!group ? <p className="mt-3 text-sm text-[#736A6D]">No salary offers recorded yet. Add an actual offer in an application to start comparing.</p> : <>
       <p className="mt-1 text-xs text-[#736A6D]">{group.currency} · {offerPeriodLabel(group.period)} base pay · {group.count} recorded {group.count === 1 ? 'offer' : 'offers'}</p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">{[
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">{[
         ['Median offer', formatSalaryRange(group.median, undefined, group.currency)],
         ['Offer range', formatSalaryRange(group.min, group.max, group.currency)],
-        ['Sample size', `${group.count} ${group.count === 1 ? 'offer' : 'offers'}`],
       ].map(([title, value]) => <div key={title} className="rounded-xl bg-[#FFF5F8] p-3"><p className="text-[11px] text-[#736A6D]">{title}</p><strong className="mt-1 block text-sm text-[#9D3C5E]">{value}</strong></div>)}</div>
       <div className="mt-5" role="img" aria-label={`${group.currency} ${offerPeriodLabel(group.period)} offer distribution; median ${group.median}; ${group.count} offers`}>
         <div className="relative mx-8 h-32 border-b border-[#EAE4E9]">
@@ -35,7 +34,7 @@ export default function SalaryOffersChart({ stats, preferences, onReview }: { st
         <p className="text-center text-xs text-[#736A6D]">{group.currency} / {offerPeriodLabel(group.period).toLowerCase()}</p>
       </div>
       {group.period === 'MONTHLY' && group.currency === preferences?.salary_currency && preferences.salary_min != null && <p className="text-xs text-[#736A6D]">Your monthly minimum: {formatSalaryRange(preferences.salary_min, undefined, group.currency)} · {group.points.filter(point => point.amount >= preferences.salary_min!).length} of {group.count} offers meet it.</p>}
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-[11px] text-[#736A6D]">Each dot is an offer. Small samples describe your offers, not a market salary estimate.</p><button type="button" onClick={() => onReview({ kind: 'offer', value: group.key, label: `${group.currency} ${offerPeriodLabel(group.period)} offers` })} className="rounded-xl border border-[#F1DDE9] bg-[#FFF0F6] px-3 py-2 text-xs font-semibold text-[#9D3C5E]">Review recorded offers</button></div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-[11px] text-[#736A6D]">Each dot is an offer. These are your recorded offers, not an estimate of market pay.</p><button type="button" onClick={() => onReview({ kind: 'offer', value: group.key, label: `${group.currency} ${offerPeriodLabel(group.period)} offers` })} className="rounded-xl border border-[#F1DDE9] bg-[#FFF0F6] px-3 py-2 text-xs font-semibold text-[#9D3C5E]">Review recorded offers</button></div>
     </>}
   </section>;
 }

@@ -1,5 +1,7 @@
 import { getAdminEmail } from './admin-email';
 import type { PersonalPreferences } from './preferences';
+import type { InsightEntry, PipelineInsight } from './pipeline-insights';
+import type { DefaultView } from './preferences';
 import { Company, JobApplication, UserAccount, UserRole } from '@/types/job';
 import fs from 'fs';
 import path from 'path';
@@ -14,7 +16,7 @@ const DATA_DIR = process.env.VERCEL ? path.join('/tmp', '.data') : path.join(pro
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 interface LocalDatabase {
-  profiles?: Record<string, { resume_text: string; updated_at: string; preferences?: PersonalPreferences }>;
+  profiles?: Record<string, { resume_text: string; updated_at: string; preferences?: PersonalPreferences; pipeline_insights?: Partial<Record<DefaultView,InsightEntry>> }>;
   companies: Company[];
   applications: JobApplication[];
   users: UserAccount[];
@@ -227,6 +229,7 @@ async function initPostgresSchema(sql: any) {
     await sql`CREATE INDEX IF NOT EXISTS applications_analytics_owner_status ON applications ((lower(trim(coalesce(owner, '')))), status, source);`;
     await sql`CREATE TABLE IF NOT EXISTS candidate_profiles (owner TEXT PRIMARY KEY, resume_text TEXT NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW());`;
     await sql`ALTER TABLE candidate_profiles ADD COLUMN IF NOT EXISTS preferences JSONB;`;
+    await sql`ALTER TABLE candidate_profiles ADD COLUMN IF NOT EXISTS pipeline_insights JSONB;`;
     await sql`ALTER TABLE companies ADD COLUMN IF NOT EXISTS created_by TEXT;`;
 
     await sql`
@@ -1118,4 +1121,56 @@ export async function saveCandidatePreferences(owner: string, preferences: Perso
   const sql = getPostgresClient();
   if (sql) { await sql`INSERT INTO candidate_profiles (owner, resume_text, preferences) VALUES (${owner}, '', ${JSON.stringify(preferences)}::jsonb) ON CONFLICT (owner) DO UPDATE SET preferences = EXCLUDED.preferences, updated_at = NOW();`; return; }
   const db = readLocalDb(); db.profiles ??= {}; db.profiles[owner] = { ...db.profiles[owner], resume_text: db.profiles[owner]?.resume_text || '', preferences, updated_at: new Date().toISOString() }; writeLocalDb(db);
+}
+
+export async function getPipelineInsight(owner: string, scope: DefaultView): Promise<PipelineInsight | null> {
+    const sql = getPostgresClient();
+    if (sql) {
+        const rows = await sql `SELECT to_jsonb(p)->'pipeline_insights'->${scope}->'report' AS data FROM candidate_profiles p WHERE owner=${owner};`;
+        return rows[0]?.data || null;
+    }
+    return readLocalDb().profiles?.[owner]?.pipeline_insights?.[scope]?.report || null;
+}
+export async function claimPipelineInsight(owner: string, scope: DefaultView, token: string): Promise<boolean> {
+    const lease = { token, expiresAt: new Date(Date.now() + 75000).toISOString() }, sql = getPostgresClient();
+    if (sql) {
+        const rows = await sql `INSERT INTO candidate_profiles (owner,resume_text,pipeline_insights) VALUES (${owner},'',jsonb_build_object(${scope}::text,jsonb_build_object('lease',${JSON.stringify(lease)}::jsonb)))
+    ON CONFLICT(owner) DO UPDATE SET pipeline_insights=jsonb_set(coalesce(candidate_profiles.pipeline_insights,'{}'::jsonb),ARRAY[${scope}::text],coalesce(candidate_profiles.pipeline_insights->${scope},'{}'::jsonb)||jsonb_build_object('lease',${JSON.stringify(lease)}::jsonb),true)
+    WHERE coalesce((candidate_profiles.pipeline_insights->${scope}->'lease'->>'expiresAt')::timestamptz,'-infinity'::timestamptz)<NOW() RETURNING owner;`;
+        return rows.length > 0;
+    }
+    const db = readLocalDb();
+    db.profiles ??= {};
+    const profile = db.profiles[owner] ??= { resume_text: '', updated_at: new Date().toISOString() };
+    profile.pipeline_insights ??= {};
+    if (Date.parse(profile.pipeline_insights[scope]?.lease?.expiresAt || '') > Date.now())
+        return false;
+    profile.pipeline_insights[scope] = { ...profile.pipeline_insights[scope], lease };
+    writeLocalDb(db);
+    return true;
+}
+export async function savePipelineInsight(owner: string, scope: DefaultView, report: PipelineInsight, token: string): Promise<boolean> {
+    const sql = getPostgresClient();
+    if (sql) {
+        const rows = await sql `UPDATE candidate_profiles SET pipeline_insights=jsonb_set(pipeline_insights,ARRAY[${scope}::text,'report'],${JSON.stringify(report)}::jsonb,true) WHERE owner=${owner} AND pipeline_insights->${scope}->'lease'->>'token'=${token} RETURNING owner;`;
+        return rows.length > 0;
+    }
+    const db = readLocalDb(), entry = db.profiles?.[owner]?.pipeline_insights?.[scope];
+    if (entry?.lease?.token !== token)
+        return false;
+    entry.report = report;
+    writeLocalDb(db);
+    return true;
+}
+export async function releasePipelineInsight(owner: string, scope: DefaultView, token: string) {
+    const sql = getPostgresClient();
+    if (sql) {
+        await sql `UPDATE candidate_profiles SET pipeline_insights=jsonb_set(pipeline_insights,ARRAY[${scope}::text],(pipeline_insights->${scope})-'lease',true) WHERE owner=${owner} AND pipeline_insights->${scope}->'lease'->>'token'=${token};`;
+        return;
+    }
+    const db = readLocalDb(), entry = db.profiles?.[owner]?.pipeline_insights?.[scope];
+    if (entry?.lease?.token === token) {
+        delete entry.lease;
+        writeLocalDb(db);
+    }
 }
