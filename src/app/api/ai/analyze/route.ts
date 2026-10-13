@@ -5,7 +5,8 @@ import { candidateEvidence } from '@/lib/candidate-evidence';
 import { getApplicationById } from '@/lib/db';
 import { ownsApplication } from '@/lib/ownership';
 
-export const maxDuration = 60;
+// Leave room for authentication/database reads around the 150-second AI call.
+export const maxDuration = 180;
 
 export async function GET() {
   try {
@@ -26,6 +27,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   try {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
@@ -64,10 +66,11 @@ export async function POST(request: Request) {
       data: result,
     });
   } catch (error: any) {
-    console.error('AI resume analysis error:', error);
+    const timedOut = ['TimeoutError', 'AbortError'].includes(error?.name);
+    console.warn('ATS analysis failed', { kind: error?.name || 'Error', elapsedMs: Date.now() - startedAt });
     return NextResponse.json(
-      { success: false, error: error?.message || 'Failed to analyze resume with AI.' },
-      { status: 500 }
+      { success: false, error: timedOut ? 'The AI service did not finish the ATS report in time. Try again later or choose a faster model.' : error?.message || 'Failed to analyze resume with AI.', ...(timedOut ? { code: 'AI_TIMEOUT' } : {}) },
+      { status: timedOut ? 504 : 500 }
     );
   }
 }

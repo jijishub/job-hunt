@@ -179,6 +179,7 @@ Once deployed, run these smoke checks:
    - Select an existing job or paste a job description.
    - Select a configured model and click **Run AI ATS Match & Pitch**.
    - Verify the returned score, missing keywords, and generated report. Skip this check when AI is intentionally unconfigured.
+   - Detailed ATS reports use a 150-second AI deadline and a 180-second route budget; keep [Vercel Fluid Compute](https://vercel.com/docs/functions/configuring-functions/duration) enabled for this longer runtime. A timeout should show a retry message and preserve an existing report. Short role-fit assessments retain their separate 25-second deadline. Use `npm run test:ats:ui` for these browser checks.
 5. **Dedicated Leads Hub**:
    - Open the **🎯 Leads** tab.
    - Review incoming leads from portfolio or add a new lead.

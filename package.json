@@ -19,6 +19,7 @@
     "test:bossjob": "node --test --test-name-pattern=Bossjob scripts/test_llm_tasks.cjs scripts/test_bossjob.cjs scripts/test_bossjob_workflow.cjs",
     "test:pipeline": "node --test scripts/test_pipeline.cjs",
     "test:analytics:ui": "node --test scripts/test_analytics_ui.cjs",
+    "test:ats:ui": "node --test scripts/test_ats_timeout_ui.cjs",
     "rpa:job-platforms": "node scripts/backfill_job_platforms.cjs --apply",
     "rpa:job-platforms:preview": "node scripts/backfill_job_platforms.cjs",
     "test:job-platforms": "node --test scripts/test_job_platforms.cjs",
@@ -27,7 +28,7 @@
     "test:report": "node scripts/test_report_export.cjs",
     "diagnose:ai": "node scripts/check_ai_auth.cjs",
     "audit:duplicates": "node scripts/audit_postgres_duplicates.cjs",
-    "test:pipeline:ui": "node --test --test-concurrency=1 scripts/test_pipeline_ui.cjs scripts/test_rejections_ui.cjs scripts/test_board_ui.cjs scripts/test_member_ui.cjs scripts/test_salary_offers_ui.cjs scripts/test_lead_fit_ui.cjs scripts/test_archive_ui.cjs scripts/test_quick_import_ui.cjs",
+    "test:pipeline:ui": "node --test --test-concurrency=1 scripts/test_pipeline_ui.cjs scripts/test_rejections_ui.cjs scripts/test_board_ui.cjs scripts/test_member_ui.cjs scripts/test_salary_offers_ui.cjs scripts/test_lead_fit_ui.cjs scripts/test_archive_ui.cjs scripts/test_quick_import_ui.cjs scripts/test_ats_timeout_ui.cjs",
     "rpa:appficiency": "node scripts/appficiency_apply.cjs"
   },
   "dependencies": {

@@ -8,6 +8,7 @@ import { getReportPageCuts } from '@/lib/report-pagination';
 import { captureReport } from '@/lib/report-capture';
 import { JobApplication } from '@/types/job';
 import { AIModelId, AVAILABLE_AI_MODELS, ResumeAnalysisResult } from '@/lib/ai-types';
+import { ATS_BROWSER_TIMEOUT_MS } from '@/lib/ai-request-limits';
 import {
   Sparkles,
   FileText,
@@ -84,6 +85,8 @@ export default function ResumeAnalyzerView({
   }, [preferenceVersion]);
 
   const analysisVersion = useRef(0);
+  const activeAnalysis = useRef<AbortController | null>(null);
+  useEffect(() => () => { activeAnalysis.current?.abort(); }, []);
   useEffect(() => { analysisVersion.current++; setResult(null); }, [resumeText, jobTitle, companyName, jobDescription, selectedModel, preferenceVersion]);
 
   // Pre-load from selected app if provided
@@ -122,6 +125,7 @@ export default function ResumeAnalyzerView({
   };
 
   const handleAnalyze = async () => {
+    if (activeAnalysis.current) return;
     if (!resumeText.trim()) {
       setError('Save your master resume in My preferences before analyzing.');
       return;
@@ -132,12 +136,15 @@ export default function ResumeAnalyzerView({
     }
 
     const version = analysisVersion.current;
+    const controller = new AbortController();
+    activeAnalysis.current = controller;
     setIsLoading(true);
     setError(null);
 
     try {
       const res = await fetch('/api/ai/analyze', {
         method: 'POST',
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(ATS_BROWSER_TIMEOUT_MS)]),
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           resumeText: isAdmin ? resumeText : undefined,
@@ -149,18 +156,23 @@ export default function ResumeAnalyzerView({
         }),
       });
 
-      const json = await res.json();
+      let json;
+      try { json = await res.json(); }
+      catch {
+        if (!res.ok) throw new Error(res.status === 504 ? 'The server did not finish the ATS report in time. Try again later or choose a faster model.' : `The ATS service is unavailable (HTTP ${res.status}). Please try again later.`);
+        throw new Error('The ATS service returned an unreadable response. Please try again.');
+      }
       if (version !== analysisVersion.current) return;
-      if (json.success && json.data) {
+      if (res.ok && json.success && json.data) {
         setResult(json.data);
         setActiveResultTab('overview');
       } else {
         throw new Error(json.error || 'Analysis failed. Please check the AI engine.');
       }
     } catch (err: any) {
-      console.error(err);
-      if (version === analysisVersion.current) setError(err.message || 'An unexpected error occurred during AI resume analysis.');
+      if (version === analysisVersion.current && !controller.signal.aborted) setError(err.name === 'TimeoutError' ? 'The ATS request timed out. Try again later or choose a faster model.' : err.message || 'An unexpected error occurred during AI resume analysis.');
     } finally {
+      if (activeAnalysis.current === controller) activeAnalysis.current = null;
       setIsLoading(false);
     }
   };
@@ -248,7 +260,7 @@ export default function ResumeAnalyzerView({
                 </span>
               </div>
               <p className="text-xs text-[#736A6D] mt-1 max-w-2xl">
-                Scan your candidate credentials against job requirements. Discover missing ATS keywords, optimize bullet points with high-impact metrics, and generate tailored application pitches in seconds.
+                Compare your saved qualifications with job requirements, review ATS keywords and bullet suggestions, and draft a tailored application pitch. Detailed reports can take longer than a role-fit assessment.
               </p>
             </div>
 

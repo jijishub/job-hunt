@@ -359,6 +359,41 @@ test('ATS preserves a zero score and rejects missing scores instead of inventing
  }finally{global.fetch=savedFetch;if(savedKey===undefined)delete process.env.AI_API_KEY;else process.env.AI_API_KEY=savedKey;}
 });
 
+test('ATS can finish a streamed body after the short AI deadline and bounds report output',async context=>{
+ const savedFetch=global.fetch,savedTimeout=AbortSignal.timeout,savedKey=process.env.AI_API_KEY,budgets=[],requests=[];
+ context.mock.timers.enable({apis:['setTimeout']});
+ try{
+  process.env.AI_API_KEY='unit-test-key';
+  AbortSignal.timeout=milliseconds=>{budgets.push(milliseconds);const controller=new AbortController();setTimeout(()=>controller.abort(Object.assign(new Error('Test AI timeout'),{name:'TimeoutError'})),milliseconds);return controller.signal;};
+  global.fetch=async(url,options)=>{
+   requests.push(JSON.parse(options.body));
+   return {ok:true,text:()=>new Promise((resolve,reject)=>{
+    setTimeout(()=>resolve(JSON.stringify({choices:[{message:{content:JSON.stringify({matchScore:0,summary:'No relevant experience.'})}}]})),30000);
+    options.signal.addEventListener('abort',()=>reject(options.signal.reason),{once:true});
+   })};
+  };
+  const load=loader(),ai=load('src/lib/ai.ts'),limits=load('src/lib/ai-request-limits.ts');
+  const ats=ai.analyzeResumeWithGemini({resumeText:'Saved resume',jobDescription:'Required experience and relevant qualifications.'});
+  const briefFailure=assert.rejects(ai.callGeminiJSON('Brief assessment','Job and resume'),error=>error.name==='TimeoutError');
+  await Promise.resolve();context.mock.timers.tick(25000);await briefFailure;context.mock.timers.tick(5000);
+  assert.equal((await ats).matchScore,0);assert.deepEqual(budgets,[limits.ATS_AI_TIMEOUT_MS,limits.DEFAULT_AI_TIMEOUT_MS]);assert.equal(limits.DEFAULT_AI_TIMEOUT_MS,25000);
+  assert.equal(requests[0].max_tokens,limits.ATS_MAX_OUTPUT_TOKENS);assert.equal(requests[1].max_tokens,undefined);assert.match(requests[0].messages[0].content,/three bullet rewrites/);
+  assert.ok(limits.ATS_BROWSER_TIMEOUT_MS>180000);assert.ok(limits.ATS_AI_TIMEOUT_MS<180000);
+ }finally{global.fetch=savedFetch;AbortSignal.timeout=savedTimeout;context.mock.timers.reset();if(savedKey===undefined)delete process.env.AI_API_KEY;else process.env.AI_API_KEY=savedKey;}
+});
+
+test('ATS route distinguishes provider timeouts and records timing without logging candidate text',async()=>{
+ const warnings=[],savedWarn=console.warn;console.warn=(...items)=>warnings.push(items);
+ try{
+  for(const name of ['TimeoutError','AbortError']){
+   const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'member',name:'Member',email:'member@example.com',role:'member'})},'@/lib/db':{},'@/lib/ai':{analyzeResumeWithGemini:async()=>{throw Object.assign(new Error('PRIVATE_PROVIDER_DETAIL'),{name});}}})('src/app/api/ai/analyze/route.ts');
+   assert.equal(route.maxDuration,180);const response=await route.POST(new Request('http://local',{method:'POST',body:JSON.stringify({jobDescription:'Actual requirements including relevant experience.'})}));
+   assert.equal(response.status,504);const body=await response.json();assert.equal(body.code,'AI_TIMEOUT');assert.match(body.error,/ATS report in time/);assert.doesNotMatch(JSON.stringify(body),/PRIVATE_PROVIDER_DETAIL|previous report/);
+  }
+  assert.equal(warnings.length,2);assert.doesNotMatch(JSON.stringify(warnings),/PRIVATE_PROVIDER_DETAIL|Saved member master resume|member@example/);
+ }finally{console.warn=savedWarn;}
+});
+
 test('admin endpoints reject members and all AI/PDF tools require authentication',async()=>{
  let user={id:'member',email:'member@example.com',role:'member',notion_enabled:true};
  const load=loader({'@/lib/session-account':{getSessionAccount:async()=>user},'@/lib/notion':{},'@/lib/ai':{},'@/lib/db':{}});
