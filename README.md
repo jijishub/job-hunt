@@ -57,6 +57,8 @@ Saved leads show **Strong fit**, **Possible fit**, **Weak fit**, or **Unassessed
 
 For easy-add, use **Copy Prompt** with **Ask Gemini** in Chrome on the shared job-posting tab. Include the posting URL and full text if needed; the Gemini website is the fallback. Gemini extracts the posting directly, and the in-app **Guide** explains the steps.
 
+The Guide starts with saving your master resume. When a newer deployment is available, a persistent update bar asks you to save any open draft and choose **Reload now**.
+
 Use the bottom-right **Import job JSON** shortcut, paste Gemini's JSON, then choose **Fill draft & assess fit**. Review the filled draft and requested role-fit assessment before clicking **Create Application**. If AI fails, you can save as Unassessed.
 
 Standard import remains available under **New App ? Job description (Information) ? Import job JSON ? Fill draft from JSON**, with no in-app AI request or browser automation required. Check the company, role, description, location, salary and dates against the posting. Keep **Not started** for a lead, or choose **Applied** after submitting. Neither import creates a record until you save.
@@ -71,7 +73,7 @@ The workspace adapts to mobile screens: lead cards fit the viewport, account men
 
 Analytics reuses saved applications, assessments, and preferences. Loading the dashboard, changing scope, reviewing charts, and exporting a PDF never generate new AI assessments. Missing fit ratings stay **Unassessed**. The optional **Pipeline insights** card above the charts interprets computed statistics with your saved resume, assessments and preferences only after a click. Successful results are saved per scope, marked outdated after data changes, and preserved after failed retries.
 
-The dashboard and PDF follow four readable sections: **Pipeline, Effectiveness, Timing, and Career insights**. The branded PDF refreshes saved data at export time, contains no AI interpretations, and normally fits four pages. Full comparisons and application drilldowns stay in the app; long preference targets or extra salary units can add an appendix.
+The dashboard and PDF follow four readable sections: **Pipeline, Effectiveness, Timing, and Career insights**. The branded PDF refreshes saved data at export time, contains no AI interpretations, and normally fits four pages. Click dashboard charts to review their applications; long preference targets or extra salary units can add a PDF appendix.
 
 Seniority uses explicit title keywords: **Junior AI Engineer** is Junior, while **AI Engineer** is Unspecified. The eight categories run from Internship / Trainee through Lead / Principal, including Graduate / Entry-level, Junior, Associate, Mid-level, and Senior. Automatic seniority follows title edits; manual overrides stay intact until you reset them. Keyword charts count distinct submitted applications containing each title word or short phrase; counts overlap, and progression comparisons require at least five applications. The form's **Job platform** field accepts custom values alongside its suggestions, including **Referral** and **Walk-in** for all users.
 

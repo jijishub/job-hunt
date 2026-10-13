@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { randomUUID } from 'node:crypto';
 
 // Ensure NEXTAUTH_URL is never empty string or malformed during build time
 const rawUrl = process.env.NEXTAUTH_URL?.trim();
@@ -17,6 +18,7 @@ process.env.NEXTAUTH_URL = resolvedAuthUrl;
 const nextConfig: NextConfig = {
   env: {
     NEXTAUTH_URL: resolvedAuthUrl,
+    NEXT_PUBLIC_APP_VERSION: randomUUID(),
   },
   turbopack: {
     root: process.cwd(),

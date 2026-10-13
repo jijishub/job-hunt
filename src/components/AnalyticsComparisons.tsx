@@ -1,16 +1,9 @@
-import type { PipelineStats } from '@/lib/analytics';
 import type { AnalyticsReportData } from '@/lib/analytics-report';
 import AnalyticsRateBars, { analyticsCard, RateLegend } from './AnalyticsRateBars';
 import type { ChartSelection } from './AnalyticsCharts';
-import { KEYWORD_CHART_LIMIT, KEYWORD_MIN_APPLICATIONS } from '@/lib/job-title-keywords';
+import { KEYWORD_CHART_LIMIT } from '@/lib/job-title-keywords';
 
-export default function AnalyticsComparisons({ stats, report, onReview }: { stats: PipelineStats; report: AnalyticsReportData; onReview: (value: ChartSelection) => void }) {
-  const percent = (value: number | null) => value === null ? '—' : `${value}%`;
-  const sections = [
-    ['Job title keyword comparisons', stats.dimensions.keywords], ['Seniority progression', stats.dimensions.seniority],
-    ['Job platform performance', stats.dimensions.platforms], ['Monthly response cohorts', stats.dimensions.cohorts],
-    ['Saved qualifications fit', stats.dimensions.qualifications],
-  ] as const;
+export default function AnalyticsComparisons({ report, onReview }: { report: AnalyticsReportData; onReview: (value: ChartSelection) => void }) {
   const topKeywords = report.keywords.slice(0, KEYWORD_CHART_LIMIT), maximum = Math.max(1, ...topKeywords.map(row => row.submitted));
   return <div className="space-y-4">
     <section className={analyticsCard} aria-label="Job title keyword analytics">
@@ -26,10 +19,5 @@ export default function AnalyticsComparisons({ stats, report, onReview }: { stat
       </section>
       <section className={analyticsCard} aria-label="Platform effectiveness"><h3 className="text-sm font-bold">Platform effectiveness</h3><p className="mt-1 text-xs text-[#736A6D]">Top {Math.min(6, report.platforms.length)} of {report.platforms.length} platforms by submissions. This describes saved outcomes, not which platform caused them.</p><div className="my-4"><RateLegend /></div><AnalyticsRateBars rows={report.platforms.slice(0, 6)} kind="platform" onReview={onReview} /></section>
     </div>
-    <details className={`${analyticsCard} text-xs`}>
-    <summary className="cursor-pointer font-semibold">Application effectiveness comparisons</summary>
-    <p className="mt-3 text-[#736A6D]">Rates use submitted applications in each group. Callback days require a saved first employer response timestamp; status update dates are excluded. {stats.dimensions.missingResponseDates} submitted records lack usable timing. Cohorts group by submission month and include recorded responses through {stats.asOf}; newer cohorts have had less time to respond.</p>
-    <p className="mt-2 text-[#736A6D]">Qualifications fit reuses saved role-fit results as a proxy for experience alignment. Job title keywords use only title text, with shared word and phrase rules across industries. Keyword counts overlap, and rates appear for at least {KEYWORD_MIN_APPLICATIONS} submitted applications. Seniority uses saved overrides or explicit title rules; unlabeled titles stay Unspecified. These comparisons describe outcomes, not causes or predicted chances.</p>
-    {sections.map(([title, rows]) => <section key={title} className="mt-4"><h3 className="font-bold">{title}</h3><div className="max-h-80 overflow-auto"><table className="mt-2 w-full text-left"><thead><tr>{['Group', 'Tracked', 'Submitted', 'Progression', 'Offers', 'Recorded response', 'Median callback days'].map(label => <th className="p-2 whitespace-nowrap" key={label}>{label}</th>)}</tr></thead><tbody>{rows.map(row => <tr key={row.label} className="border-t border-[#F1DDE9]"><td className="p-2">{row.label.replaceAll('_', ' ')}</td><td className="p-2">{row.total}</td><td className="p-2">{row.submitted}</td><td className="p-2">{row.progressed} ({percent(row.progressionRate)})</td><td className="p-2">{row.offers} ({percent(row.offerRate)})</td><td className="p-2">{row.responses} ({percent(row.responseRate)})</td><td className="p-2">{row.medianCallbackDays ?? 'Unknown'}</td></tr>)}</tbody></table>{!rows.length && <p className="py-2 text-[#736A6D]">No records in this scope.</p>}</div></section>)}
-  </details></div>;
+  </div>;
 }

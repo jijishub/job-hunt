@@ -66,8 +66,8 @@ test('AI is optional: filters and PDF work during requests and after failures; l
     await page.goto(process.env.PIPELINE_TEST_URL || 'http://localhost:3100');
     await page.getByRole('button', { name: 'Analytics', exact: true }).click();
     await page.getByRole('heading', { name: 'Analytics Member’s job-search analytics' }).waitFor();
-    await page.getByText('Application effectiveness comparisons', { exact: true }).click();
-    await page.getByText('software engineer', { exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Job title keywords', exact: true }).waitFor();
+    assert.equal(await page.getByText('Application effectiveness comparisons', { exact: true }).count(),0);
     assert.equal(aiCalls, 0); assert.equal(assessmentCalls, 0);
     const aging = page.getByRole('region', { name: 'Application aging', exact: true });
     assert.ok(await aging.isVisible());
@@ -200,6 +200,7 @@ test('visual dashboard matches the four-page report and drills into submitted ch
     await page.goto(process.env.PIPELINE_TEST_URL || 'http://localhost:3100');
     await page.getByRole('button', { name: 'Analytics', exact: true }).click();
     for (const title of ['Application pipeline','Application effectiveness','Application timing','Career insights']) await page.getByRole('heading', { name: title, exact: true }).waitFor();
+    assert.equal(await page.getByText('Application effectiveness comparisons',{exact:true}).count(),0);
     assert.doesNotMatch(await page.locator('main').innerText(), /\bn\s*[=<]\s*\d+/);
     await page.getByRole('region', { name: 'Response cohort heatmap', exact: true }).waitFor();
     assert.equal(await page.getByRole('img', { name: 'Callback distribution for 6 recorded responses', exact: true }).count(), 1);

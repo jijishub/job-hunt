@@ -12,6 +12,7 @@ import {
   Brain,
   Layers,
   ArrowRight,
+  BarChart3,
 } from 'lucide-react';
 
 export default function SSOLandingView() {
@@ -115,12 +116,12 @@ export default function SSOLandingView() {
 
               <div className="p-3.5 rounded-2xl bg-white/75 border border-[#F1DDE9] shadow-2xs backdrop-blur-sm flex items-start gap-3">
                 <div className="w-8 h-8 rounded-xl bg-[#FFF0F6] border border-[#F1DDE9] flex items-center justify-center shrink-0 text-[#9D3C5E]">
-                  <Lock className="w-4 h-4 text-[#FF7AB3]" />
+                  <BarChart3 className="w-4 h-4 text-[#FF7AB3]" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-[#4A3E44]">Strict Google SSO</h4>
+                  <h4 className="text-xs font-bold text-[#4A3E44]">Smart Analytics</h4>
                   <p className="text-[11px] text-[#736A6D] mt-0.5 leading-snug">
-                    Invite-only authentication ensures only whitelisted accounts enter.
+                    Visualize application progress, compare outcomes, and export branded reports.
                   </p>
                 </div>
               </div>
