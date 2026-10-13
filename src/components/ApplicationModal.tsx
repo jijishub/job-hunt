@@ -145,6 +145,7 @@ export default function ApplicationModal({
   const importInput = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const fitRequest = useRef<AbortController | null>(null);
+  const initializedDraft = useRef<{ applicationId: string | null; userId?: string; quickImport: boolean } | null>(null);
 
   useEffect(() => {
     if (isOpen && startWithJsonImport && importOpen) {
@@ -186,6 +187,14 @@ export default function ApplicationModal({
   }, [isOpen, isMember]);
 
   useEffect(() => {
+    if (!isOpen) { initializedDraft.current = null; return; }
+    const identity = { applicationId: initialData?.id ?? null, userId: currentUserId, quickImport: startWithJsonImport };
+    const previous = initializedDraft.current;
+    // Account refreshes replace users/initialData objects while the draft is open.
+    // Initialize once per opening, application, signed-in account, and import mode.
+    if (previous && previous.applicationId === identity.applicationId && previous.userId === identity.userId && previous.quickImport === identity.quickImport) return;
+    initializedDraft.current = identity;
+    fitRequest.current?.abort(); fitRequest.current = null;
     setSeniorityOverride(initialData?.seniority_level && initialData.seniority_level_source !== 'derived' ? initialData.seniority_level : null);
     setRoleFamilyOverride(initialData?.role_family && initialData.role_family_source !== 'derived' ? initialData.role_family : null);
     setJobPlatform(initialData?.job_platform || initialData?.source || '');

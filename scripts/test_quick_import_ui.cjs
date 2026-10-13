@@ -3,6 +3,63 @@ const assert=require('node:assert/strict');
 const {chromium}=require('playwright-core');
 const fs=require('node:fs');
 
+test('pasted JSON and reviewed drafts survive account refreshes in both import flows',async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ try{
+  for(const quick of [true,false]){
+   const page=await browser.newPage({viewport:{width:1440,height:1000}});
+   const user={id:'draft-member',name:'Draft Tester',email:'draft@example.com',role:'member'};
+   let refresh=0,fitCalls=0,writes=0;
+   await page.route('**/api/**',async route=>{
+    const request=route.request(),pathname=new URL(request.url()).pathname;let data={success:true,data:[]};
+    if(pathname==='/api/auth/session')data={user,expires:'2099-01-01'};
+    else if(pathname==='/api/users')data.data=[{...user,avatar:refresh?`/ask-gemini.png?refresh=${refresh}`:undefined}];
+    else if(pathname==='/api/preferences')data.data={default_view:'ALL',target_roles:[],target_companies:[],preferred_locations:[],work_models:[],job_types:[],dealbreakers:'',salary_currency:'PHP'};
+    else if(pathname==='/api/notion/sync')data={configured:false};
+    else if(pathname==='/api/role-fit'){fitCalls++;data.data={fit:'STRONG',explanation:'Saved retail experience matches these requirements.',strengths:['Customer service'],gaps:[],analyzed_at:'2026-10-14'};}
+    else if(pathname==='/api/applications'&&request.method()==='POST'){writes++;data.data={...request.postDataJSON(),id:'saved-draft'};}
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
+   });
+   await page.goto(process.env.PIPELINE_TEST_URL||'http://localhost:3100');
+   await page.getByRole('button',{name:quick?'Import job JSON':'New App',exact:true}).click();
+   const dialog=page.getByRole('dialog',{name:'New Application / Lead',exact:true});
+   if(!quick)await dialog.getByRole('button',{name:'Import job JSON',exact:true}).click();
+   const json=dialog.getByLabel('Job posting JSON');
+   const posting=JSON.stringify({role_title:'Retail Associate',company_name:'Example Shop',description:'Help customers, manage stock, and maintain accurate sales records.'});
+   await json.fill(posting);
+   const refreshAccount=async()=>{
+    refresh++;
+    const users=page.waitForResponse('**/api/users');
+    await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+    await users;
+    await page.waitForFunction(version=>document.querySelector('header img[alt="Draft Tester"]')?.getAttribute('src')?.includes(`refresh=${version}`),refresh,{timeout:10000});
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   };
+   await refreshAccount();
+   assert.equal(await json.inputValue(),posting,'Returning from Gemini must preserve pasted JSON');
+   await dialog.getByRole('button',{name:quick?'Fill draft & assess fit':'Fill draft from JSON',exact:true}).click();
+   await page.waitForFunction(()=>document.querySelector('[aria-label="Job title"]')?.value==='Retail Associate');
+   if(quick)await page.waitForFunction(()=>document.querySelector('[aria-label="Role fit"]')?.value==='STRONG');
+   await dialog.getByLabel('Personal comments').fill('My reviewed draft');
+   await refreshAccount();
+   assert.equal(await dialog.getByLabel('Job title').inputValue(),'Retail Associate');
+   assert.match(await dialog.getByLabel('Job description').inputValue(),/Help customers/);
+   assert.equal(await dialog.getByLabel('Personal comments').inputValue(),'My reviewed draft');
+   assert.equal(fitCalls,quick?1:0,'Refreshing must not regenerate role fit');assert.equal(writes,0);
+   if(quick)assert.equal(await dialog.getByLabel('Role fit',{exact:true}).inputValue(),'STRONG');
+   fs.mkdirSync('.data',{recursive:true});await dialog.screenshot({path:`.data/draft-refresh-${quick?'quick':'regular'}.png`});
+   await dialog.getByRole('button',{name:'Create Application',exact:true}).click();
+   await dialog.waitFor({state:'hidden'});assert.equal(writes,1);
+   await page.getByRole('button',{name:quick?'Import job JSON':'New App',exact:true}).click();
+   assert.equal(await dialog.getByLabel('Job title').inputValue(),'','Opening a new draft must still reset the previous one');
+   if(!quick)await dialog.getByRole('button',{name:'Import job JSON',exact:true}).click();
+   assert.equal(await json.inputValue(),'');
+   await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+   await page.close();
+  }
+ }finally{await browser.close();}
+});
+
 test('quick JSON import opens directly, assesses the imported posting, and saves only after review for admins and members',async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true});
  try{
