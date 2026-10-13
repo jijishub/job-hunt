@@ -75,7 +75,7 @@ export default function ResumeAnalyzerView({
 
   useEffect(() => {
     const controller = new AbortController();
-    setProfileLoading(true); setResult(null);
+    setProfileLoading(true);
     fetch('/api/profile', { signal: controller.signal }).then(r => r.json()).then(data => {
       if (!data.success) throw new Error(data.error);
       setResumeText(data.resumeText || '');
@@ -87,20 +87,23 @@ export default function ResumeAnalyzerView({
   const analysisVersion = useRef(0);
   const activeAnalysis = useRef<AbortController | null>(null);
   useEffect(() => () => { activeAnalysis.current?.abort(); }, []);
-  useEffect(() => { analysisVersion.current++; setResult(null); }, [resumeText, jobTitle, companyName, jobDescription, selectedModel, preferenceVersion]);
+  useEffect(() => { analysisVersion.current++; setResult(null); }, [resumeText, jobTitle, companyName, jobDescription, selectedAppId]);
+  useEffect(() => { analysisVersion.current++; }, [selectedModel]);
+  useEffect(() => { if (initialSelectedAppId) setSelectedAppId(initialSelectedAppId); }, [initialSelectedAppId]);
 
   // Pre-load from selected app if provided
+  const selectedApplication = applications.find(app => app.id === selectedAppId);
+  const hasSelectedApplication = Boolean(selectedApplication);
+  const selectedJobTitle = selectedApplication?.role_title || '';
+  const selectedCompanyName = selectedApplication?.company_name || '';
+  const selectedJobDescription = selectedApplication?.information || selectedApplication?.job_description || '';
   useEffect(() => {
-    if (selectedAppId) {
-      const app = applications.find((a) => a.id === selectedAppId);
-      if (app) {
-        setJobTitle(app.role_title || '');
-        setCompanyName(app.company_name || '');
-        setJobDescription(app.information || app.job_description || '');
-        setResult(null);
-      }
+    if (selectedAppId && hasSelectedApplication) {
+      setJobTitle(selectedJobTitle);
+      setCompanyName(selectedCompanyName);
+      setJobDescription(selectedJobDescription);
     }
-  }, [selectedAppId, applications]);
+  }, [selectedAppId, hasSelectedApplication, selectedJobTitle, selectedCompanyName, selectedJobDescription]);
 
   // Auto-import candidate portfolio/bio from jizellecasia.vercel.app
   const handleAutoImportPortfolio = async () => {

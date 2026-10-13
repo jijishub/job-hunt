@@ -52,6 +52,12 @@ export default function JobHuntDashboard() {
 
   const [activeView, setActiveView] = useState<'table' | 'board' | 'companies' | 'leads' | 'analytics' | 'resume' | 'guide'>('table');
   const [resumeTargetAppId, setResumeTargetAppId] = useState<string | null>(null);
+  const [resumeVisited, setResumeVisited] = useState(false);
+  const navigateTo = (view: typeof activeView) => {
+    if (view === 'resume') setResumeVisited(true);
+    else setResumeTargetAppId(null);
+    setActiveView(view);
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [notionStatus, setNotionStatus] = useState<any>(null);
@@ -514,7 +520,7 @@ export default function JobHuntDashboard() {
           <div className="p-2 sm:p-2.5 flex items-center justify-between gap-2 flex-wrap border-b border-[#F1DDE9]/60">
             <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
               <button
-                onClick={() => setActiveView('table')}
+                onClick={() => navigateTo('table')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'table'
                     ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
@@ -526,7 +532,7 @@ export default function JobHuntDashboard() {
               </button>
 
               <button
-                onClick={() => setActiveView('board')}
+                onClick={() => navigateTo('board')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'board'
                     ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
@@ -538,7 +544,7 @@ export default function JobHuntDashboard() {
               </button>
 
               <button
-                onClick={() => setActiveView('companies')}
+                onClick={() => navigateTo('companies')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'companies'
                     ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
@@ -550,7 +556,7 @@ export default function JobHuntDashboard() {
               </button>
 
               <button
-                onClick={() => setActiveView('leads')}
+                onClick={() => navigateTo('leads')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'leads'
                     ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
@@ -562,7 +568,7 @@ export default function JobHuntDashboard() {
               </button>
 
               <button
-                onClick={() => setActiveView('analytics')}
+                onClick={() => navigateTo('analytics')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'analytics'
                     ? 'bg-[#FFF0F6] text-[#9D3C5E] shadow-xs'
@@ -576,7 +582,7 @@ export default function JobHuntDashboard() {
               <button
                 onClick={() => {
                   setResumeTargetAppId(null);
-                  setActiveView('resume');
+                  navigateTo('resume');
                 }}
                 className={`inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
                   activeView === 'resume'
@@ -587,7 +593,7 @@ export default function JobHuntDashboard() {
                 <Sparkles className="w-4 h-4 text-[#FF7AB3]" />
                 <span>AI Resume & ATS</span>
               </button>
-              <button onClick={() => setActiveView('guide')} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition sm:text-sm ${activeView === 'guide' ? 'bg-[#FFF0F6] text-[#9D3C5E]' : 'text-[#736A6D] hover:bg-[#FAF7F9]'}`}><BookOpen className="h-4 w-4 text-[#FF7AB3]" /><span>Guide</span></button>
+              <button onClick={() => navigateTo('guide')} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition sm:text-sm ${activeView === 'guide' ? 'bg-[#FFF0F6] text-[#9D3C5E]' : 'text-[#736A6D] hover:bg-[#FAF7F9]'}`}><BookOpen className="h-4 w-4 text-[#FF7AB3]" /><span>Guide</span></button>
             </div>
 
             <div className="flex items-center gap-2 px-3 py-1.5 bg-[#FAF7F9] rounded-xl text-xs text-[#736A6D] font-medium border border-[#F1DDE9] whitespace-nowrap ml-auto">
@@ -798,17 +804,18 @@ export default function JobHuntDashboard() {
             }}
             onNavigateToResume={(appId) => {
               setResumeTargetAppId(appId);
-              setActiveView('resume');
+              navigateTo('resume');
             }}
           />
         ) : activeView === 'analytics' ? (
           <AnalyticsView applications={personalApplications} companies={filteredCompanies} accountName={currentUser?.name || 'My account'} preferenceVersion={preferenceVersion} defaultScope={defaultView} onEditApp={app => { setEditingApp(app); setIsAppModalOpen(true); }} />
-        ) : activeView === 'guide' ? <GuideView onOpenPreferences={() => setIsPreferencesOpen(true)} onNavigate={setActiveView} /> : activeView === 'resume' ? (
-          <ResumeAnalyzerView preferenceVersion={preferenceVersion} onOpenPreferences={() => setIsPreferencesOpen(true)}
+        ) : activeView === 'guide' ? <GuideView onOpenPreferences={() => setIsPreferencesOpen(true)} onNavigate={navigateTo} /> : null}
+        {resumeVisited && currentUser && <div hidden={activeView !== 'resume'}>
+          <ResumeAnalyzerView key={session.user?.email || currentUser.id} preferenceVersion={preferenceVersion} onOpenPreferences={() => setIsPreferencesOpen(true)}
             applications={personalApplications}
             initialSelectedAppId={resumeTargetAppId}
           />
-        ) : null}
+        </div>}
       </main>
 
       <PreferencesModal isOpen={isPreferencesOpen} isAdmin={currentUser?.role === 'admin'} onClose={() => setIsPreferencesOpen(false)} onSaved={preferences => {
@@ -832,7 +839,7 @@ export default function JobHuntDashboard() {
         onDelete={handleDeleteApplication}
         onAnalyzeResume={(appId) => {
           setResumeTargetAppId(appId);
-          setActiveView('resume');
+          navigateTo('resume');
           setIsDetailOpen(false);
         }}
       />
