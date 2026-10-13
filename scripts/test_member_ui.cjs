@@ -80,6 +80,7 @@ test('members can use Guide, master resume, company search, charts, ATS and real
     await page.getByText('No companies match your search.').waitFor();
     await page.getByRole('button', { name: 'Analytics', exact: true }).click();
     await page.getByRole('heading', { name: 'Member Tester’s job-search analytics' }).waitFor();
+    await page.getByText('More fit conversion charts', { exact: true }).click();
     await page.getByRole('button', { name: 'Review Strong fit applications', exact: true }).click();
     const review = page.locator('#analytics-role-review');
     assert.match(await review.innerText(), /Finance Analyst/);assert.doesNotMatch(await review.innerText(), /Audit Analyst|Other Private/);

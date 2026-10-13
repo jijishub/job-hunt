@@ -71,7 +71,7 @@ test('rejection preferences update metrics and PDF; structured job JSON fills a 
     await download.saveAs(pdfPath);
     const { extractText } = require('unpdf');
     const pdf = await extractText(new Uint8Array(fs.readFileSync(pdfPath)), { mergePages: true });
-    assert.match(pdf.text, /Rejections\s+67%\s+2 current rejections/);
+    assert.match(pdf.text, /Rejections\s+2\s+67% of submitted/);
     await page.getByRole('button', { name: 'New App', exact: true }).click();
     await page.getByRole('button', { name: 'Import job JSON', exact: true }).click();
     await page.getByLabel('Job posting JSON').fill(JSON.stringify({ job_title: 'AI Forward Deployed Engineer', company: 'Globe Telecom', location: 'Taguig', workplace_type: 'On-site', employment_type: 'Full-time', description: { overview: 'Build enterprise AI systems.', responsibilities: ['Deploy models.', 'Integrate business APIs.'] }, qualifications: { required: ['Python', 'SQL'] } }));

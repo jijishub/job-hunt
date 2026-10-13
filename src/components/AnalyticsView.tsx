@@ -1,10 +1,13 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { JobApplication, Company } from '@/types/job';
 import { pipelineAnalytics, isInternship, uniqueApplications, currentOutcome, applicationDay, type PipelineStats } from '@/lib/analytics';
 import AnalyticsComparisons from './AnalyticsComparisons';
 import AnalyticsAging from './AnalyticsAging';
+import AnalyticsCareer from './AnalyticsCareer';
+import { analyticsReportData, reportRoleFamily } from '@/lib/analytics-report';
+import { effectiveSeniority, SENIORITY_LEVELS } from '@/lib/application-analytics-fields';
 import { applicationAgeDays, awaitingEmployerResponse } from '@/lib/analytics-timing';
 import { analyticsPdf } from '@/lib/analytics-export';
 import { reachedStage, recordedStages, ANALYTICS_STAGES, AnalyticsStage, DEFAULT_REJECTION_STATUSES } from '@/lib/analytics-stages';
@@ -25,7 +28,7 @@ interface AnalyticsViewProps {
   defaultScope?: DefaultView;
   onEditApp?: (app: JobApplication) => void;
 }
-const percent = (value: number | null) => value === null ? '—' : `${value}%`;
+const percent = (value: number | null) => value === null ? 'N/A' : `${value}%`;
 const card = 'min-w-0 rounded-2xl border border-[#F1DDE9] bg-white p-5 shadow-xs';
 const button = 'rounded-xl border border-[#F1DDE9] bg-[#FFF0F6] px-3 py-2 text-xs font-semibold text-[#9D3C5E] disabled:opacity-50';
 
@@ -63,6 +66,7 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
     return () => controller.abort();
   }, [scope, snapshotKey]);
   const stats = useMemo(() => snapshot?.key === snapshotKey ? snapshot.stats : pipelineAnalytics(scopeRecords, mapping, rejectionStatuses, new Date(), preferences?.analytics_age_boundaries), [snapshot, snapshotKey, scopeRecords, mapping, rejectionStatuses, preferences?.analytics_age_boundaries]);
+  const report = useMemo(() => analyticsReportData(scoped, stats, mapping, rejectionStatuses), [scoped, stats, mapping, rejectionStatuses]);
   const [busy, setBusy] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -75,6 +79,11 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
   const currentInsight = insight?.signature === signature ? insight : null;
   const scopeLabel = scope === 'INTERNSHIP' ? 'Internships' : scope === 'OTHER' ? 'Regular Employment' : 'All (combined)';
   const reviewApps = scoped.filter(app => {
+    if (selection?.kind === 'fit' && selection.submittedOnly && reachedStage(app, mapping) < 1) return false;
+    if (selection?.kind === 'role' && (reachedStage(app, mapping) < 1 || reportRoleFamily(app) !== selection.value)) return false;
+    if (selection?.kind === 'platform' && (reachedStage(app, mapping) < 1 || (app.job_platform?.trim().toUpperCase() || app.source?.trim().toUpperCase() || 'UNKNOWN') !== selection.value)) return false;
+    if (selection?.kind === 'seniority' && (reachedStage(app, mapping) < 1 || SENIORITY_LEVELS.find(level => level.value === effectiveSeniority(app))!.label !== selection.value)) return false;
+    if (selection?.kind === 'type' && (reachedStage(app, mapping) < 1 || isInternship(app) !== (selection.value === 'Internships'))) return false;
     if (selection?.kind === 'age') {
       if (reachedStage(app, mapping) < 1) return false;
       if (selection.pending && !awaitingEmployerResponse(app, mapping, currentOutcome(app, mapping, rejectionStatuses) === 'ACTIVE')) return false;
@@ -124,6 +133,9 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
     </div>
     {preferenceError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{preferenceError} Reload to retry.</p>}
     {!preferencesReady ? <p role="status" className="text-sm text-[#736A6D]">{preferenceError ? 'Analytics paused until your saved settings load.' : 'Loading your analytics settings…'}</p> : <>
+      {scope === 'ALL' && report.types.length > 1 && <p className="rounded-xl bg-[#FFF0F6] p-3 text-xs text-[#736A6D]">All combines internships and non-internship applications. Use the filter to compare them separately; historical and recent records have different observation time.</p>}
+      <nav aria-label="Analytics sections" className="flex flex-wrap gap-2 text-xs text-[#9D3C5E]">{[['analytics-pipeline','Pipeline'],['analytics-effectiveness','Effectiveness'],['analytics-timing','Timing'],['analytics-career','Career insights']].map(([id, name]) => <a key={id} href={`#${id}`} className={button}>{name}</a>)}</nav>
+      <section id="analytics-pipeline" aria-labelledby="analytics-pipeline-title" className="scroll-mt-72 sm:scroll-mt-32 space-y-4"><div><h3 id="analytics-pipeline-title" className="text-base font-bold text-[#4A3E44]">Application pipeline</h3><p className="mt-1 text-xs text-[#736A6D]">What happened? Submitted applications and the phases they reached.</p></div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">{[
         ['Tracked roles', stats.total, `${stats.leads} not submitted`],
         ['Submitted', stats.submitted, `${stats.recent} in the last 30 days`],
@@ -131,18 +143,20 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
         ['Offers', stats.funnel[4].count, `${percent(stats.offerRate)} of submitted applications`],
         ['Rejections', stats.rejections, `${percent(stats.rejectionRate)} of submitted applications`],
       ].map(([label, value, detail]) => <div key={label} className={card}><p className="text-xs font-semibold text-[#736A6D]">{label}</p><p className="my-2 text-3xl font-bold text-[#9D3C5E]">{value}</p><p className="text-[11px] text-[#736A6D]">{detail}</p></div>)}</div>
-      <AnalyticsCharts stats={stats} onReview={review} />
-      <AnalyticsAging stats={stats} onReview={review} />
-      <AnalyticsComparisons stats={stats} />
-      <SalaryOffersChart stats={stats} preferences={preferences} onReview={review} />
-      <SalaryExpectationsChart stats={stats} onReview={review} />
-      <div className="grid gap-4 lg:grid-cols-2">
+      <p className="text-[11px] text-[#736A6D]">Rates use {stats.submitted} submitted applications. Offer-stage progress includes declined offers and is separate from {stats.salaryOffers.count} recorded salary offers.</p>
+      <AnalyticsCharts stats={stats} onReview={review} section="pipeline" /></section>
+      <section id="analytics-effectiveness" aria-labelledby="analytics-effectiveness-title" className="scroll-mt-72 sm:scroll-mt-32 space-y-4"><div><h3 id="analytics-effectiveness-title" className="text-base font-bold text-[#4A3E44]">Application effectiveness</h3><p className="mt-1 text-xs text-[#736A6D]">What works? Compare submitted samples without treating small groups as predictions.</p></div>
+      <AnalyticsComparisons stats={stats} report={report} onReview={review} />
+      <details className={`${card} text-xs`}><summary className="cursor-pointer font-semibold">More fit conversion charts</summary><div className="mt-4"><AnalyticsCharts stats={stats} onReview={review} section="fit" /></div></details>
+      <div>
         <section className={card}><h3 className="text-sm font-bold">Fit coverage</h3><p className="mt-1 text-xs text-[#736A6D]">{stats.assessed} assessed · {stats.unassessed} unassessed · {percent(stats.coverage)} coverage</p>
           <div className="mt-4 flex h-5 overflow-hidden rounded-lg bg-[#FAF7F9]">{stats.fits.map((fit, index) => fit.total > 0 && <button type="button" key={fit.value} style={{ width: `${fit.total / stats.total * 100}%`, backgroundColor: ['#A6DCC7', '#F4D6A4', '#F6B4C4', '#C8BCE8'][index] }} title={`${fit.label}: ${fit.total}`} aria-label={`Review ${fit.total} ${fit.label} roles`} onClick={() => review({ kind: 'fit', value: fit.value, label: fit.label })} />)}</div>
           <details className="mt-3 text-xs"><summary className="cursor-pointer text-[#9D3C5E]">Role fit and conversion details</summary><div className="mt-3 overflow-x-auto"><table className="w-full text-left"><thead><tr>{['Role fit', 'Tracked', 'Submitted', 'Progressed', 'Offers', 'Rejections'].map(label => <th key={label} className="p-2">{label}</th>)}</tr></thead><tbody>{stats.fits.map(fit => <tr key={fit.value} className="border-t border-[#F1DDE9]"><td className="p-2 whitespace-nowrap">{fit.label}</td><td className="p-2">{fit.total}</td><td className="p-2">{fit.submitted}</td><td className="p-2">{fit.progressed} ({percent(fit.progressionRate)})</td><td className="p-2">{fit.offers} ({percent(fit.offerRate)})</td><td className="p-2">{fit.rejections} ({percent(fit.rejectionRate)})</td></tr>)}</tbody></table></div></details>
         </section>
-        <section className={card}><h3 className="text-sm font-bold">Preference alignment</h3><p className="mt-1 text-xs text-[#736A6D]">Saved AI comparisons · separate from experience fit.</p><div className="mt-4 space-y-2">{stats.preferenceAlignment.map((item, index) => <div key={item.label} className="grid grid-cols-[6rem_1fr_2rem] items-center gap-2 text-xs"><span className="capitalize">{item.label.toLowerCase()}</span><span className="h-3 overflow-hidden rounded-lg bg-[#FAF7F9]"><span className="block h-full rounded-lg" style={{ width: `${stats.total ? item.count / stats.total * 100 : 0}%`, backgroundColor: ['#A6DCC7', '#F4D6A4', '#F6B4C4', '#C8BCE8'][index] }} /></span><strong className="text-right">{item.count}</strong></div>)}</div></section>
       </div>
+      </section>
+      <section id="analytics-timing" aria-labelledby="analytics-timing-title" className="scroll-mt-72 sm:scroll-mt-32 space-y-4"><div><h3 id="analytics-timing-title" className="text-base font-bold text-[#4A3E44]">Application timing</h3><p className="mt-1 text-xs text-[#736A6D]">How long does it take? Unanswered waiting time and recorded callback latency stay separate.</p></div><AnalyticsAging stats={stats} report={report} onReview={review} /></section>
+      <section id="analytics-career" aria-labelledby="analytics-career-title" className="scroll-mt-72 sm:scroll-mt-32 space-y-4"><div><h3 id="analytics-career-title" className="text-base font-bold text-[#4A3E44]">Career insights</h3><p className="mt-1 text-xs text-[#736A6D]">What should I do next? Saved preference alignment, comparable salaries and evidence-based suggestions.</p></div><AnalyticsCareer stats={stats} report={report} onReview={review} /><SalaryOffersChart stats={stats} preferences={preferences} onReview={review} /><SalaryExpectationsChart stats={stats} onReview={review} /><details className={`${card} text-xs`}><summary className="cursor-pointer font-semibold">Current application outcomes</summary><div className="mt-4"><AnalyticsCharts stats={stats} onReview={review} section="outcomes" /></div></details></section>
       <details className={`${card} text-xs`}><summary className="cursor-pointer font-semibold">Data checks & counting rules <span className="ml-2 font-normal text-[#736A6D]">{stats.quality.uncertainPhases} phases to review · {stats.quality.missingDates} missing dates</span></summary>
         <div className="mt-3 space-y-2 text-[#736A6D]"><p>Rates use submitted applications in the selected scope. Offers include declined offers. Rejections use the current statuses selected in My preferences.</p><p>Earlier phases inferred from a later outcome are lavender, not recorded interview evidence. Each application ID counts once; the newest duplicate is used.</p><p>{stats.quality.duplicateRecords} duplicate records removed · {stats.quality.invalidDates} invalid dates · {stats.quality.futureDates} future dates excluded from activity. Missing dates stay in total counts.</p><p>Fit groups can overlap with recorded outcomes and are not randomized. Small samples and unassessed roles limit comparisons; these rates cannot prove which resume or fit category caused an outcome.</p><p>Assess relevant roles inside their application using Reanalyze role fit. Review past jobs before rating them against your current resume.</p></div>
       </details>

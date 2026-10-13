@@ -4,17 +4,18 @@ import { useState } from 'react';
 import { PipelineStats } from '@/lib/analytics';
 import { AnalyticsStage } from '@/lib/analytics-stages';
 
-export type ChartSelection = { kind: 'fit' | 'outcome' | 'month' | 'offer' | 'expected'; value: string; label: string }
+export type ChartSelection = { kind: 'fit' | 'outcome' | 'month' | 'offer' | 'expected' | 'role' | 'platform' | 'seniority' | 'type'; value: string; label: string; submittedOnly?: boolean }
   | { kind: 'age'; value: string; min: number | null; max: number | null; pending: boolean; label: string }
   | { kind: 'phase'; value: AnalyticsStage; label: string; evidence?: 'recorded' | 'inferred' };
 const card = 'min-w-0 rounded-2xl border border-[#F1DDE9] bg-white p-5 shadow-xs';
 const fitColors = ['#A6DCC7', '#F4D6A4', '#F6B4C4', '#C8BCE8'];
-export default function AnalyticsCharts({ stats, onReview }: { stats: PipelineStats; onReview: (selection: ChartSelection) => void }) {
+export default function AnalyticsCharts({ stats, onReview, section = 'all' }: { stats: PipelineStats; onReview: (selection: ChartSelection) => void; section?: 'all' | 'pipeline' | 'fit' | 'outcomes' }) {
   const [metric, setMetric] = useState<'progressionRate' | 'offerRate' | 'rejectionRate'>('offerRate');
   const metricLabel = metric === 'offerRate' ? 'Offers' : metric === 'rejectionRate' ? 'Rejections' : 'Screening or later';
+  if (!stats.total && section !== 'all' && section !== 'pipeline') return null;
   if (!stats.total) return <section className={card}><h3 className="font-semibold">Your charts start here</h3><p className="mt-2 text-sm text-[#736A6D]">Add an application to see your progress. Unassessed roles can stay unassessed.</p></section>;
   return <div className="grid gap-4 lg:grid-cols-2">
-    <section className={card} aria-label="Pipeline progression chart">
+    {(section === 'all' || section === 'pipeline') && <section className={card} aria-label="Pipeline progression chart">
       <h3 className="text-sm font-bold">Reached or passed</h3>
       <p className="mt-1 mb-4 text-xs text-[#736A6D]">Earlier phases may be inferred. Click a segment to review its roles.</p>
       <div className="mb-4 flex gap-4 text-[11px] text-[#736A6D]"><span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-[#FF7AB3]" />Recorded phase</span><span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-[#C8BCE8]" />Inferred from a later phase</span></div>
@@ -29,8 +30,8 @@ export default function AnalyticsCharts({ stats, onReview }: { stats: PipelineSt
             className="min-w-1 transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-[#9D3C5E]" />)}
         </div>
       </div>)}</div>
-    </section>
-    <section className={card} aria-label="Fit conversion chart">
+    </section>}
+    {(section === 'all' || section === 'fit') && <section className={card} aria-label="Fit conversion chart">
       <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-bold">Fit and conversion</h3>
         <select aria-label="Fit conversion metric" value={metric} onChange={event => setMetric(event.target.value as typeof metric)} className="rounded-lg border border-[#F1DDE9] bg-white px-2 py-1 text-xs">
           <option value="offerRate">Offers</option><option value="progressionRate">Screening or later</option><option value="rejectionRate">Rejections</option>
@@ -38,7 +39,8 @@ export default function AnalyticsCharts({ stats, onReview }: { stats: PipelineSt
       </div>
       <p className="mt-1 mb-4 text-xs text-[#736A6D]">{metricLabel} ÷ submitted in each group. Small samples vary widely.</p>
       <div className="flex justify-between pl-32 text-[10px] text-[#736A6D]"><span>0%</span><span>50%</span><span>100%</span></div>
-      <div className="mt-2 space-y-4">{stats.fits.map((fit, index) => {
+      <div className="mt-2 space-y-4">{stats.fits.filter(fit => fit.submitted > 0).map(fit => {
+        const index = stats.fits.indexOf(fit);
         const value = fit[metric];
         const count = metric === 'offerRate' ? fit.offers : metric === 'rejectionRate' ? fit.rejections : fit.progressed;
         return <button type="button" key={fit.value} onClick={() => onReview({ kind: 'fit', value: fit.value, label: fit.label })}
@@ -49,8 +51,8 @@ export default function AnalyticsCharts({ stats, onReview }: { stats: PipelineSt
         </button>;
       })}</div>
       <p className="mt-5 text-[11px] text-[#736A6D]">Unassessed roles stay visible. Rates describe recorded results, not offer probabilities.</p>
-    </section>
-    <section className={card} aria-label="Current outcomes chart">
+    </section>}
+    {(section === 'all' || section === 'outcomes') && <section className={card} aria-label="Current outcomes chart">
       <h3 className="text-sm font-bold">Where roles stand now</h3><p className="mt-1 text-xs text-[#736A6D]">Current outcomes · each role appears once.</p>
       <div className="mt-4 flex flex-wrap items-center justify-center gap-6">
         <svg viewBox="0 0 160 160" className="h-40 w-40 shrink-0" role="img" aria-label={`Current outcomes for ${stats.total} tracked roles`}>
@@ -67,8 +69,8 @@ export default function AnalyticsCharts({ stats, onReview }: { stats: PipelineSt
         </button>)}</div>
       </div>
       <p className="mt-3 text-[11px] text-[#736A6D]">Declined offers appear in Not proceeding here and still count as offers reached above.</p>
-    </section>
-    <section className={card} aria-label="Application activity chart">
+    </section>}
+    {(section === 'all' || section === 'pipeline') && <section className={card} aria-label="Application activity chart">
       <h3 className="text-sm font-bold">Application activity</h3><p className="mt-1 text-xs text-[#736A6D]">Last 12 months · saved application dates.</p>
       <div className="mt-4 overflow-x-auto">
         <svg viewBox="0 0 720 200" className="w-full min-w-[560px]" role="group" aria-label="Monthly submitted applications">
@@ -84,6 +86,6 @@ export default function AnalyticsCharts({ stats, onReview }: { stats: PipelineSt
         </svg>
       </div>
       <p className="mt-2 text-[11px] text-[#736A6D]">{stats.quality.datedApplications} dated submissions · {stats.quality.missingDates + stats.quality.invalidDates + stats.quality.futureDates} excluded for missing, invalid or future dates.</p>
-    </section>
+    </section>}
   </div>;
 }

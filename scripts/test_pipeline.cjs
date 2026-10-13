@@ -46,7 +46,7 @@ test('analytics scopes and exports work without AI, and changes refresh determin
  rows[0]={...rows[0],status:'INTERVIEWING'};assert.equal((await read('ALL')).funnel[2].count,2);
  const {analyticsPdf}=load('src/lib/analytics-export.ts');const {extractText}=require('unpdf');
  const pdf=await analyticsPdf(rows,'Member','All');const text=(await extractText(new Uint8Array(pdf.output('arraybuffer')),{mergePages:true})).text;
- assert.match(text,/Application effectiveness comparisons/);assert.match(text,/software engineer/);assert.doesNotMatch(text,/NaN|Infinity/);
+ assert.match(text,/Application effectiveness comparisons/);assert.match(text,/Software Development/);assert.doesNotMatch(text,/NaN|Infinity/);
  assert.equal((await route.GET(new Request('http://local/api/analytics?scope=forged'))).status,400);
 });
 
@@ -524,18 +524,18 @@ test('PDF stays compact for 500 applications and includes targets and AI without
  const smaller=await analyticsPdf(rows.slice(0,35),'Jizelle Casia','All my roles',insight,{},undefined,targets);
  assert.equal(pdf.getNumberOfPages(),smaller.getNumberOfPages());assert.ok(pdf.getNumberOfPages() <= 5);
  const {extractText}=require('unpdf');const result=await extractText(new Uint8Array(pdf.output('arraybuffer')),{mergePages:true});
- for(const expected of ['Jizelle Casia','500','Role fit and conversion','Unassessed: 0','Target Employer','Solutions Architect','Las Pinas','PHP 60,000.00','Daytime schedule',insight.summary,insight.nextSteps[0]])assert.ok(result.text.includes(expected),expected);
+ for(const expected of ['Jizelle Casia','500','Role fit and outcomes','Unassessed: 0','Target Employer','Solutions Architect','Las Pinas','PHP 60,000.00','Daytime schedule',insight.summary,insight.nextSteps[0]])assert.ok(result.text.includes(expected),expected);
  assert.doesNotMatch(result.text,/Private Employer|Private Role|PRIVATE_|Application details/);
  fs.mkdirSync(path.join(ROOT,'.data'),{recursive:true});fs.writeFileSync(path.join(ROOT,'.data','analytics-report-preview.pdf'),Buffer.from(pdf.output('arraybuffer')));
 });
 
 test('PDF handles empty analytics and paginates long insights without losing content',async()=>{
  const {analyticsPdf}=loader()('src/lib/analytics-export.ts');const {extractText,getDocumentProxy}=require('unpdf');
- const empty=await analyticsPdf([],'Member','Internships');assert.equal(empty.getNumberOfPages(),3);
+ const empty=await analyticsPdf([],'Member','Internships');assert.equal(empty.getNumberOfPages(),4);
  const emptyText=(await extractText(new Uint8Array(empty.output('arraybuffer')),{mergePages:true})).text;
- assert.match(emptyText,/N\/A/);assert.match(emptyText,/No AI analysis generated/);assert.doesNotMatch(emptyText,/NaN|Infinity/);
+ assert.match(emptyText,/N\/A/);assert.match(emptyText,/No AI interpretation saved/);assert.doesNotMatch(emptyText,/NaN|Infinity/);
  const summary=Array.from({length:70},(_,i)=>`Insight ${i}: review recorded pipeline evidence before adjusting your targets.`).join('\n');
- const long=await analyticsPdf([sample()],'Member','All roles',{summary,nextSteps:['FINAL_NEXT_STEP']});assert.ok(long.getNumberOfPages()>3);
+ const long=await analyticsPdf([sample()],'Member','All roles',{summary,nextSteps:['FINAL_NEXT_STEP']});assert.ok(long.getNumberOfPages()>4);
  const doc=await getDocumentProxy(new Uint8Array(long.output('arraybuffer')));
  const text=(await extractText(doc,{mergePages:true})).text;assert.match(text,/Insight 69/);assert.match(text,/FINAL_NEXT_STEP/);
  for(let i=1;i<=doc.numPages;i++){const page=await doc.getPage(i);const content=await page.getTextContent();for(const item of content.items){if(!item.str)continue;assert.ok(item.transform[5]>=15 && item.transform[5]<=page.view[3]-25,`Text outside page ${i}: ${item.str}`);assert.ok(item.transform[4]+item.width<=page.view[2]-25,`Text overflows page ${i}: ${item.str}`);}}
@@ -545,6 +545,39 @@ test('resume profile is scoped to the session account and ignores a forged owner
  let user={id:'user_friend',email:'friend@example.com'};const profiles={user_ji:'Private admin resume',user_friend:'Friend resume'};
  const route=loader({'@/lib/session-account':{getSessionAccount:async()=>user},'@/lib/db':{getCandidateProfile:async id=>profiles[id]||null,saveCandidateProfile:async(id,text)=>{profiles[id]=text;}}})('src/app/api/profile/route.ts');
  assert.equal((await (await route.GET()).json()).resumeText,'Friend resume');await route.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({owner:'user_ji',resumeText:'Updated friend resume'})}));assert.equal(profiles.user_ji,'Private admin resume');assert.equal(profiles.user_friend,'Updated friend resume');user=null;assert.equal((await route.GET()).status,401);
+});
+
+test('visual report groups preserve manual families, submitted denominators and exclusive fit outcomes',()=>{
+ const load=loader(),{analyticsReportData,reportRoleFamily}=load('src/lib/analytics-report.ts'),{pipelineAnalytics}=load('src/lib/analytics.ts');
+ assert.equal(reportRoleFamily({role_title:'Junior AI Engineer'}),'AI / ML Engineering');assert.equal(reportRoleFamily({role_title:'Software Developer'}),'Software Development');assert.equal(reportRoleFamily({role_title:'IT Support Specialist'}),'IT Support');
+ assert.equal(reportRoleFamily({role_title:'Senior AI Engineer',role_family:'My editable family',role_family_source:'manual'}),'My editable family');
+ const rows=[sample({id:'a',role_title:'Junior Software Developer',role_fit:'STRONG',status:'OFFER'}),sample({id:'b',role_title:'Software Engineer',role_fit:'STRONG',status:'WITHDRAWN',stage_history:[{status:'OFFER',at:'2026-10-01'}]}),sample({id:'c',role_title:'AI Engineer',role_family:'My editable family',role_family_source:'manual',status:'INTERVIEWING'}),sample({id:'d',role_title:'Unsubmitted role',status:'LEAD'})];
+ const stats=pipelineAnalytics(rows),report=analyticsReportData(rows,stats);
+ assert.equal(report.roles.reduce((sum,row)=>sum+row.submitted,0),stats.submitted);assert.equal(report.roles[0].label,'Software Development');assert.equal(report.roles[0].offers,2);assert.equal(report.roles[0].offerRate,100);
+ assert.ok(report.roles.some(row=>row.label==='My editable family'));assert.ok(!report.roles.some(row=>row.label==='Unsubmitted role'));
+ const strong=report.fits.find(row=>row.value==='STRONG');assert.equal(strong.outcomes.find(row=>row.key==='OFFER').count,1);assert.equal(strong.outcomes.find(row=>row.key==='CLOSED').count,1);
+ for(const fit of report.fits)assert.equal(fit.outcomes.reduce((sum,row)=>sum+row.count,0),fit.submitted);
+});
+
+test('callback visuals use saved events only and require sufficient dated cohorts for a heatmap',()=>{
+ const load=loader(),{analyticsReportData}=load('src/lib/analytics-report.ts'),{pipelineAnalytics}=load('src/lib/analytics.ts');
+ const rows=Array.from({length:5},(_,i)=>sample({id:String(i),date_applied:i<3?'2026-08-01':'2026-09-01',first_response_at:i<3?'2026-08-06T00:00:00Z':'2026-09-21T00:00:00Z'}));
+ rows.push(sample({id:'no-event',date_applied:'2026-08-01',status:'OFFER',stage_history:[{status:'SCREENING',at:'2026-08-03'}]}),sample({id:'before',date_applied:'2026-09-01',first_response_at:'2026-08-01T00:00:00Z'}),sample({id:'future',date_applied:'2026-09-01',first_response_at:'2099-01-01T00:00:00Z'}));
+ const stats=pipelineAnalytics(rows,{},undefined,new Date('2026-10-13')),report=analyticsReportData(rows,stats);
+ assert.equal(report.responseCount,stats.timing.callbacks.count);assert.deepEqual(report.callbackBins.map(bin=>bin.count),[3,0,2,0]);assert.equal(report.heatmapReady,true);
+ const few=rows.slice(0,3);assert.equal(analyticsReportData(few,pipelineAnalytics(few)).heatmapReady,false);
+ assert.equal(report.responseCohorts.reduce((sum,row)=>sum+row.responses,0),5);
+});
+
+test('PDF stays four pages across many categories and shows recorded evidence and eligible timing samples',async()=>{
+ const load=loader(),{analyticsPdf}=load('src/lib/analytics-export.ts'),{extractText,getDocumentProxy}=require('unpdf');
+ const rows=Array.from({length:160},(_,i)=>sample({id:String(i),role_title:'Junior Software Developer',role_family:'Custom family '+i,role_family_source:'manual',job_platform:'Platform '+i,date_applied:i%2?'2026-08-01':'2026-09-01',first_response_at:i%2?'2026-08-06T00:00:00Z':'2026-09-21T00:00:00Z',status:i%3?'APPLIED':'OFFER',role_fit:i%2?'STRONG':null,role_fit_analysis:{preference_alignment:i%2?'ALIGNED':'MIXED'}}));
+ const pdf=await analyticsPdf(rows,'Report Member','All (combined)',undefined,{},undefined,{analytics_age_boundaries:[3,10,20]});assert.equal(pdf.getNumberOfPages(),4);
+ const doc=await getDocumentProxy(new Uint8Array(pdf.output('arraybuffer'))),text=(await extractText(doc,{mergePages:true})).text;
+ for(const title of ['Application pipeline','Application effectiveness','Application timing','Career insights','21+ days','Top 6 of 160','eligible','recorded salary offers'])assert.ok(text.includes(title),title);
+ assert.doesNotMatch(text,/NaN|Infinity/);
+ for(let i=1;i<=doc.numPages;i++){const page=await doc.getPage(i),content=await page.getTextContent();for(const item of content.items){if(!item.str)continue;assert.ok(item.transform[5]>=15&&item.transform[5]<=page.view[3]-25,`Text outside page ${i}: ${item.str}`);assert.ok(item.transform[4]>=25&&item.transform[4]+item.width<=page.view[2]-25,`Text overflows page ${i}: ${item.str}`);}}
+ fs.writeFileSync(path.join(ROOT,'.data','analytics-visual-report.pdf'),Buffer.from(pdf.output('arraybuffer')));
 });
 test('AI pipeline interpretation uses server-derived statistics for only the signed-in owner',async()=>{
  let stats;const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',email:'ji@example.com'})},'@/lib/db':{getAnalyticsApplications:async()=>[sample()]},'@/lib/ai':{callGeminiJSON:async(system,input)=>{stats=JSON.parse(input);return {summary:'One tracked application',nextSteps:['Review targeting']};}}})('src/app/api/analytics/analyze/route.ts');const response=await route.POST(new Request('http://local',{method:'POST',body:JSON.stringify({owner:'friend',stats:{total:99}})}));assert.equal(response.status,200);assert.equal(stats.total,1);assert.equal(stats.funnel[4].count,0);

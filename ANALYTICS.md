@@ -33,7 +33,17 @@ Average and median callback days use only valid paired submission/response dates
 - Callback timing uses saved `first_response_at` only. Current status, status-history save timestamps, update timestamps, withdrawals, and inferred phases do not establish a response date. Invalid, future, or pre-submission responses are excluded. Average and median calculations exclude unknown latency; records stay included in aggregate counts. Calendar days use the project's Asia/Shanghai reporting timezone.
 - Response cohorts group by the stored submission month, counting recorded responses through the report date. Missing submission dates form an Unknown cohort. Newer cohorts have had less time to respond. Recorded-response rates are limited by history completeness.
 - Existing fit groups provide role-fit calibration against progression, offers, and rejections. Role, seniority, platform, cohort, and saved-fit comparisons show application effectiveness without inventing a composite score or causal claim.
-- Reports retain the existing visual summaries and add grouped comparisons. Appendix length depends on distinct groups, not individual application detail rows. Reports contain no application notes, descriptions, contacts, or resume text.
+- The dashboard and PDF share visual summaries of pipeline, effectiveness, timing, and career insights. The normal report is four pages; category charts show the largest submitted samples and disclose omitted groups. Long saved interpretations, preference targets, or extra salary units can add an appendix. Reports contain no application notes, descriptions, contacts, or resume text.
+
+## Visual reporting
+
+The PDF and dashboard use the same deterministic display data. Automatic title families can be grouped into AI / ML Engineering, Software Development, Automation / RPA, Data / Analytics, IT Support, and Business / Operations; unmatched families keep their label. Manual families and original titles are preserved. This is a reporting view, not a stored reclassification or a change to existing calculations. Full original-family, seniority, platform, cohort, and fit tables remain available in Analytics.
+
+Performance charts exclude groups with no submissions, display submitted sample sizes, and mark samples below five as small. Role-fit stacked bars show exclusive current outcomes among submitted applications; offer-stage conversion remains a separate measure, including declined offers. Recorded salary offers are labeled separately from offer-stage evidence.
+
+Callback histograms use valid saved submission/response pairs in calendar days. The cohort heatmap appears with at least five usable responses across two submission months; its cells count responses, not conversion rates. A single response stays in the KPIs without a distribution chart. Missing timing produces a concise empty state; response-window coverage bars explain eligible, too-recent, and unknown-timing samples while the heatmap is unavailable. Unanswered aging uses saved configurable boundaries; 7/14/30-day response windows keep their existing maturity and unknown-timing exclusions.
+
+Career insights separate observed facts, limitations, suggested actions, and optional saved AI interpretation. Salary bullets compare recorded medians within the same currency and pay period; only monthly groups in the target currency show the monthly minimum. Matched expectation gaps still pair the same application. Long saved text is paginated rather than clipped. Combining scopes does not make historical internships equivalent to recent non-internship applications.
 
 ## URL platform backfill
 

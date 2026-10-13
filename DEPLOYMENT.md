@@ -188,6 +188,7 @@ Once deployed, run these smoke checks:
    - Confirm **Junior AI Engineer** derives as Junior and **AI Engineer** as Unspecified. Set a manual seniority or role-family override, change the title, and verify it persists. Reset to Automatic and verify the title rules take over.
    - Record an actual first employer response date, save, reopen, and confirm it is retained. The form uses local time and stores UTC.
 7. **AI-independent analytics and PDF**:
+   - Check the matching Pipeline, Effectiveness, Timing, and Career insights sections. A normal export should have four readable pages; long saved context may add an appendix. Verify chart sample sizes and click through to the corresponding records.
    - Use a preview environment without an AI key, or block the AI endpoint in a test browser. Confirm Analytics loads and internship/regular-employment scope changes update charts without assessment requests.
    - Review role-family, seniority, platform, saved-fit and cohort comparisons. Missing assessments should remain Unassessed; missing response dates should remain unknown.
    - Change age boundaries in My preferences and verify the unanswered chart, age drilldowns and PDF use the same non-overlapping ranges. Closed or previously progressed records must not appear as unanswered.

@@ -95,7 +95,7 @@ test('AI is optional: filters and PDF work during requests and after failures; l
     const download = await downloadEvent; assert.equal(download.suggestedFilename(), 'my-job-search-analytics.pdf');
     const { extractText } = require('unpdf');
     const text = (await extractText(new Uint8Array(fs.readFileSync(await download.path())), { mergePages: true })).text;
-    assert.match(text, /Application aging/);assert.match(text, /Within 7 days/);assert.match(text, /21\+ days/);
+    assert.match(text, /Unanswered application aging/);assert.match(text, /Response within 7 days/);assert.match(text, /21\+ days/);
     assert.equal(aiCalls, 1); assert.equal(assessmentCalls, 0);
     await pending.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ success: false, error: 'AI unavailable' }) });
     await page.getByText('AI unavailable', { exact: true }).waitFor();
@@ -148,5 +148,58 @@ test('AI is optional: filters and PDF work during requests and after failures; l
     await page.getByRole('heading', { name: 'Edit Application', exact: true }).waitFor({ state: 'hidden' });
     assert.equal(apps[0].seniority_level, 'SENIOR'); assert.equal(apps[0].seniority_level_source, 'derived'); assert.equal(apps[0].role_family, 'ai engineer');
     assert.equal(assessmentCalls, 0);
+  } finally { await browser.close(); }
+});
+
+test('visual dashboard matches the four-page report and drills into submitted chart samples', async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    const user = { id: 'visual-member', name: 'Visual Member', email: 'visual@example.com', role: 'member' };
+    const base = { owner: user.id, company_name: 'Test Employer', priority: 'MEDIUM', job_type: 'FULL_TIME', work_model: 'REMOTE', salary_currency: 'PHP', created_at: '2026-10-01', updated_at: '2026-10-01' };
+    const apps = Array.from({ length: 6 }, (_, i) => ({ ...base, id: String(i), role_title: 'Junior Software Developer', status: i % 2 ? 'SCREENING' : 'OFFER', role_fit: 'STRONG', job_platform: 'LINKEDIN', date_applied: i < 3 ? '2026-08-01' : '2026-09-01', first_response_at: i < 3 ? '2026-08-06T00:00:00Z' : '2026-09-21T00:00:00Z', role_fit_analysis: { preference_alignment: i % 2 ? 'ALIGNED' : 'MIXED' } }));
+    apps.push({ ...base, id: 'lead', role_title: 'Junior Software Developer', company_name: 'Unsubmitted Employer', status: 'LEAD', role_fit: 'STRONG', job_platform: 'LINKEDIN' });
+    apps.push({ ...base, id: 'other', role_title: 'AI Engineer', company_name: 'Other Employer', status: 'APPLIED', job_type: 'INTERNSHIP', date_applied: '2026-10-12' });
+    const preferences = { target_roles: [], target_companies: [], preferred_locations: [], work_models: [], job_types: [], salary_currency: 'PHP', dealbreakers: '', analytics_age_boundaries: [7,14,30] };
+    let aiCalls = 0;
+    await page.route('**/api/**', async route => {
+      const url = new URL(route.request().url()); let data = { success: true, data: [] };
+      if (url.pathname === '/api/auth/session') data = { user, expires: '2099-01-01' };
+      else if (url.pathname === '/api/users') data.data = [user];
+      else if (url.pathname === '/api/applications') data.data = apps;
+      else if (url.pathname === '/api/preferences') data.data = preferences;
+      else if (url.pathname === '/api/analytics') { const scope = url.searchParams.get('scope'); data.data = pipelineAnalytics(apps.filter(app => scope === 'INTERNSHIP' ? isInternship(app) : scope === 'OTHER' ? !isInternship(app) : true)); }
+      else if (url.pathname === '/api/analytics/analyze' || url.pathname.startsWith('/api/ai') || url.pathname === '/api/role-fit') { aiCalls++; return route.abort(); }
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify(data) });
+    });
+    await page.goto(process.env.PIPELINE_TEST_URL || 'http://localhost:3100');
+    await page.getByRole('button', { name: 'Analytics', exact: true }).click();
+    for (const title of ['Application pipeline','Application effectiveness','Application timing','Career insights']) await page.getByRole('heading', { name: title, exact: true }).waitFor();
+    await page.getByRole('region', { name: 'Response cohort heatmap', exact: true }).waitFor();
+    assert.equal(await page.getByRole('img', { name: 'Callback distribution for 6 recorded responses', exact: true }).count(), 1);
+    const review = page.locator('#analytics-role-review');
+    for (const name of ['Review Software Development applications','Review LINKEDIN applications','Review Junior applications','Review Strong fit submitted outcomes']) {
+      await page.getByRole('button', { name, exact: true }).click();
+      assert.match(await review.innerText(), /6 roles in this review/);
+      assert.doesNotMatch(await review.innerText(), /Unsubmitted Employer|Other Employer/);
+      await review.getByRole('button', { name: 'Show all', exact: true }).click();
+    }
+    const downloadEvent = page.waitForEvent('download'); await page.getByRole('button', { name: 'Export PDF', exact: true }).click();
+    const { getDocumentProxy } = require('unpdf'), download = await downloadEvent;
+    const doc = await getDocumentProxy(new Uint8Array(fs.readFileSync(await download.path()))); assert.equal(doc.numPages, 4);
+    fs.mkdirSync('.data', { recursive: true });
+    await page.locator('#analytics-effectiveness').screenshot({ path: '.data/analytics-effectiveness-desktop.png' });
+    await page.setViewportSize({ width: 375, height: 900 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    await page.getByRole('link', { name: 'Timing', exact: true }).click();
+    const timingHeading = await page.getByRole('heading', { name: 'Application timing', exact: true }).boundingBox();
+    const header = await page.locator('header').boundingBox();
+    assert.ok(timingHeading.y >= header.y + header.height - 1, 'Section navigation keeps the heading below the mobile header');
+    await page.locator('#analytics-effectiveness').screenshot({ path: '.data/analytics-effectiveness-mobile.png' });
+    await page.locator('#analytics-timing').screenshot({ path: '.data/analytics-timing-mobile.png' });
+    await page.getByLabel('Analytics job type').selectOption('INTERNSHIP');
+    await page.getByRole('region', { name: 'Response window coverage', exact: true }).waitFor();
+    assert.equal(await page.getByRole('region', { name: 'Response cohort heatmap', exact: true }).count(), 0);
+    assert.equal(aiCalls, 0);
   } finally { await browser.close(); }
 });
