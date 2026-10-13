@@ -97,7 +97,7 @@ test('AI is optional: filters and PDF work during requests and after failures; l
     apps.push({...apps[0],id:'saved-in-another-session',role_title:'Customer Service Associate'});
     const downloadEvent = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Export PDF', exact: true }).click();
-    const download = await downloadEvent; assert.equal(download.suggestedFilename(), 'my-job-search-analytics.pdf');
+    const download = await downloadEvent; assert.match(download.suggestedFilename(), /^Job-Hunt-Analytics-All-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.pdf$/);
     const { extractText } = require('unpdf');
     const text = (await extractText(new Uint8Array(fs.readFileSync(await download.path())), { mergePages: true })).text;
     assert.match(text,/Tracked\s+3/); assert.doesNotMatch(text,/AI interpretation|No AI interpretation|Recorded observations/); apps.pop();

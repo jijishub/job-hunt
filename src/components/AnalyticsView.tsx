@@ -114,7 +114,10 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
       if (!response.ok || !data.success || !Array.isArray(data.data?.applications) || !data.data?.stats) throw new Error(data.error || 'Latest saved analytics could not be loaded. Please retry the export.');
       const { applications: latest, stats: latestStats, preferences: latestPreferences } = data.data;
       const pdf = await analyticsPdf(latest, accountName, scopeLabel, latestPreferences?.analytics_status_stages || {}, latestPreferences?.analytics_rejection_statuses ?? DEFAULT_REJECTION_STATUSES, latestPreferences, latestStats);
-      pdf.save('my-job-search-analytics.pdf');
+      const filenameScope = scope === 'INTERNSHIP' ? 'Internships' : scope === 'OTHER' ? 'Regular-Employment' : 'All';
+      const exportedAt = new Date();
+      const time = [exportedAt.getHours(), exportedAt.getMinutes(), exportedAt.getSeconds()].map(value => String(value).padStart(2, '0')).join('-');
+      pdf.save(`Job-Hunt-Analytics-${filenameScope}-${latestStats.asOf}-${time}.pdf`);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'PDF export failed.'); }
     finally { setBusy(''); }
   }
