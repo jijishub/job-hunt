@@ -452,7 +452,7 @@ export default function ApplicationModal({
                       }}
                       className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
                     >
-                      {[...statusOptions].sort((a, b) => Number(b.name === 'Applied') - Number(a.name === 'Applied')).map((opt) => (
+                      {[...statusOptions].sort((a, b) => (a.name === 'Not started' ? 0 : a.name === 'Applied' ? 1 : 2) - (b.name === 'Not started' ? 0 : b.name === 'Applied' ? 1 : 2)).map((opt) => (
                         <option key={opt.id || opt.name} value={opt.name}>
                           {opt.name}
                         </option>
