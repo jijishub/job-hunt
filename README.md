@@ -77,7 +77,7 @@ Seniority uses explicit title keywords: **Junior AI Engineer** is Junior, while 
 
 Application age comes from the existing submission date and the reporting date; no age field is stored. The unanswered chart excludes closed and previously progressed applications, and keeps missing, invalid, or future dates under unknown age. Default ranges are **0–7, 8–14, 15–30, and 31+ days**. You can change the three boundaries in My preferences; they are display groups, not hiring benchmarks. Aging refreshes when the reporting day changes.
 
-Callback averages and medians require an actual saved **First employer response** timestamp. Status-history dates record saves, so they do not count as employer response or interview dates. The 7/14/30-day response rates exclude applications too recent to complete the window and report unknown timing separately. Time to interview remains unknown without a recorded interview event date. See [ANALYTICS.md](ANALYTICS.md) for counting rules, exclusions, and the shared server calculation service.
+Callback averages and medians require an actual saved **First employer response** timestamp. Status-history dates record saves, so they do not count as employer response or interview dates. The 7/14/30-day response rates exclude applications too recent to complete the window and report unknown timing separately. Time to interview remains unknown without a recorded interview event date. Counting rules and exclusions are available under **Data checks & counting rules** in Analytics.
 
 ## Built with
 

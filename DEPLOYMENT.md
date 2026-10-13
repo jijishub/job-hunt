@@ -198,7 +198,7 @@ Once deployed, run these smoke checks:
    - Inspect the exported PDF: the actual logo should render on each A4 page, with readable labels and no AI text or placeholders. Save a new application from another session before exporting and confirm the fresh saved totals are included.
    - Confirm Pipeline insights appears above charts. Click **Analyze my pipeline with AI** explicitly. A failure must leave filtering and PDF export available; a failed retry must preserve the last successful interpretation. Reload and verify the saved scope-specific report remains; change an application, preference or resume and verify the outdated label appears without a new AI request.
 
-Local verification commands are `npm run test:core`, `npm run test:job-platforms`, and `npm run test:analytics:ui`. Browser tests need a running local server at `http://localhost:3100` (or `PIPELINE_TEST_URL`). A successful local build or mocked browser test does not establish that a live deployment has passed these smoke checks. See [ANALYTICS.md](ANALYTICS.md) for the full calculation rules and [RPA-COMMANDS.md](RPA-COMMANDS.md) for optional URL platform backfill instructions.
+Local verification commands are `npm run test:core`, `npm run test:job-platforms`, and `npm run test:analytics:ui`. Browser tests need a running local server at `http://localhost:3100` (or `PIPELINE_TEST_URL`). A successful local build or mocked browser test does not establish that a live deployment has passed these smoke checks. See [RPA-COMMANDS.md](RPA-COMMANDS.md) for optional URL platform backfill instructions.
 
 ---
 

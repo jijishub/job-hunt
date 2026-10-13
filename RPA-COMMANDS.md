@@ -38,4 +38,4 @@ node scripts/backfill_job_platforms.cjs --owner ACCOUNT_ID_OR_EMAIL --apply
 
 The default account matches `ADMIN_EMAIL`. Storage uses configured PostgreSQL (`POSTGRES_URL` or `DATABASE_URL`), or `.data/db.json` when neither is set. Existing selections and other accounts are preserved; concurrent edits are skipped. Only platform values and update timestamps change. Missing URLs, email addresses, short links, and unknown hosts remain unclassified. Referral and Walk-in require manual selection.
 
-The helper adds only the platform column if needed; deployment migrations remain separate. Reports and prior values are saved under `.data/job-platform-backfill-*`, with a full pre-update backup for local JSON storage. See [ANALYTICS.md](ANALYTICS.md) for calculation and backfill details.
+The helper adds only the platform column if needed; deployment migrations remain separate. Reports and prior values are saved under `.data/job-platform-backfill-*`, with a full pre-update backup for local JSON storage. See [DEPLOYMENT.md](DEPLOYMENT.md#step-2-database-setup-free-serverless-postgres) for migration instructions.
