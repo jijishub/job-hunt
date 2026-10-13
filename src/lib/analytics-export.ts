@@ -52,8 +52,10 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   };
   const header = () => {
     pdf.addImage(logo, 'PNG', 16, 5, analyticsLogoSize.width, analyticsLogoSize.height, 'job-hunt-logo', 'FAST');
-    label('PERSONAL ANALYTICS', 65, 16, 8, colors.muted);
-    wrap(scope, 120, 18, 74, 8, 1); label(`As of ${stats.asOf}`, 194, 24, 8, colors.muted, false, 'right');
+    const baseline = 17;
+    label('PERSONAL ANALYTICS', 65, baseline, 8, colors.muted);
+    wrap(scope, 110, baseline, 50, 8, 1);
+    label(`As of ${stats.asOf}`, 194, baseline, 8, colors.muted, false, 'right');
     pdf.setDrawColor(colors.border); pdf.line(16, 30, 194, 30);
   };
   const title = (heading: string, subtitle: string) => { label(heading, 16, 43, 19, colors.ink, true); wrap(subtitle, 16, 51, 178, 9, 1); };

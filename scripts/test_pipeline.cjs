@@ -620,6 +620,13 @@ test('PDF embeds the original transparent logo on every A4 page and uses plain-l
   const images=await extractImages(doc,i);assert.equal(images.length,1);assert.equal(images[0].width,1774);assert.equal(images[0].height,887);
   const page=await doc.getPage(i);assert.ok(Math.abs(page.view[2]-595.28)<1);assert.ok(Math.abs(page.view[3]-841.89)<1);
   const content=await page.getTextContent();assert.ok(content.items.some(item=>item.str?.startsWith('Report date:')));
+  const metadata=['PERSONAL ANALYTICS','All (combined)'].map(text=>content.items.find(item=>item.str===text));
+  metadata.push(content.items.find(item=>item.str?.startsWith('As of ')));
+  assert.ok(metadata.every(Boolean),`Missing header text on page ${i}`);
+  for(let j=1;j<metadata.length;j++){
+   assert.ok(Math.abs(metadata[j].transform[5]-metadata[0].transform[5])<0.1,`Header text is misaligned on page ${i}`);
+   assert.ok(metadata[j-1].transform[4]+metadata[j-1].width+8<=metadata[j].transform[4],`Header columns overlap on page ${i}`);
+  }
   for(const item of content.items){if(!item.str?.trim())continue;assert.ok(item.height>=7.4,`Unreadable text on page ${i}: ${item.str}`);assert.ok(item.transform[4]>=25&&item.transform[4]+item.width<=page.view[2]-25,`Text overflows page ${i}: ${item.str}`);}
  }
  fs.writeFileSync(path.join(ROOT,'.data','analytics-branded-stress.pdf'),binary);
