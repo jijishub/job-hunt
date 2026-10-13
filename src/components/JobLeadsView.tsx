@@ -23,6 +23,7 @@ interface JobLeadsViewProps {
 const button = 'rounded-xl border border-[#F1DDE9] bg-[#FFF0F6] px-3 py-2 text-xs font-semibold text-[#9D3C5E] disabled:opacity-50';
 const input = 'w-full rounded-xl border border-[#F1DDE9] bg-white px-3 py-2 text-sm';
 const fitOrder = { STRONG: 0, POSSIBLE: 1, WEAK: 2 };
+const priorityOrder: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
 export default function JobLeadsView({ onAddToTracker, existingApplications, currentUser, companies = [], onUpdateStatus, onDeleteApplication, onSelectLead, onNavigateToResume }: JobLeadsViewProps) {
   const [tab, setTab] = useState('saved');
   const [query, setQuery] = useState('');
@@ -36,7 +37,7 @@ export default function JobLeadsView({ onAddToTracker, existingApplications, cur
   const leads = existingApplications.filter(app => app.status === 'LEAD' && !isArchivedApplication(app));
   const shown = leads
     .filter(app => (app.role_title + ' ' + app.company_name).toLowerCase().includes(query.trim().toLowerCase()))
-    .sort((a, b) => (a.role_fit ? fitOrder[a.role_fit] : 3) - (b.role_fit ? fitOrder[b.role_fit] : 3));
+    .sort((a, b) => ((a.role_fit ? fitOrder[a.role_fit] : 3) - (b.role_fit ? fitOrder[b.role_fit] : 3)) || ((a.priority && a.priority in priorityOrder ? priorityOrder[a.priority] : 1) - (b.priority && b.priority in priorityOrder ? priorityOrder[b.priority] : 1)));
   async function action(key: string, run: () => Promise<void>) {
     setBusy(key); setMessage('');
     try { await run(); } catch (error) { setMessage(error instanceof Error ? error.message : 'Please try again.'); }
