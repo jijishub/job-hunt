@@ -5,6 +5,8 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'node:crypto';
 import { neon } from '@neondatabase/serverless';
+import { ownsApplication } from './ownership';
+import { analyticsFieldUpdates } from './application-analytics-fields';
 
 const isServer = typeof window === 'undefined';
 
@@ -213,6 +215,16 @@ async function initPostgresSchema(sql: any) {
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS role_fit TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS role_fit_source TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS role_fit_analysis JSONB;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS seniority_level TEXT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS seniority_level_source TEXT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS role_family TEXT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS role_family_source TEXT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS job_platform TEXT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS first_response_at TIMESTAMPTZ;`;
+    await sql`CREATE INDEX IF NOT EXISTS applications_analytics_family ON applications ((lower(trim(coalesce(owner, '')))), role_family);`;
+    await sql`CREATE INDEX IF NOT EXISTS applications_analytics_platform ON applications ((lower(trim(coalesce(owner, '')))), job_platform, seniority_level);`;
+    await sql`CREATE INDEX IF NOT EXISTS applications_analytics_owner_date ON applications ((lower(trim(coalesce(owner, '')))), job_type, date_applied);`;
+    await sql`CREATE INDEX IF NOT EXISTS applications_analytics_owner_status ON applications ((lower(trim(coalesce(owner, '')))), status, source);`;
     await sql`CREATE TABLE IF NOT EXISTS candidate_profiles (owner TEXT PRIMARY KEY, resume_text TEXT NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW());`;
     await sql`ALTER TABLE candidate_profiles ADD COLUMN IF NOT EXISTS preferences JSONB;`;
     await sql`ALTER TABLE companies ADD COLUMN IF NOT EXISTS created_by TEXT;`;
@@ -265,6 +277,7 @@ async function initPostgresSchema(sql: any) {
     `;
 
     await sql`CREATE TABLE IF NOT EXISTS leads (id TEXT PRIMARY KEY, data JSONB NOT NULL);`;
+    await sql`CREATE INDEX IF NOT EXISTS leads_analytics_owner ON leads ((lower(trim(coalesce(data->>'owner', '')))));`;
     // One atomic statement preserves existing IDs and removes migrated duplicates.
     await sql`
       WITH moved AS (DELETE FROM applications WHERE status = 'LEAD' RETURNING *)
@@ -500,6 +513,30 @@ export async function getApplications(includeLeads = true): Promise<JobApplicati
   );
 }
 
+// Filter ownership in SQL before transferring records. Phase mappings remain in the
+// shared deterministic service so custom statuses and historical evidence agree.
+export async function getAnalyticsApplications(user: Pick<UserAccount, 'id' | 'email' | 'role'>, scope = 'ALL'): Promise<JobApplication[]> {
+  const sql = getPostgresClient();
+  const internshipPattern = String.raw`\mintern(ship)?\M`;
+  if (!sql) return (await getApplications()).filter(app => ownsApplication(app, user));
+  const rows = await sql`
+    SELECT to_jsonb(a) - ARRAY['job_description', 'information', 'notes', 'contact_name', 'contact_email'] AS data FROM applications a
+    WHERE (lower(trim(coalesce(owner, ''))) IN (${user.id.toLowerCase()}, ${user.email.toLowerCase()})
+      OR (${user.id === 'user_ji'} AND lower(trim(coalesce(owner, ''))) IN ('', 'admin')))
+      AND (${scope === 'ALL'} OR
+        (CASE WHEN nullif(job_type, '') IS NOT NULL THEN job_type = 'INTERNSHIP'
+          ELSE coalesce(role_title, '') ~* ${internshipPattern} END) = ${scope === 'INTERNSHIP'})
+    UNION ALL
+    SELECT data - ARRAY['job_description', 'information', 'notes', 'contact_name', 'contact_email'] AS data FROM leads
+    WHERE (lower(trim(coalesce(data->>'owner', ''))) IN (${user.id.toLowerCase()}, ${user.email.toLowerCase()})
+      OR (${user.id === 'user_ji'} AND lower(trim(coalesce(data->>'owner', ''))) IN ('', 'admin')))
+      AND (${scope === 'ALL'} OR
+        (CASE WHEN nullif(data->>'job_type', '') IS NOT NULL THEN data->>'job_type' = 'INTERNSHIP'
+          ELSE coalesce(data->>'role_title', '') ~* ${internshipPattern} END) = ${scope === 'INTERNSHIP'});
+  `;
+  return rows.map(row => row.data as JobApplication);
+}
+
 export async function getApplicationById(id: string): Promise<JobApplication | null> {
   const sql = getPostgresClient();
   if (sql) {
@@ -532,6 +569,7 @@ export async function createApplication(
 
   const newApp: JobApplication = {
     ...data,
+    ...analyticsFieldUpdates(null, data),
     information: data.information ?? data.job_description,
     job_description: data.information ?? data.job_description,
     stage_history: data.stage_history || [{ status: data.status, notion_status: data.notion_status, at: now }],
@@ -571,13 +609,13 @@ export async function createApplication(
   if (sql) {
     const inserted = await sql`
       INSERT INTO applications (
-        id, company_id, company_name, company_logo, role_title, analytics_stage, not_proceeding, job_description, role_fit, role_fit_source, role_fit_analysis, stage_history, status, notion_status, service, information, priority,
+        id, company_id, company_name, company_logo, role_title, seniority_level, seniority_level_source, role_family, role_family_source, job_platform, first_response_at, analytics_stage, not_proceeding, job_description, role_fit, role_fit_source, role_fit_analysis, stage_history, status, notion_status, service, information, priority,
         job_type, work_model, location, salary_min, salary_max, salary_currency, offer_amount, offer_currency, offer_pay_period, expected_salary_amount, expected_salary_currency, expected_salary_pay_period,
         job_url, source, owner, contact_name, contact_email, date_applied, follow_up_date, notes,
         notion_page_id, last_synced_at, sync_status, created_at, updated_at
       ) VALUES (
         ${newApp.id}, ${newApp.company_id || null}, ${newApp.company_name}, ${newApp.company_logo || null},
-        ${newApp.role_title}, ${newApp.analytics_stage || null}, ${newApp.not_proceeding || false}, ${newApp.job_description || null}, ${newApp.role_fit || null}, ${newApp.role_fit_source || null}, ${JSON.stringify(newApp.role_fit_analysis || null)}::jsonb, ${JSON.stringify(newApp.stage_history || [])}::jsonb, ${newApp.status}, ${newApp.notion_status || null}, ${newApp.service || null}, ${newApp.information || null},
+        ${newApp.role_title}, ${newApp.seniority_level || null}, ${newApp.seniority_level_source || null}, ${newApp.role_family || null}, ${newApp.role_family_source || null}, ${newApp.job_platform || null}, ${newApp.first_response_at || null}, ${newApp.analytics_stage || null}, ${newApp.not_proceeding || false}, ${newApp.job_description || null}, ${newApp.role_fit || null}, ${newApp.role_fit_source || null}, ${JSON.stringify(newApp.role_fit_analysis || null)}::jsonb, ${JSON.stringify(newApp.stage_history || [])}::jsonb, ${newApp.status}, ${newApp.notion_status || null}, ${newApp.service || null}, ${newApp.information || null},
         ${newApp.priority}, ${newApp.job_type},
         ${newApp.work_model}, ${newApp.location || null}, ${newApp.salary_min || null},
         ${newApp.salary_max || null}, ${newApp.salary_currency}, ${newApp.offer_amount ?? null}, ${newApp.offer_currency || 'PHP'}, ${newApp.offer_pay_period || 'MONTHLY'}, ${newApp.expected_salary_amount ?? null}, ${newApp.expected_salary_currency || 'PHP'}, ${newApp.expected_salary_pay_period || 'MONTHLY'}, ${newApp.job_url || null},
@@ -617,6 +655,7 @@ export async function updateApplication(
   if (Object.hasOwn(updates, 'information') || Object.hasOwn(updates, 'job_description')) { const description=updates.information ?? updates.job_description; updates={...updates,information:description,job_description:description}; }
   const saved = await getApplicationById(id);
   if (!saved) return null;
+  updates = { ...updates, ...analyticsFieldUpdates(saved, updates) };
   if ((updates.status && updates.status !== saved.status) || (updates.notion_status && updates.notion_status !== saved.notion_status)) {
     updates = { ...updates, stage_history: [...(saved.stage_history || [{ status: saved.status, notion_status: saved.notion_status, at: saved.updated_at }]), { status: updates.status || saved.status, notion_status: updates.notion_status || saved.notion_status, at: new Date().toISOString() }] };
   }
@@ -680,6 +719,12 @@ export async function updateApplication(
         company_name = ${merged.company_name},
         company_logo = ${merged.company_logo || null},
         role_title = ${merged.role_title},
+        seniority_level = ${merged.seniority_level || null},
+        seniority_level_source = ${merged.seniority_level_source || null},
+        role_family = ${merged.role_family || null},
+        role_family_source = ${merged.role_family_source || null},
+        job_platform = ${merged.job_platform || null},
+        first_response_at = ${merged.first_response_at || null},
         analytics_stage = ${merged.analytics_stage || null},
         not_proceeding = ${merged.not_proceeding || false},
         job_description = ${merged.job_description || null},

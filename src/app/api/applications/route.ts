@@ -10,6 +10,7 @@ import { isArchivedApplication } from '@/lib/application-workflow';
 import { pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
 import { scheduleApplicationNotionSync } from '@/lib/application-notion-sync';
 import { normalizeOfferFields } from '@/lib/salary-offers';
+import { analyticsFieldUpdates } from '@/lib/application-analytics-fields';
 
 export const maxDuration = 60;
 
@@ -97,6 +98,7 @@ export async function POST(request: Request) {
 
     const preferences = await getCandidatePreferences(user.id);
     const newApp = await createApplication({
+      ...analyticsFieldUpdates(null, body),
       company_id: company?.id || undefined,
       company_name: company?.name || company_name.trim(),
       company_logo: company?.logo_url || company_logo,

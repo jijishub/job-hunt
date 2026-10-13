@@ -1,8 +1,10 @@
 ﻿import { reachedStage, recordedStages, stageForStatus, AnalyticsStage, ANALYTICS_STAGES, DEFAULT_REJECTION_STATUSES } from './analytics-stages';
 import { applicationStatusLabel, canonicalStatusName } from './statuses';
 import { JobApplication } from '@/types/job';
-import { ROLE_FITS, validRoleFit } from './role-fit';
+import { ROLE_FITS, savedRoleFit } from './role-fit';
 import { salaryOfferAnalytics } from './salary-offers';
+import { dimensionAnalytics } from './analytics-dimensions';
+import { timingAnalytics, DEFAULT_AGE_BOUNDARIES } from './analytics-timing';
 
 export function isInternship(app: JobApplication) {
   return app.job_type ? app.job_type === 'INTERNSHIP' : /\bintern(?:ship)?\b/i.test(app.role_title);
@@ -37,16 +39,17 @@ export function applicationDay(value?: string): string | null {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return date.toISOString().slice(0, 10) === value ? value : null;
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 }
-export function pipelineAnalytics(input: JobApplication[], mapping: Record<string, AnalyticsStage> = {}, rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES, now = new Date()) {
+export function pipelineAnalytics(input: JobApplication[], mapping: Record<string, AnalyticsStage> = {}, rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES, now = new Date(), ageBoundaries: readonly number[] = DEFAULT_AGE_BOUNDARIES) {
   const applications = uniqueApplications(input);
-  const rank = (app: JobApplication) => reachedStage(app, mapping);
+  const ranks = new Map(applications.map(app => [app.id, reachedStage(app, mapping)]));
+  const rank = (app: JobApplication) => ranks.get(app.id)!;
   const submitted = applications.filter(app => rank(app) >= 1);
   const rejected = (app: JobApplication) => isRejection(app, rejectionStatuses);
   const rejections = submitted.filter(rejected).length;
   const rate = (count: number, denominator: number) => denominator ? Math.round(count / denominator * 100) : null;
   const fitGroups = [...ROLE_FITS, { value: 'UNASSESSED', label: 'Unassessed', description: 'No saved experience-fit rating.' }];
   const fits = fitGroups.map(fit => {
-    const tracked = applications.filter(app => fit.value === 'UNASSESSED' ? !validRoleFit(app.role_fit) : app.role_fit === fit.value);
+    const tracked = applications.filter(app => fit.value === 'UNASSESSED' ? !savedRoleFit(app) : savedRoleFit(app) === fit.value);
     const sent = tracked.filter(app => rank(app) >= 1);
     const progressed = sent.filter(app => rank(app) >= 2).length;
     const offers = sent.filter(app => rank(app) >= 5).length;
@@ -64,7 +67,7 @@ export function pipelineAnalytics(input: JobApplication[], mapping: Record<strin
   });
   const preferenceAlignment = ['ALIGNED', 'MIXED', 'MISALIGNED', 'UNKNOWN'].map(value => ({ label: value,
     count: applications.filter(app => (['ALIGNED', 'MIXED', 'MISALIGNED'].includes(app.role_fit_analysis?.preference_alignment || '') ? app.role_fit_analysis?.preference_alignment : 'UNKNOWN') === value).length }));
-  const assessed = applications.filter(app => validRoleFit(app.role_fit)).length;
+  const assessed = applications.filter(app => savedRoleFit(app)).length;
   const today = applicationDay(now.toISOString())!;
   const todayTime = Date.parse(today);
   const dated = submitted.map(app => ({ app, day: applicationDay(app.date_applied) }));
@@ -104,7 +107,7 @@ export function pipelineAnalytics(input: JobApplication[], mapping: Record<strin
   else if (funnel[2].recorded) recommendations.push('Use recorded interview feedback to prepare your next interview.');
   if (quality.uncertainPhases) recommendations.push(`Review the phase reached for ${quality.uncertainPhases} closed applications.`);
   if (assessed < applications.length) recommendations.push('Assess relevant unassessed roles individually.');
-  return { asOf: today, salaryOffers: salaryOfferAnalytics(applications), preferenceAlignment, total: applications.length, submitted: submitted.length,
+  return { asOf: today, timing: timingAnalytics(applications, mapping, applicationDay, today, app => currentOutcome(app, mapping, rejectionStatuses) === 'ACTIVE', ageBoundaries), dimensions: dimensionAnalytics(applications, mapping, applicationDay, today), salaryOffers: salaryOfferAnalytics(applications), preferenceAlignment, total: applications.length, submitted: submitted.length,
     leads: applications.length - submitted.length, assessed, unassessed: applications.length - assessed,
     coverage: rate(assessed, applications.length), recent, funnel, fits, activity, outcomes, quality, recommendations,
     rejections, rejectionRate: rate(rejections, submitted.length), progressionRate: rate(funnel[1].count, submitted.length), offerRate: rate(funnel[4].count, submitted.length) };

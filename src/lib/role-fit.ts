@@ -1,4 +1,4 @@
-import { RoleFit, RoleFitAnalysis } from '@/types/job';
+import { RoleFit, RoleFitAnalysis, type JobApplication } from '@/types/job';
 
 export const ROLE_FITS: { value: RoleFit; label: string; description: string }[] = [
   { value: 'STRONG', label: 'Strong fit', description: 'You already have most of the required experience.' },
@@ -7,6 +7,9 @@ export const ROLE_FITS: { value: RoleFit; label: string; description: string }[]
 ];
 export function validRoleFit(value: unknown): value is RoleFit {
   return ROLE_FITS.some(fit => fit.value === value);
+}
+export function savedRoleFit(app: Pick<JobApplication, 'role_fit' | 'role_fit_analysis'>) {
+  return validRoleFit(app.role_fit) ? app.role_fit : validRoleFit(app.role_fit_analysis?.fit) ? app.role_fit_analysis.fit : null;
 }
 export function validateFitAnalysis(value: unknown): RoleFitAnalysis {
   const result = value as Partial<RoleFitAnalysis> | null;

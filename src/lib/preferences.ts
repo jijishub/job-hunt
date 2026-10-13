@@ -1,6 +1,7 @@
 import { AnalyticsStage, ANALYTICS_STAGES, DEFAULT_REJECTION_STATUSES } from './analytics-stages';
 import { canonicalStatusName } from './statuses';
 import { JobType, WorkModel } from '@/types/job';
+import { DEFAULT_AGE_BOUNDARIES, validAgeBoundaries } from './analytics-timing';
 export type DefaultView = 'ALL' | 'INTERNSHIP' | 'OTHER';
 export const DEFAULT_VIEWS: { value: DefaultView; label: string }[] = [
   { value: 'ALL', label: 'All job types' },
@@ -20,11 +21,14 @@ export interface PersonalPreferences {
   portfolio_summary: string;
   analytics_status_stages?: Record<string, AnalyticsStage>;
   analytics_rejection_statuses?: string[];
+  analytics_age_boundaries?: number[];
 }
 export const EMPTY_PREFERENCES: PersonalPreferences = { default_view: 'ALL', target_companies: [], target_roles: [], preferred_locations: [], work_models: [], job_types: [], salary_currency: 'PHP', dealbreakers: '', portfolio_summary: '', analytics_rejection_statuses: [...DEFAULT_REJECTION_STATUSES] };
 export function validatePreferences(raw: unknown): PersonalPreferences {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Preferences must be an object.');
   const value = raw as Record<string, unknown>;
+  const analytics_age_boundaries = value.analytics_age_boundaries ?? [...DEFAULT_AGE_BOUNDARIES];
+  if (!validAgeBoundaries(analytics_age_boundaries)) throw new Error('Choose three increasing whole-day age boundaries between 1 and 3650.');
   const default_view = value.default_view ?? 'ALL';
   if (!DEFAULT_VIEWS.some(option => option.value === default_view)) throw new Error('Choose a valid default view.');
   const list = (key: string) => {
@@ -44,5 +48,5 @@ export function validatePreferences(raw: unknown): PersonalPreferences {
   if (value.salary_min != null && (typeof value.salary_min !== 'number' || !Number.isFinite(value.salary_min) || value.salary_min < 0)) throw new Error('Minimum salary must be a nonnegative number.');
   const currency = value.salary_currency ?? 'PHP'; if (typeof currency !== 'string' || !/^[a-z]{3}$/i.test(currency)) throw new Error('Use a three-letter currency such as PHP.');
   for (const key of ['dealbreakers', 'portfolio_summary']) if (value[key] != null && (typeof value[key] !== 'string' || (value[key] as string).length > 12000)) throw new Error(`${key} must be text under 12,000 characters.`);
-  return { default_view: default_view as DefaultView, analytics_status_stages, analytics_rejection_statuses, target_companies: list('target_companies'), target_roles: list('target_roles'), preferred_locations: list('preferred_locations'), work_models: work as WorkModel[], job_types: jobs as JobType[], salary_min: value.salary_min as number | undefined, salary_currency: currency.toUpperCase(), dealbreakers: (value.dealbreakers as string || '').trim(), portfolio_summary: (value.portfolio_summary as string || '').trim() };
+  return { default_view: default_view as DefaultView, analytics_age_boundaries, analytics_status_stages, analytics_rejection_statuses, target_companies: list('target_companies'), target_roles: list('target_roles'), preferred_locations: list('preferred_locations'), work_models: work as WorkModel[], job_types: jobs as JobType[], salary_min: value.salary_min as number | undefined, salary_currency: currency.toUpperCase(), dealbreakers: (value.dealbreakers as string || '').trim(), portfolio_summary: (value.portfolio_summary as string || '').trim() };
 }

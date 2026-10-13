@@ -8,6 +8,7 @@ import { getApplicationById, updateApplication, deleteApplication, getOrCreateCo
 import { applicationWorkflowUpdates, isArchivedApplication } from '@/lib/application-workflow';
 import { scheduleApplicationNotionSync } from '@/lib/application-notion-sync';
 import { normalizeOfferFields } from '@/lib/salary-offers';
+import { analyticsFieldUpdates } from '@/lib/application-analytics-fields';
 
 export const maxDuration = 60;
 
@@ -50,6 +51,7 @@ export async function PUT(
       return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });
     }
     delete body.id; delete body.owner; delete body.created_at; delete body.stage_history;
+    Object.assign(body, analyticsFieldUpdates(existingApp, body));
     const preferences = await getCandidatePreferences(user.id);
     Object.assign(body, applicationWorkflowUpdates(existingApp, body, preferences?.analytics_status_stages));
     const localArchiveChange = isArchivedApplication(existingApp) !== isArchivedApplication({ ...existingApp, ...body });

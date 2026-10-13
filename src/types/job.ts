@@ -1,4 +1,5 @@
 export type RoleFit = 'STRONG' | 'POSSIBLE' | 'WEAK';
+export type SeniorityLevel = 'INTERNSHIP_TRAINEE' | 'GRADUATE_ENTRY_LEVEL' | 'JUNIOR' | 'ASSOCIATE' | 'MID_LEVEL' | 'SENIOR' | 'LEAD_PRINCIPAL' | 'UNSPECIFIED';
 export interface RoleFitAnalysis { preference_alignment?: 'ALIGNED' | 'MIXED' | 'MISALIGNED' | 'UNKNOWN'; preference_notes?: string; fit: RoleFit; explanation: string; strengths: string[]; gaps: string[]; analyzed_at: string; }
 
 export type ApplicationStatus =
@@ -40,6 +41,12 @@ export interface JobApplication {
   analytics_stage?: import('@/lib/analytics-stages').AnalyticsStage | null;
   not_proceeding?: boolean;
   role_title: string;
+  seniority_level?: SeniorityLevel | null;
+  seniority_level_source?: 'derived' | 'manual' | null;
+  role_family?: string | null;
+  role_family_source?: 'derived' | 'manual' | null;
+  job_platform?: string | null;
+  first_response_at?: string | null;
   job_description?: string;
   role_fit?: RoleFit | null;
   role_fit_source?: 'manual' | 'ai' | null;

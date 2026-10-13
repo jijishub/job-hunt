@@ -1,30 +1,39 @@
 # RPA quick reference
 
-Run these commands from the `job-hunt` folder.
+Run commands from the project root. Personal browser helpers are owner-specific workflows, not a general-purpose application bot or a clone-and-run setup.
 
-| Command | What it does |
+## Personal application and profile helpers
+
+| Command | Purpose |
 | --- | --- |
-| `npm run rpa:bossjob` | Prepare the business resume, copy the Bossjob helper, and open your main browser. Paste once in Console to run the supported profile updates. |
-| `npm run rpa:jobstreet` | Prepare the technical resume, copy the automatic JobStreet updater, and open your main browser. |
-| `npm run rpa:bytedance` | Open a separate Chrome profile, upload the ByteDance resume, and autofill the application. Review and submit manually. |
-| `npm run rpa:appficiency` | Prepare the application and resume, copy its helper, and open your main browser. Review filled details before submitting. |
+| `npm run rpa:bossjob` | Prepare an owner-configured profile update helper. |
+| `npm run rpa:jobstreet` | Prepare an owner-configured profile and resume update helper. |
+| `npm run rpa:bytedance` | Open a dedicated browser profile and fill a configured application for review. |
+| `npm run rpa:appficiency` | Prepare a configured application helper for review. |
 
-Every main command prepares its files automatically; there is no separate preparation step.
+These workflows depend on the owner's resume and application configuration. Profile helpers can save edits; application submission requires manual review. Generated helpers, browser profiles, and reports belong in the ignored `.data/` directory. Personal inputs should be backed up privately rather than included in a public showcase.
 
-To finish only **Cloudji and the personal summary**, run `npm run rpa:bossjob -- --remaining`, then paste its helper once in Bossjob Console. This mode uses the business resume, disables PDF upload, and edits existing records only. To prepare it without opening the browser, add `--prepare`. The authored summary is stored in `scripts/bossjob_profile.cjs` and included in the generated profile data.
-
-For the JobStreet business resume, use `npm run rpa:jobstreet -- --variant business`. Bossjob uses the business resume by default; select technical with `npm run rpa:bossjob -- --variant technical`.
-
-For troubleshooting only, generate files without opening the browser with `npm run rpa:bossjob -- --prepare`, `npm run rpa:appficiency -- --prepare`, or `node scripts/jobstreet_sync.cjs`. Watch JobStreet resume changes with `node scripts/jobstreet_sync.cjs --watch` (add `--variant business` if needed). Inspect its form with `node scripts/jobstreet_inspect.cjs`.
+Detailed owner operating notes are kept locally at `references/rpa/RPA-OPERATIONS.md`, outside the public documentation. That ignored file is not included in a clone of the repository. Browser tests use local fixtures and do not verify a live account.
 
 Validation: `npm run test:bossjob` and `npm run test:jobstreet`.
 
-**JobStreet:** After running the command, open your signed-in profile, press **F12 → Console**, paste, and press **Enter**. The updater opens, fills, and saves all tasks in order, including your professional summary. Wait for **Sequence completed**. If Chrome blocks paste, type `allow pasting` manually and press Enter first.
+## Internal job-platform backfill
 
-**Resume files:** Technical: `references/Active Resume/Resume Active/JizelleCasia_Resume.pdf`. Business: `references/Active Resume/BusinessSolutions/JizelleCasia_Resume.pdf`.
+This helper reads saved URLs without opening job sites or calling AI.
 
-**Bossjob:** Run `npm run rpa:bossjob`, sign in to Manage Profile, and close any open editor. Press **F12 > Console**, paste **once**, and press **Enter**. The helper embeds the exact BusinessSolutions PDF and automatically supplies it, waits for the filename acknowledgement and parsing activity to settle, then runs the personal summary, work experience, education, personal details, skills, and certifications in order. Projects and leadership remain in the uploaded PDF. There is no need to paste separate commands for each entry.
+| Command | Purpose |
+| --- | --- |
+| `npm run rpa:job-platforms:preview` | Preview missing platforms for the configured administrator account. |
+| `npm run rpa:job-platforms` | Apply and verify recognized platforms in that account's applications and leads. |
+| `npm run test:job-platforms` | Check matching, account isolation, preservation, and guarded writes. |
 
-The updater opens, fills, confirms, and checks each saved entry. It supports the captured Bossjob title selector, Ant Design month calendars, Quill descriptions, Edit icons, and Confirm controls. Cloudji's legacy **Founder** title is recognized within its company record. A blank work editor is closed and reopened once; the existing record ID must be verified before Save. It preserves separate roles at the same company, avoids ambiguous duplicates, and refuses to truncate descriptions. **Stop** interrupts the sequence; **Retry remaining** resumes from the current task without uploading or submitting the same pending save again. Unconfirmed saves remain guarded across helper replacement in the same tab.
+To target a particular account, preview first and then apply:
 
-Unavailable sections are explicitly reported and are not counted as completed. Unknown controls, rejected fields, unacknowledged uploads, or unconfirmed saves pause the sequence. The automated tests use local browser fixtures; a successful local test does not verify your live account. If a changed control needs inspection, the panel retains **Copy editor controls (JSON)** and **Fill open editor**. To choose the technical PDF explicitly, run `node scripts/bossjob_sync.cjs --variant technical`.
+```powershell
+node scripts/backfill_job_platforms.cjs --owner ACCOUNT_ID_OR_EMAIL
+node scripts/backfill_job_platforms.cjs --owner ACCOUNT_ID_OR_EMAIL --apply
+```
+
+The default account matches `ADMIN_EMAIL`. Storage uses configured PostgreSQL (`POSTGRES_URL` or `DATABASE_URL`), or `.data/db.json` when neither is set. Existing selections and other accounts are preserved; concurrent edits are skipped. Only platform values and update timestamps change. Missing URLs, email addresses, short links, and unknown hosts remain unclassified. Referral and Walk-in require manual selection.
+
+The helper adds only the platform column if needed; deployment migrations remain separate. Reports and prior values are saved under `.data/job-platform-backfill-*`, with a full pre-update backup for local JSON storage. See [ANALYTICS.md](ANALYTICS.md) for calculation and backfill details.

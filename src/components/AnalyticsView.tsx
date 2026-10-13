@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { JobApplication, Company } from '@/types/job';
-import { pipelineAnalytics, isInternship, uniqueApplications, currentOutcome, applicationDay } from '@/lib/analytics';
+import { pipelineAnalytics, isInternship, uniqueApplications, currentOutcome, applicationDay, type PipelineStats } from '@/lib/analytics';
+import AnalyticsComparisons from './AnalyticsComparisons';
+import AnalyticsAging from './AnalyticsAging';
+import { applicationAgeDays, awaitingEmployerResponse } from '@/lib/analytics-timing';
 import { analyticsPdf } from '@/lib/analytics-export';
 import { reachedStage, recordedStages, ANALYTICS_STAGES, AnalyticsStage, DEFAULT_REJECTION_STATUSES } from '@/lib/analytics-stages';
-import { validRoleFit } from '@/lib/role-fit';
+import { savedRoleFit } from '@/lib/role-fit';
 import RoleFitBadge from './RoleFitBadge';
 import AnalyticsCharts, { ChartSelection } from './AnalyticsCharts';
 import { PersonalPreferences, DefaultView } from '@/lib/preferences';
@@ -43,22 +46,44 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
     return () => controller.abort();
   }, [preferenceVersion]);
   const [scope, setScope] = useState<DefaultView>(defaultScope);
-  const scoped = useMemo(() => uniqueApplications(applications).filter(app => scope === 'INTERNSHIP' ? isInternship(app) : scope === 'OTHER' ? !isInternship(app) : true), [applications, scope]);
-  const stats = useMemo(() => pipelineAnalytics(applications.filter(app => scope === 'INTERNSHIP' ? isInternship(app) : scope === 'OTHER' ? !isInternship(app) : true), mapping, rejectionStatuses), [applications, scope, mapping, rejectionStatuses]);
+  const [reportDay, setReportDay] = useState(() => applicationDay(new Date().toISOString())!);
+  useEffect(() => {
+    const timer = setInterval(() => setReportDay(applicationDay(new Date().toISOString())!), 60000);
+    return () => clearInterval(timer);
+  }, []);
+  const scopeRecords = useMemo(() => applications.filter(app => scope === 'INTERNSHIP' ? isInternship(app) : scope === 'OTHER' ? !isInternship(app) : true), [applications, scope]);
+  const scoped = useMemo(() => uniqueApplications(scopeRecords), [scopeRecords]);
+  const [snapshot, setSnapshot] = useState<{ key: string; stats: PipelineStats } | null>(null);
+  const snapshotKey = JSON.stringify([scope, preferenceVersion, reportDay, applications.map(app => [app.id, app.updated_at])]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`/api/analytics?scope=${scope}`, { signal: controller.signal, cache: 'no-store' }).then(r => r.json()).then(data => {
+      if (data.success && data.data && typeof data.data.total === 'number' && data.data.dimensions && data.data.timing) setSnapshot({ key: snapshotKey, stats: data.data });
+    }).catch(() => { /* Saved records remain usable if the aggregate endpoint is unavailable. */ });
+    return () => controller.abort();
+  }, [scope, snapshotKey]);
+  const stats = useMemo(() => snapshot?.key === snapshotKey ? snapshot.stats : pipelineAnalytics(scopeRecords, mapping, rejectionStatuses, new Date(), preferences?.analytics_age_boundaries), [snapshot, snapshotKey, scopeRecords, mapping, rejectionStatuses, preferences?.analytics_age_boundaries]);
   const [busy, setBusy] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [selection, setSelection] = useState<ChartSelection | null>(null);
   const [reviewQuery, setReviewQuery] = useState('');
   const [reviewPage, setReviewPage] = useState(0);
   useEffect(() => { setScope(defaultScope); setSelection(null); setReviewPage(0); }, [defaultScope]);
   const [insight, setInsight] = useState<{ summary: string; nextSteps: string[]; signature: string } | null>(null);
-  const signature = JSON.stringify([preferenceVersion, scope, mapping, rejectionStatuses, scoped.map(app => [app.id, app.updated_at])]);
+  const signature = JSON.stringify([preferenceVersion, scope, reportDay, preferences?.analytics_age_boundaries, mapping, rejectionStatuses, scoped.map(app => [app.id, app.updated_at])]);
   const currentInsight = insight?.signature === signature ? insight : null;
   const scopeLabel = scope === 'INTERNSHIP' ? 'Internships' : scope === 'OTHER' ? 'Regular Employment' : 'All (combined)';
   const reviewApps = scoped.filter(app => {
+    if (selection?.kind === 'age') {
+      if (reachedStage(app, mapping) < 1) return false;
+      if (selection.pending && !awaitingEmployerResponse(app, mapping, currentOutcome(app, mapping, rejectionStatuses) === 'ACTIVE')) return false;
+      const age = applicationAgeDays(app, applicationDay, stats.asOf);
+      if (selection.min === null ? age !== null : age === null || age < selection.min || selection.max !== null && age > selection.max) return false;
+    }
     if (selection?.kind === 'offer' && recordedSalaryOffer(app)?.key !== selection.value) return false;
     if (selection?.kind === 'expected' && recordedExpectedSalary(app)?.key !== selection.value) return false;
-    if (selection?.kind === 'fit' && (validRoleFit(app.role_fit) ? app.role_fit : 'UNASSESSED') !== selection.value) return false;
+    if (selection?.kind === 'fit' && (savedRoleFit(app) || 'UNASSESSED') !== selection.value) return false;
     if (selection?.kind === 'outcome' && currentOutcome(app, mapping, rejectionStatuses) !== selection.value) return false;
     if (selection?.kind === 'month' && (reachedStage(app, mapping) < 1 || !applicationDay(app.date_applied)?.startsWith(selection.value) || applicationDay(app.date_applied)! > stats.asOf)) return false;
     if (selection?.kind === 'phase') {
@@ -75,17 +100,17 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
     document.getElementById('analytics-role-review')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   async function analyzePipeline() {
-    setBusy('insights'); setMessage('');
+    setAiBusy(true); setMessage('');
     try {
-      const response = await fetch('/api/analytics/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope }) });
+      const response = await fetch('/api/analytics/analyze', { method: 'POST', signal: AbortSignal.timeout(30000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope }) });
       const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Analysis failed.');
       setInsight({ ...data.data, signature });
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'Analysis failed.'); }
-    finally { setBusy(''); }
+    } catch (error) { setMessage(error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name) ? 'AI did not respond in time. Your analytics remain available.' : error instanceof Error ? error.message : 'Analysis failed.'); }
+    finally { setAiBusy(false); }
   }
   async function exportPdf() {
     setBusy('pdf'); setMessage('');
-    try { const pdf = await analyticsPdf(scoped, accountName, scopeLabel, currentInsight || undefined, mapping, rejectionStatuses, preferences); pdf.save('my-job-search-analytics.pdf'); }
+    try { const pdf = await analyticsPdf(scoped, accountName, scopeLabel, currentInsight || undefined, mapping, rejectionStatuses, preferences, stats); pdf.save('my-job-search-analytics.pdf'); }
     catch (error) { setMessage(error instanceof Error ? error.message : 'PDF export failed.'); }
     finally { setBusy(''); }
   }
@@ -93,8 +118,8 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h2 className="text-lg font-bold text-[#4A3E44]">{accountName}’s job-search analytics</h2><p className="text-xs text-[#736A6D]">Your saved applications · click charts to review the records.</p></div>
       <div className="flex flex-wrap gap-2">
-        <select aria-label="Analytics job type" value={scope} disabled={Boolean(busy)} onChange={event => { setScope(event.target.value as DefaultView); setSelection(null); setReviewPage(0); }} className={button}><option value="ALL">All (combined)</option><option value="INTERNSHIP">Internships</option><option value="OTHER">Regular Employment</option></select>
-        <button disabled={Boolean(busy) || !preferencesReady} className={button} onClick={exportPdf}>{busy === 'pdf' ? 'Exporting…' : 'Export PDF'}</button>
+        <select aria-label="Analytics job type" value={scope} disabled={busy === 'pdf'} onChange={event => { setScope(event.target.value as DefaultView); setSelection(null); setReviewPage(0); }} className={button}><option value="ALL">All (combined)</option><option value="INTERNSHIP">Internships</option><option value="OTHER">Regular Employment</option></select>
+        <button disabled={busy === 'pdf' || !preferencesReady} className={button} onClick={exportPdf}>{busy === 'pdf' ? 'Exporting…' : 'Export PDF'}</button>
       </div>
     </div>
     {preferenceError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{preferenceError} Reload to retry.</p>}
@@ -107,6 +132,8 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
         ['Rejections', stats.rejections, `${percent(stats.rejectionRate)} of submitted applications`],
       ].map(([label, value, detail]) => <div key={label} className={card}><p className="text-xs font-semibold text-[#736A6D]">{label}</p><p className="my-2 text-3xl font-bold text-[#9D3C5E]">{value}</p><p className="text-[11px] text-[#736A6D]">{detail}</p></div>)}</div>
       <AnalyticsCharts stats={stats} onReview={review} />
+      <AnalyticsAging stats={stats} onReview={review} />
+      <AnalyticsComparisons stats={stats} />
       <SalaryOffersChart stats={stats} preferences={preferences} onReview={review} />
       <SalaryExpectationsChart stats={stats} onReview={review} />
       <div className="grid gap-4 lg:grid-cols-2">
@@ -119,7 +146,7 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
       <details className={`${card} text-xs`}><summary className="cursor-pointer font-semibold">Data checks & counting rules <span className="ml-2 font-normal text-[#736A6D]">{stats.quality.uncertainPhases} phases to review · {stats.quality.missingDates} missing dates</span></summary>
         <div className="mt-3 space-y-2 text-[#736A6D]"><p>Rates use submitted applications in the selected scope. Offers include declined offers. Rejections use the current statuses selected in My preferences.</p><p>Earlier phases inferred from a later outcome are lavender, not recorded interview evidence. Each application ID counts once; the newest duplicate is used.</p><p>{stats.quality.duplicateRecords} duplicate records removed · {stats.quality.invalidDates} invalid dates · {stats.quality.futureDates} future dates excluded from activity. Missing dates stay in total counts.</p><p>Fit groups can overlap with recorded outcomes and are not randomized. Small samples and unassessed roles limit comparisons; these rates cannot prove which resume or fit category caused an outcome.</p><p>Assess relevant roles inside their application using Reanalyze role fit. Review past jobs before rating them against your current resume.</p></div>
       </details>
-      <section className={card}><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-bold">Pipeline insights</h3><p className="mt-1 text-xs text-[#736A6D]">Uses this scope, your master resume and preferences. Saved fit ratings stay intact.</p></div><button className={button} disabled={Boolean(busy) || !stats.total} onClick={analyzePipeline}>{busy === 'insights' ? 'Analyzing…' : 'Analyze my pipeline with AI'}</button></div>
+      <section className={card}><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-bold">Pipeline insights</h3><p className="mt-1 text-xs text-[#736A6D]">Optional interpretation of computed statistics, your master resume and preferences. Observations and suggested next steps are separate.</p></div><button className={button} disabled={aiBusy || Boolean(busy) || !stats.total} onClick={analyzePipeline}>{aiBusy ? 'Analyzing…' : 'Analyze my pipeline with AI'}</button></div>
         {currentInsight && <div className="mt-4 text-xs text-[#736A6D]"><p>{currentInsight.summary}</p><ul className="mt-3 list-disc space-y-1 pl-4">{currentInsight.nextSteps.map(step => <li key={step}>{step}</li>)}</ul></div>}
         {message && <p role="status" className="mt-3 rounded-xl bg-[#FFF0F6] p-3 text-xs text-[#9D3C5E]">{message}</p>}
       </section>
@@ -128,7 +155,8 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
         <div className="mt-3 space-y-2">{reviewApps.slice(safePage * 10, (safePage + 1) * 10).map(app => {
           const offer = recordedSalaryOffer(app);
           const expected = recordedExpectedSalary(app);
-          return <div key={app.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#FAF7F9] p-3 text-xs"><div><strong>{app.role_title}</strong><p className="text-[#736A6D]">{app.company_name} · {app.notion_status || app.status}</p>{offer && <p className="mt-1 font-medium text-[#9D3C5E]">{formatSalaryRange(offer.amount, undefined, offer.currency)} / {offerPeriodLabel(offer.period).toLowerCase()}</p>}{expected && <p className="mt-1 text-[#736A6D]">Expected: {formatSalaryRange(expected.amount, undefined, expected.currency)} / {offerPeriodLabel(expected.period).toLowerCase()}</p>}</div><div className="flex items-center gap-2"><RoleFitBadge app={app} />{onEditApp && <button onClick={() => onEditApp(app)} className={button}>{selection?.kind === 'offer' ? 'Review offer' : selection?.kind === 'expected' ? 'Review salary' : 'Review fit'}</button>}</div></div>;
+          const age = selection?.kind === 'age' ? applicationAgeDays(app, applicationDay, stats.asOf) : null;
+          return <div key={app.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#FAF7F9] p-3 text-xs"><div><strong>{app.role_title}</strong><p className="text-[#736A6D]">{app.company_name} · {app.notion_status || app.status}</p>{selection?.kind === 'age' && <p className="mt-1 text-[#736A6D]">Age since submission: {age === null ? 'Unknown' : `${age} days`}</p>}{offer && <p className="mt-1 font-medium text-[#9D3C5E]">{formatSalaryRange(offer.amount, undefined, offer.currency)} / {offerPeriodLabel(offer.period).toLowerCase()}</p>}{expected && <p className="mt-1 text-[#736A6D]">Expected: {formatSalaryRange(expected.amount, undefined, expected.currency)} / {offerPeriodLabel(expected.period).toLowerCase()}</p>}</div><div className="flex items-center gap-2"><RoleFitBadge app={app} />{onEditApp && <button onClick={() => onEditApp(app)} className={button}>{selection?.kind === 'offer' ? 'Review offer' : selection?.kind === 'expected' ? 'Review salary' : selection?.kind === 'age' ? 'Review dates' : 'Review fit'}</button>}</div></div>;
         })}{!reviewApps.length && <p className="text-xs text-[#736A6D]">No roles match this review.</p>}</div>
         {pageCount > 1 && <div className="mt-3 flex items-center justify-end gap-3 text-xs"><button disabled={!safePage} className={button} onClick={() => setReviewPage(safePage - 1)}>Previous</button><span>{safePage + 1} / {pageCount}</span><button disabled={safePage === pageCount - 1} className={button} onClick={() => setReviewPage(safePage + 1)}>Next</button></div>}
       </section>

@@ -4,6 +4,7 @@ const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
+const { loadTypescript } = require('./migrate_db.cjs');
 let failReplacement = false;
 const databaseFs = new Proxy(fs, {
   get(target, key) {
@@ -28,7 +29,8 @@ vm.runInNewContext(compiled, {
   require: (name) => name === '@neondatabase/serverless'
     ? { neon: () => { throw new Error('Unexpected network access'); } }
     : name === 'fs' ? databaseFs
-    : name === './admin-email' ? { getAdminEmail: () => 'jizelle.casia@gmail.com' } : require(name),
+    : name === './admin-email' ? { getAdminEmail: () => 'jizelle.casia@gmail.com' }
+    : name.startsWith('./') ? loadTypescript(path.resolve(__dirname, '../src/lib', `${name}.ts`)) : require(name),
 });
 const db = moduleObject.exports;
 async function run() {

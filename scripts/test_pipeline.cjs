@@ -8,6 +8,143 @@ function loader(overrides={}){
 }
 const sample=(values={})=>({id:'app',company_name:'Example',role_title:'Engineer',status:'APPLIED',owner:'user_ji',priority:'MEDIUM',job_type:'FULL_TIME',work_model:'ON_SITE',salary_currency:'PHP',sync_status:'SYNCED',created_at:'2026-10-10T00:00:00Z',updated_at:'2026-10-10T00:00:00Z',...values});
 
+test('analytics scopes and exports work without AI, and changes refresh deterministic metrics',async()=>{
+ const user={id:'member',email:'member@example.com',role:'member'};
+ let rows=[sample({owner:'member',date_applied:'2026-10-01'}),sample({id:'intern',owner:'member',job_type:'INTERNSHIP',role_title:'Junior Software Developer',date_applied:'2026-10-02'})];
+ const load=loader({'@/lib/session-account':{getSessionAccount:async()=>user},'@/lib/db':{getAnalyticsApplications:async()=>rows},'@/lib/ai':{callGeminiJSON:()=>{throw Error('AI must not run');}}});
+ const route=load('src/app/api/analytics/route.ts');
+ const read=async scope=>(await (await route.GET(new Request(`http://local/api/analytics?scope=${scope}`))).json()).data;
+ assert.equal((await read('ALL')).total,2);assert.equal((await read('INTERNSHIP')).total,1);assert.equal((await read('OTHER')).total,1);
+ assert.equal((await read('ALL')).unassessed,2);
+ rows.push(sample({id:'new',owner:'member',status:'OFFER'}));assert.equal((await read('ALL')).funnel[4].count,1);
+ rows[0]={...rows[0],status:'INTERVIEWING'};assert.equal((await read('ALL')).funnel[2].count,2);
+ const {analyticsPdf}=load('src/lib/analytics-export.ts');const {extractText}=require('unpdf');
+ const pdf=await analyticsPdf(rows,'Member','All');const text=(await extractText(new Uint8Array(pdf.output('arraybuffer')),{mergePages:true})).text;
+ assert.match(text,/Application effectiveness comparisons/);assert.match(text,/software engineer/);assert.doesNotMatch(text,/NaN|Infinity/);
+ assert.equal((await route.GET(new Request('http://local/api/analytics?scope=forged'))).status,400);
+});
+
+test('role normalization, response cohorts and incomplete history use only recorded evidence',()=>{
+ const load=loader();const {normalizedRole,seniority}=load('src/lib/analytics-dimensions.ts');
+ assert.equal(normalizedRole('Jr. Software Developer'),'software engineer');assert.equal(normalizedRole('Custom Role',{'custom role':'configured'}),'configured');
+ assert.equal(seniority('Senior Engineer'),'SENIOR');assert.equal(seniority('Engineer'),'UNSPECIFIED');
+ const {pipelineAnalytics}=load('src/lib/analytics.ts');
+ const rows=[sample({id:'a',role_title:'Junior Software Developer',date_applied:'2026-10-01',first_response_at:'2026-10-04T00:00:00Z',status:'OFFER',source:'LINKEDIN',stage_history:[{status:'APPLIED',at:'2026-10-01'},{status:'SCREENING',at:'2026-10-04'},{status:'OFFER',at:'2026-10-08'}]}),sample({id:'b',date_applied:'2026-10-01',status:'WITHDRAWN',stage_history:[{status:'WITHDRAWN',at:'2026-10-03'}]}),sample({id:'c',role_title:undefined,date_applied:'bad',status:'REJECTED',stage_history:[{status:'REJECTED',at:'2026-10-05'}]}),sample({id:'d',date_applied:'2026-10-02',status:'OFFER'})];
+ const stats=pipelineAnalytics(rows,{},undefined,new Date('2026-10-13'));
+ const cohort=stats.dimensions.cohorts.find(row=>row.label==='2026-10');assert.equal(cohort.submitted,3);assert.equal(cohort.responses,1);assert.equal(cohort.medianCallbackDays,3);
+ assert.equal(stats.dimensions.cohorts.find(row=>row.label==='Unknown').responses,0);
+ assert.equal(stats.dimensions.qualifications[0].label,'UNASSESSED');assert.equal(stats.dimensions.missingResponseDates,3);
+ assert.equal(stats.dimensions.platforms.find(row=>row.label==='LINKEDIN').offers,1);
+});
+
+test('optional interpretation failures leave deterministic analytics available',async()=>{
+ for(const failure of [new Error('AI unavailable'),new Error('API key missing'),Object.assign(new Error('Timed out'),{name:'TimeoutError'})]){
+  const load=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'member',email:'member@example.com',role:'member'})},'@/lib/db':{getAnalyticsApplications:async()=>[sample()]},'@/lib/ai':{callGeminiJSON:async()=>{throw failure;}}});
+  const analyze=load('src/app/api/analytics/analyze/route.ts');assert.equal((await analyze.POST(new Request('http://local',{method:'POST',body:'{}'}))).status,502);
+  const metrics=load('src/app/api/analytics/route.ts');assert.equal((await metrics.GET(new Request('http://local/api/analytics'))).status,200);
+ }
+});
+
+test('saved assessment fallback respects manual overrides and missing historical fields',()=>{
+ const {pipelineAnalytics}=loader()('src/lib/analytics.ts');
+ const result=pipelineAnalytics([sample({id:'saved',role_fit_analysis:{fit:'STRONG'}}),sample({id:'manual',role_fit:'WEAK',role_fit_analysis:{fit:'STRONG'}}),sample({id:'legacy',status:undefined,role_title:undefined,date_applied:undefined,source:undefined})]);
+ assert.equal(result.assessed,2);assert.equal(result.unassessed,1);assert.equal(result.fits.find(row=>row.value==='STRONG').total,1);assert.equal(result.fits.find(row=>row.value==='WEAK').total,1);
+});
+
+test('analytics database query binds identity and scope and preserves regex boundaries',async()=>{
+ const previous=process.env.POSTGRES_URL;let query,params;
+ const sql=async(strings,...values)=>{query=strings.join('?');params=values;return [{data:sample()}];};
+ try{
+  process.env.POSTGRES_URL='postgres://mock-only';
+  const db=loader({'@neondatabase/serverless':{neon:()=>sql}})('src/lib/db.ts');
+  assert.equal((await db.getAnalyticsApplications({id:'MEMBER',email:'Member@example.com',role:'member'},'INTERNSHIP')).length,1);
+  assert.match(query,/UNION ALL/);assert.match(query,/lower\(trim\(coalesce\(owner/);assert.match(query,/job_description/);
+  assert.equal(params.filter(value=>value==='member').length,2);assert.equal(params.filter(value=>value==='member@example.com').length,2);
+  assert.equal(params.filter(value=>value===String.raw`\mintern(ship)?\M`).length,2);
+  assert.equal(params.filter(value=>value===false).length,4);assert.equal(params.filter(value=>value===true).length,2);
+ }finally{if(previous===undefined)delete process.env.POSTGRES_URL;else process.env.POSTGRES_URL=previous;}
+});
+
+test('all seniority levels derive from explicit titles and manual overrides survive title edits',()=>{
+ const {seniorityLevel,analyticsFieldUpdates}=loader()('src/lib/application-analytics-fields.ts');
+ for(const [title,level] of [['AI Intern','INTERNSHIP_TRAINEE'],['Engineer Trainee','INTERNSHIP_TRAINEE'],['Graduate Engineer','GRADUATE_ENTRY_LEVEL'],['Entry-level Engineer','GRADUATE_ENTRY_LEVEL'],['Junior AI Engineer','JUNIOR'],['Associate Engineer','ASSOCIATE'],['Mid-level Engineer','MID_LEVEL'],['Intermediate Engineer','MID_LEVEL'],['Senior Engineer','SENIOR'],['Principal Engineer','LEAD_PRINCIPAL'],['Team Lead','LEAD_PRINCIPAL'],['AI Engineer','UNSPECIFIED']]) assert.equal(seniorityLevel(title),level,title);
+ const derived=analyticsFieldUpdates(null,{role_title:'Junior Software Developer'});assert.equal(derived.seniority_level,'JUNIOR');assert.equal(derived.role_family,'software engineer');assert.equal(derived.seniority_level_source,'derived');
+ const saved={...sample({role_title:'Junior Software Developer'}),...derived};
+ const renamed={...saved,role_title:'Senior AI Engineer',...analyticsFieldUpdates(saved,{role_title:'Senior AI Engineer'})};assert.equal(renamed.seniority_level,'SENIOR');assert.equal(renamed.role_family,'ai engineer');
+ const manual={...renamed,...analyticsFieldUpdates(renamed,{seniority_level:'ASSOCIATE',role_family:'Applied AI'})};assert.equal(manual.seniority_level_source,'manual');assert.equal(manual.role_family_source,'manual');
+ const changed={...manual,role_title:'Junior Developer',...analyticsFieldUpdates(manual,{role_title:'Junior Developer'})};assert.equal(changed.seniority_level,'ASSOCIATE');assert.equal(changed.role_family,'Applied AI');
+ const reset=analyticsFieldUpdates(changed,{seniority_level:null,role_family:null});assert.equal(reset.seniority_level,'JUNIOR');assert.equal(reset.role_family,'developer');assert.equal(reset.role_family_source,'derived');
+});
+
+test('classification, platform and response fields validate and affect deterministic comparisons',()=>{
+ const load=loader();const {applicationValidationError}=load('src/lib/application-validation.ts');
+ for(const body of [{seniority_level:'MID'},{seniority_level_source:'ai'},{role_family_source:'ai'},{job_platform:42},{role_family:{}},{first_response_at:'2026-10-05'},{first_response_at:'invalid'}])assert.ok(applicationValidationError(body));
+ assert.equal(applicationValidationError({seniority_level:'JUNIOR',job_platform:'Bossjob',role_family:'Applied AI',first_response_at:'2026-10-05T12:00:00+08:00'}),null);
+ const {pipelineAnalytics}=load('src/lib/analytics.ts');
+ const stats=pipelineAnalytics([sample({role_title:'Senior Engineer',seniority_level:'JUNIOR',seniority_level_source:'manual',role_family:'Applied AI',role_family_source:'manual',source:'DIRECT',job_platform:'Bossjob',date_applied:'2026-10-01',first_response_at:'2026-10-05T12:00:00+08:00',stage_history:[{status:'SCREENING',at:'2026-10-08'}]})],{},undefined,new Date('2026-10-13'));
+ assert.equal(stats.dimensions.seniority[0].label,'Junior');assert.equal(stats.dimensions.roles[0].label,'Applied AI');assert.equal(stats.dimensions.platforms[0].label,'BOSSJOB');assert.equal(stats.dimensions.cohorts[0].medianCallbackDays,4);
+});
+
+test('local persistence keeps derived and manual fields through lead promotion and status changes',async()=>{
+ const original=process.cwd(),directory=fs.mkdtempSync(path.join(os.tmpdir(),'job-analytics-fields-')),env={POSTGRES_URL:process.env.POSTGRES_URL,DATABASE_URL:process.env.DATABASE_URL,VERCEL:process.env.VERCEL};
+ try{
+  for(const key of Object.keys(env))delete process.env[key];process.chdir(directory);
+  const db=loader()('src/lib/db.ts');const lead=await db.createApplication(sample({status:'LEAD',role_title:'Junior AI Engineer',job_platform:'Bossjob',first_response_at:'2026-10-05T12:30:00Z'}));
+  assert.equal(lead.seniority_level,'JUNIOR');assert.equal(lead.role_family,'ai engineer');
+  await db.updateApplication(lead.id,{status:'APPLIED'});await db.updateApplication(lead.id,{role_title:'Senior AI Engineer'});
+  let saved=await db.getApplicationById(lead.id);assert.equal(saved.seniority_level,'SENIOR');assert.equal(saved.job_platform,'Bossjob');assert.equal(saved.first_response_at,'2026-10-05T12:30:00.000Z');
+  await db.updateApplication(lead.id,{seniority_level:'JUNIOR',role_family:'Applied AI'});await db.updateApplication(lead.id,{role_title:'Lead Engineer',status:'INTERVIEWING'});
+  saved=await db.getApplicationById(lead.id);assert.equal(saved.seniority_level,'JUNIOR');assert.equal(saved.role_family,'Applied AI');assert.equal(saved.role_family_source,'manual');
+  await db.updateApplication(lead.id,{seniority_level:null,role_family:null,first_response_at:null});saved=await db.getApplicationById(lead.id);assert.equal(saved.seniority_level,'LEAD_PRINCIPAL');assert.equal(saved.role_family,'engineer');assert.equal(saved.first_response_at,null);
+ }finally{process.chdir(original);for(const [key,value]of Object.entries(env)){if(value===undefined)delete process.env[key];else process.env[key]=value;}fs.rmSync(directory,{recursive:true,force:true});}
+});
+
+test('application aging separates active unanswered records from callbacks and unknown dates',()=>{
+ const {pipelineAnalytics}=loader()('src/lib/analytics.ts');
+ const rows=[
+  sample({id:'day0',date_applied:'2026-10-13'}),sample({id:'day7',date_applied:'2026-10-06'}),
+  sample({id:'day8',date_applied:'2026-10-05'}),sample({id:'day14',date_applied:'2026-09-29'}),
+  sample({id:'day15',date_applied:'2026-09-28'}),sample({id:'day30',date_applied:'2026-09-13'}),sample({id:'day31',date_applied:'2026-09-12'}),
+  sample({id:'missing'}),sample({id:'invalid',date_applied:'bad'}),sample({id:'future',date_applied:'2026-10-14'}),
+  sample({id:'responded',date_applied:'2026-09-01',first_response_at:'2026-09-06T00:00:00Z'}),
+  sample({id:'undated-interview',date_applied:'2026-09-01',status:'INTERVIEWING',stage_history:[{status:'INTERVIEWING',at:'2026-09-08'}]}),
+  sample({id:'rejected',date_applied:'2026-09-01',status:'REJECTED'}),sample({id:'withdrawn',date_applied:'2026-09-01',status:'WITHDRAWN'}),
+  sample({id:'archived',date_applied:'2026-09-01',not_proceeding:true}),sample({id:'lead',date_applied:'2026-09-01',status:'LEAD'})
+ ];
+ const stats=pipelineAnalytics(rows,{},undefined,new Date('2026-10-13'));
+ assert.equal(stats.total,16);assert.equal(stats.timing.submitted,15);assert.equal(stats.timing.pending,10);
+ assert.deepEqual(stats.timing.buckets.map(row=>row.pending),[2,2,2,1]);assert.equal(stats.timing.pendingUnknownAges,3);
+ assert.equal(stats.timing.missingSubmissionDates,1);assert.equal(stats.timing.invalidSubmissionDates,1);assert.equal(stats.timing.futureSubmissionDates,1);
+ assert.deepEqual(stats.timing.callbacks,{count:1,averageDays:5,medianDays:5});assert.equal(stats.timing.unknownResponseTiming,4);
+ assert.equal(stats.dimensions.cohorts.find(row=>row.label==='2026-09').responses,1);
+ assert.equal(pipelineAnalytics(rows,{},undefined,new Date('2026-10-14')).timing.buckets[0].pending,2);
+});
+
+test('7/14/30-day response rates use mature cohorts and exclude unknown event timing',()=>{
+ const {pipelineAnalytics}=loader()('src/lib/analytics.ts');
+ const rows=[sample({id:'fast',date_applied:'2026-09-01',first_response_at:'2026-09-06T00:00:00Z'}),
+  sample({id:'slow',date_applied:'2026-09-01',first_response_at:'2026-09-21T00:00:00Z'}),
+  sample({id:'waiting',date_applied:'2026-09-01'}),
+  sample({id:'unknown',date_applied:'2026-09-01',status:'OFFER',stage_history:[{status:'OFFER',at:'2026-09-05'}]}),
+  sample({id:'recent',date_applied:'2026-10-12',first_response_at:'2026-10-13T00:00:00Z'}),
+  sample({id:'missing-date',first_response_at:'2026-10-01T00:00:00Z'})];
+ const stats=pipelineAnalytics(rows,{},undefined,new Date('2026-10-13'));
+ assert.deepEqual(stats.timing.windows.map(row=>row.responseRate),[33,33,67]);
+ for(const row of stats.timing.windows){assert.equal(row.mature,4);assert.equal(row.eligible,3);assert.equal(row.unknownTiming,1);assert.equal(row.immature,1);}
+ assert.deepEqual(stats.timing.callbacks,{count:3,averageDays:8.7,medianDays:5});
+ const noTiming=pipelineAnalytics([sample({date_applied:'2026-09-01',status:'INTERVIEWING'})],{},undefined,new Date('2026-10-13'));
+ assert.equal(noTiming.timing.windows[0].responseRate,null);assert.equal(noTiming.timing.callbacks.count,0);assert.equal(noTiming.timing.pending,0);
+});
+
+test('age boundaries validate and change grouping without writing per-application ages',()=>{
+ const load=loader();const {validatePreferences}=load('src/lib/preferences.ts');
+ for(const value of [[7,7,30],[30,14,7],[0,14,30],[7,14],[7,14,30.5],[7,14,4000],['7',14,30]])assert.throws(()=>validatePreferences({analytics_age_boundaries:value}));
+ assert.deepEqual(validatePreferences({}).analytics_age_boundaries,[7,14,30]);assert.deepEqual(validatePreferences({analytics_age_boundaries:[3,10,20]}).analytics_age_boundaries,[3,10,20]);
+ const app=sample({date_applied:'2026-10-05'});const original=JSON.stringify(app);
+ const stats=load('src/lib/analytics.ts').pipelineAnalytics([app],{},undefined,new Date('2026-10-13'),[3,10,20]);
+ assert.deepEqual(stats.timing.buckets.map(row=>row.pending),[0,1,0,0]);assert.equal(stats.timing.buckets[3].label,'21+ days');assert.equal(JSON.stringify(app),original);
+});
+
 test('admin and member archive and restore preserve recruitment status and never enqueue Notion writes',async()=>{
  for(const role of ['admin','member']){
   const user={id:role==='admin'?'user_ji':'member',email:role+'@example.com',role,notion_enabled:role==='admin'};let queued=0;
@@ -155,7 +292,7 @@ test('charts partition unique records, distinguish inferred interviews, and excl
 test('member AI uses the saved master resume and ATS uses requirements, never personal notes',async()=>{
  const member={id:'member',email:'member@example.com',role:'member'};let input,profile='Master version 1';
  const app=sample({id:'mine',owner:'member',information:'Build Python APIs and maintain reliable SQL databases.',notes:'Private interview feedback, not job requirements.'});
- const load=loader({'@/lib/session-account':{getSessionAccount:async()=>member},'@/lib/db':{getCandidateProfile:async id=>{assert.equal(id,'member');return profile;},getApplicationById:async()=>app,getApplications:async()=>[app,sample({owner:'other',id:'foreign',status:'ACCEPTED'})]},'@/lib/portfolio-evidence':{portfolioEvidence:async()=>{throw Error('Member accessed admin portfolio');}},'@/lib/ai':{analyzeResumeWithGemini:async data=>{input=data;return {};},generateTailoredLeads:async data=>{input=data;return [];},matchLeadsWithProfile:async data=>{input=data;return [];},generateLeadPitch:async data=>{input=data;return {};},callGeminiJSON:async(system,data)=>{input=JSON.parse(data);return {summary:'Grounded interpretation',nextSteps:['Review targeting']};}}});
+ const load=loader({'@/lib/session-account':{getSessionAccount:async()=>member},'@/lib/db':{getCandidateProfile:async id=>{assert.equal(id,'member');return profile;},getApplicationById:async()=>app,getAnalyticsApplications:async()=>[app]},'@/lib/portfolio-evidence':{portfolioEvidence:async()=>{throw Error('Member accessed admin portfolio');}},'@/lib/ai':{analyzeResumeWithGemini:async data=>{input=data;return {};},generateTailoredLeads:async data=>{input=data;return [];},matchLeadsWithProfile:async data=>{input=data;return [];},generateLeadPitch:async data=>{input=data;return {};},callGeminiJSON:async(system,data)=>{input=JSON.parse(data);return {summary:'Grounded interpretation',nextSteps:['Review targeting']};}}});
  const request=data=>new Request('http://local',{method:'POST',body:JSON.stringify(data)});
  const ats=load('src/app/api/ai/analyze/route.ts');assert.equal((await ats.POST(request({applicationId:'mine',resumeText:'Forged stale resume',jobDescription:'Wrong requirement'}))).status,200);assert.equal(input.resumeText,profile);assert.equal(input.jobDescription,app.information);assert.equal(input.jobDescription.includes(app.notes),false);
  profile='Master version 2';const pipeline=load('src/app/api/analytics/analyze/route.ts');assert.equal((await pipeline.POST(request({owner:'other',stats:{total:999}}))).status,200);assert.equal(input.total,1);assert.equal(input.candidate.resume,profile);assert.equal(input.candidate.source,'master_resume');
@@ -345,19 +482,19 @@ test('local offer persistence survives promotion, Notion-style updates and expli
 });
 
 test('offer PDF contains distributions and medians without company/application lists',async()=>{
- const {analyticsPdf}=loader()('src/lib/analytics-export.ts');const rows=[sample({id:'one',role_title:'PRIVATE_OFFER_ROLE',company_name:'PRIVATE_OFFER_COMPANY',offer_amount:60000,expected_salary_amount:65000}),sample({id:'two',offer_amount:80000}),sample({id:'usd',offer_amount:1200,offer_currency:'USD',offer_pay_period:'HOURLY'})];const pdf=await analyticsPdf(rows,'Member','All roles');assert.equal(pdf.getNumberOfPages(),4);
+ const {analyticsPdf}=loader()('src/lib/analytics-export.ts');const rows=[sample({id:'one',role_title:'PRIVATE_OFFER_ROLE',company_name:'PRIVATE_OFFER_COMPANY',offer_amount:60000,expected_salary_amount:65000}),sample({id:'two',offer_amount:80000}),sample({id:'usd',offer_amount:1200,offer_currency:'USD',offer_pay_period:'HOURLY'})];const pdf=await analyticsPdf(rows,'Member','All roles');assert.ok(pdf.getNumberOfPages() >= 4);
  const {extractText}=require('unpdf');const text=(await extractText(new Uint8Array(pdf.output('arraybuffer')),{mergePages:true})).text;assert.match(text,/Recorded salary offers/);assert.match(text,/PHP 70,000.00/);assert.match(text,/USD \/ Hourly/);assert.doesNotMatch(text,/PRIVATE_OFFER/);assert.match(text,/Salary expectations/);assert.match(text,/0 of 1 matching offers meet expectations/);assert.match(text,/-PHP 5,000.00/);
  fs.writeFileSync(path.join(ROOT,'.data','salary-offer-report-preview.pdf'),Buffer.from(pdf.output('arraybuffer')));
 });
 
 test('PDF stays compact for 500 applications and includes targets and AI without individual records or resume',async()=>{
  const {analyticsPdf}=loader()('src/lib/analytics-export.ts');
- const rows=Array.from({length:500},(_,i)=>sample({id:String(i),company_name:'Private Employer '+i,role_title:`Private Role ${i}`,role_fit:'STRONG',notes:'PRIVATE_APPLICATION_NOTES',information:'PRIVATE_JOB_DESCRIPTION',role_fit_analysis:{explanation:'PRIVATE_FIT_EXPLANATION'}}));
+ const rows=Array.from({length:500},(_,i)=>sample({id:String(i),company_name:'Private Employer '+i,role_title:i % 2 ? 'Junior Private Role' : 'Senior Private Role',role_fit:'STRONG',notes:'PRIVATE_APPLICATION_NOTES',information:'PRIVATE_JOB_DESCRIPTION',role_fit_analysis:{explanation:'PRIVATE_FIT_EXPLANATION'}}));
  const targets={target_roles:['Solutions Architect'],target_companies:['Target Employer'],preferred_locations:['Las Piñas'],work_models:['REMOTE'],job_types:['FULL_TIME'],salary_min:60000,salary_currency:'PHP',dealbreakers:'Daytime schedule',portfolio_summary:'PRIVATE_RESUME_CONTENT',resumeText:'PRIVATE_RESUME_CONTENT'};
  const insight={summary:'Recorded progress suggests reviewing targeting.',nextSteps:['Review relevant role requirements.']};
  const pdf=await analyticsPdf(rows,'Jizelle Casia','All my roles',insight,{},undefined,targets);
  const smaller=await analyticsPdf(rows.slice(0,35),'Jizelle Casia','All my roles',insight,{},undefined,targets);
- assert.equal(pdf.getNumberOfPages(),3);assert.equal(smaller.getNumberOfPages(),3);
+ assert.equal(pdf.getNumberOfPages(),smaller.getNumberOfPages());assert.ok(pdf.getNumberOfPages() <= 5);
  const {extractText}=require('unpdf');const result=await extractText(new Uint8Array(pdf.output('arraybuffer')),{mergePages:true});
  for(const expected of ['Jizelle Casia','500','Role fit and conversion','Unassessed: 0','Target Employer','Solutions Architect','Las Pinas','PHP 60,000.00','Daytime schedule',insight.summary,insight.nextSteps[0]])assert.ok(result.text.includes(expected),expected);
  assert.doesNotMatch(result.text,/Private Employer|Private Role|PRIVATE_|Application details/);
@@ -382,7 +519,7 @@ test('resume profile is scoped to the session account and ignores a forged owner
  assert.equal((await (await route.GET()).json()).resumeText,'Friend resume');await route.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({owner:'user_ji',resumeText:'Updated friend resume'})}));assert.equal(profiles.user_ji,'Private admin resume');assert.equal(profiles.user_friend,'Updated friend resume');user=null;assert.equal((await route.GET()).status,401);
 });
 test('AI pipeline interpretation uses server-derived statistics for only the signed-in owner',async()=>{
- let stats;const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',email:'ji@example.com'})},'@/lib/db':{getApplications:async()=>[sample(),sample({id:'friend',owner:'friend',status:'OFFER'})]},'@/lib/ai':{callGeminiJSON:async(system,input)=>{stats=JSON.parse(input);return {summary:'One tracked application',nextSteps:['Review targeting']};}}})('src/app/api/analytics/analyze/route.ts');const response=await route.POST(new Request('http://local',{method:'POST',body:JSON.stringify({owner:'friend',stats:{total:99}})}));assert.equal(response.status,200);assert.equal(stats.total,1);assert.equal(stats.funnel[4].count,0);
+ let stats;const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',email:'ji@example.com'})},'@/lib/db':{getAnalyticsApplications:async()=>[sample()]},'@/lib/ai':{callGeminiJSON:async(system,input)=>{stats=JSON.parse(input);return {summary:'One tracked application',nextSteps:['Review targeting']};}}})('src/app/api/analytics/analyze/route.ts');const response=await route.POST(new Request('http://local',{method:'POST',body:JSON.stringify({owner:'friend',stats:{total:99}})}));assert.equal(response.status,200);assert.equal(stats.total,1);assert.equal(stats.funnel[4].count,0);
 });
 test('members can read their own account record but cannot list or modify other accounts',async()=>{
  const me={id:'member',email:'member@example.com',role:'member'};const load=loader({'@/lib/session-account':{getSessionAccount:async()=>me},'@/lib/db':{getUsers:async()=>[me,{id:'other',email:'other@example.com'}],getUserById:async()=>me,updateUser:async()=>{throw Error('Unexpected write');},deleteUser:async()=>{throw Error('Unexpected delete');}}});const list=load('src/app/api/users/route.ts');assert.deepEqual((await (await list.GET()).json()).data.map(user=>user.id),['member']);const route=load('src/app/api/users/[id]/route.ts');assert.equal((await route.GET(new Request('http://local'),{params:Promise.resolve({id:'other'})})).status,404);assert.equal((await route.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({role:'admin'})}),{params:Promise.resolve({id:'member'})})).status,403);assert.equal((await route.DELETE(new Request('http://local',{method:'DELETE'}),{params:Promise.resolve({id:'other'})})).status,403);

@@ -1,21 +1,22 @@
 import { JobApplication } from '@/types/job';
-import { pipelineAnalytics } from './analytics';
+import { pipelineAnalytics, type PipelineStats } from './analytics';
 import { AnalyticsStage, DEFAULT_REJECTION_STATUSES } from './analytics-stages';
 import { PersonalPreferences } from './preferences';
 import { formatSalaryRange } from './currencies';
 import { offerPeriodLabel, salaryOfferScale } from './salary-offers';
 
 type PipelineInsight = { summary: string; nextSteps: string[] };
-type ReportTargets = Pick<PersonalPreferences, 'target_companies' | 'target_roles' | 'preferred_locations' | 'work_models' | 'job_types' | 'salary_min' | 'salary_currency' | 'dealbreakers'>;
+type ReportTargets = Pick<PersonalPreferences, 'target_companies' | 'target_roles' | 'preferred_locations' | 'work_models' | 'job_types' | 'salary_min' | 'salary_currency' | 'dealbreakers' | 'analytics_age_boundaries'>;
 
 export async function analyticsPdf(
   applications: JobApplication[], accountName: string, scope: string,
   insight?: string | PipelineInsight, mapping: Record<string, AnalyticsStage> = {},
   rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES, targets?: ReportTargets,
+  snapshot?: PipelineStats,
 ) {
   const { default: jsPDF } = await import('jspdf');
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
-  const stats = pipelineAnalytics(applications, mapping, rejectionStatuses);
+  const stats = snapshot || pipelineAnalytics(applications, mapping, rejectionStatuses, new Date(), targets?.analytics_age_boundaries);
   const colors = { rose: '#9D3C5E', ink: '#37343C', muted: '#736A6D', border: '#EAE4E9', pink: '#FFF0F6', recorded: '#E99ABA', inferred: '#C8BCE8', blue: '#A8CCF0', track: '#F3F1F5' };
   const clean = (value: string) => value.replace(/[–—]/g, '-').replace(/[’‘]/g, "'").replace(/[“”]/g, '"').normalize('NFKD').replace(/[^\x20-\x7E\n]/g, '');
   const percent = (value: number | null) => value === null ? 'N/A' : `${value}%`;
@@ -213,6 +214,22 @@ export async function analyticsPdf(
   if (stats.recommendations.length) {
     y += 6; section('Data-based focus');
     stats.recommendations.forEach((item, i) => { paragraph(`${i + 1}. ${item}`); y += 2; });
+  }
+  if (stats.total) {
+    y += 6; section('Application effectiveness comparisons');
+    paragraph('Rates use each group\'s submitted applications. Response timing requires the actual saved first employer response; status update timestamps are excluded. Title-derived seniority and role families support manual overrides. Newer cohorts have had less time to respond.', 16, 178, 8, colors.muted);
+    for (const [title, rows] of [ ['Role families', stats.dimensions.roles], ['Seniority', stats.dimensions.seniority], ['Platforms', stats.dimensions.platforms], ['Submission cohorts', stats.dimensions.cohorts], ['Saved qualifications fit (role-fit proxy)', stats.dimensions.qualifications] ] as const) {
+      y += 4; section(title);
+      for (const row of rows) paragraph(`${row.label}: ${row.submitted} submitted; progression ${percent(row.progressionRate)}; offers ${percent(row.offerRate)}; ${row.responses} recorded responses (${percent(row.responseRate)}); median callback ${row.medianCallbackDays === null ? 'Unknown' : `${row.medianCallbackDays} days`}.`, 16, 178, 8);
+    }
+    y += 4; section('Application aging');
+    paragraph('Waiting time and employer response latency are separate. Unanswered aging includes only active submitted applications with no recorded response or later hiring phase. Age limits are configurable grouping choices, not hiring benchmarks.', 16, 178, 8, colors.muted);
+    for (const bucket of stats.timing.buckets) paragraph(`${bucket.label}: ${bucket.pending} unanswered; ${bucket.all} total submitted.`, 16, 178, 8);
+    paragraph(`${stats.timing.pendingUnknownAges} unanswered applications have unknown age. All submitted records: ${stats.timing.missingSubmissionDates} missing, ${stats.timing.invalidSubmissionDates} invalid and ${stats.timing.futureSubmissionDates} future submission dates excluded from age groups.`, 16, 178, 8, colors.muted);
+    y += 4; section('Employer response timing');
+    paragraph(`${stats.timing.callbacks.count} usable recorded response dates. Average callback: ${stats.timing.callbacks.averageDays ?? 'Unknown'} days; median: ${stats.timing.callbacks.medianDays ?? 'Unknown'} days.`, 16, 178, 8);
+    for (const window of stats.timing.windows) paragraph(`Within ${window.days} days: ${window.responded} / ${window.eligible} eligible (${percent(window.responseRate)}). ${window.immature} too recent; ${window.unknownTiming} mature records with unknown timing excluded.`, 16, 178, 8);
+    paragraph('Only applications old enough to complete each window are eligible. Missing submission dates and unknown response timing are excluded, not counted as no response. Rates depend on recording completeness. Time to interview is unknown: status-history save timestamps are not interview event dates.', 16, 178, 8, colors.muted);
   }
   y += 6; section('Data notes');
   paragraph(`${stats.quality.uncertainPhases} closed phases to review; ${stats.quality.duplicateRecords} duplicate records removed. Activity excludes missing, invalid and future dates.`, 16, 178, 8, colors.muted);

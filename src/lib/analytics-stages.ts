@@ -12,7 +12,7 @@ export const DEFAULT_STATUS_STAGES: Record<string, AnalyticsStage> = {
   accepted: 'OFFER', 'accepted - not proceeding': 'OFFER', 'job offer': 'OFFER',
   'not accepted': 'SUBMITTED', 'not proceeding': 'SUBMITTED',
 };
-export function stageForStatus(status: string, category?: string, mapping: Record<string, AnalyticsStage> = {}) {
+export function stageForStatus(status = '', category?: string, mapping: Record<string, AnalyticsStage> = {}) {
   const key = canonicalStatusName(status).toLowerCase();
   if (Object.hasOwn(mapping, key)) return mapping[key];
   const legacyKey = status.trim().toLowerCase();

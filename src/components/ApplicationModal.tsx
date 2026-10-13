@@ -9,6 +9,8 @@ import { OFFER_PAY_PERIODS } from '@/lib/salary-offers';
 import type { OfferPayPeriod } from '@/types/job';
 import { ROLE_FITS } from '@/lib/role-fit';
 import { parseJobImport, JOB_JSON_PROMPT } from '@/lib/job-import';
+import { SENIORITY_LEVELS, JOB_PLATFORMS, seniorityLevel, normalizedRole } from '@/lib/application-analytics-fields';
+import type { SeniorityLevel } from '@/types/job';
 import type { RoleFit, RoleFitAnalysis } from '@/types/job';
 
 import ImageDropzone from './ImageDropzone';
@@ -79,6 +81,13 @@ const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
   { value: 'MEDIUM', label: '💮 Medium' },
   { value: 'LOW', label: '☕ Low' },
 ];
+function localDateTime(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${String(date.getMilliseconds()).padStart(3, '0')}`;
+}
 
 export default function ApplicationModal({
   isOpen,
@@ -91,6 +100,10 @@ export default function ApplicationModal({
   isMember = false,
 }: ApplicationModalProps) {
   const [roleTitle, setRoleTitle] = useState('');
+  const [seniorityOverride, setSeniorityOverride] = useState<SeniorityLevel | null>(null);
+  const [roleFamilyOverride, setRoleFamilyOverride] = useState<string | null>(null);
+  const [jobPlatform, setJobPlatform] = useState('');
+  const [firstResponse, setFirstResponse] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [roleFit, setRoleFit] = useState<RoleFit | null>(null);
   const [fitAnalysis, setFitAnalysis] = useState<RoleFitAnalysis | null>(null);
@@ -159,6 +172,10 @@ export default function ApplicationModal({
   }, [isOpen, isMember]);
 
   useEffect(() => {
+    setSeniorityOverride(initialData?.seniority_level && initialData.seniority_level_source !== 'derived' ? initialData.seniority_level : null);
+    setRoleFamilyOverride(initialData?.role_family && initialData.role_family_source !== 'derived' ? initialData.role_family : null);
+    setJobPlatform(initialData?.job_platform || initialData?.source || '');
+    setFirstResponse(localDateTime(initialData?.first_response_at));
     setJobDescription(initialData?.information || initialData?.job_description || '');
     setOfferAmount(initialData?.offer_amount != null ? String(initialData.offer_amount) : '');
     setOfferCurrency(initialData?.offer_currency || 'PHP');
@@ -270,6 +287,12 @@ export default function ApplicationModal({
         role_fit_source: roleFit ? (useAiFit ? 'ai' : 'manual') : null,
         role_fit_analysis: roleFit && useAiFit ? fitAnalysis : null,
         role_title: roleTitle.trim(),
+        seniority_level: seniorityOverride,
+        seniority_level_source: seniorityOverride ? 'manual' : 'derived',
+        role_family: roleFamilyOverride?.trim() || null,
+        role_family_source: roleFamilyOverride?.trim() ? 'manual' : 'derived',
+        job_platform: jobPlatform.trim() || null,
+        first_response_at: firstResponse ? new Date(firstResponse).toISOString() : null,
         company_name: companyName.trim(),
         company_logo: customLogoUrl || undefined,
         status,
@@ -333,6 +356,7 @@ export default function ApplicationModal({
                 type="text"
                 required
                 placeholder="e.g. Senior Frontend Engineer"
+                aria-label="Job title"
                 value={roleTitle}
                 onChange={(e) => setRoleTitle(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] focus:ring-2 focus:ring-[#FF7AB3]/20 text-[#4A3E44] placeholder-stone-400 transition"
@@ -601,6 +625,27 @@ export default function ApplicationModal({
                 onValueChange={setSalaryMax}
                 className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs text-[#4A3E44] transition"
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div><label htmlFor="application-seniority" className="block text-xs font-semibold text-[#736A6D] mb-1.5">Seniority level</label>
+              <select id="application-seniority" value={seniorityOverride || ''} onChange={event => setSeniorityOverride(event.target.value as SeniorityLevel || null)} className="w-full rounded-xl border border-[#F1DDE9] bg-white px-3 py-2 text-xs">
+                <option value="">Automatic: {SENIORITY_LEVELS.find(item => item.value === seniorityLevel(roleTitle))!.label}</option>
+                {SENIORITY_LEVELS.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+              </select><p className="mt-1 text-[11px] text-[#736A6D]">Uses explicit title keywords. Titles without an indicator stay Unspecified.</p>
+            </div>
+            <div><label htmlFor="application-role-family" className="block text-xs font-semibold text-[#736A6D] mb-1.5">Role family</label>
+              <input id="application-role-family" maxLength={200} value={roleFamilyOverride ?? normalizedRole(roleTitle)} onChange={event => setRoleFamilyOverride(event.target.value)} className="w-full rounded-xl border border-[#F1DDE9] px-3 py-2 text-xs" />
+              <p className="mt-1 text-[11px] text-[#736A6D]">{roleFamilyOverride === null ? 'Automatic from the job title.' : 'Manual override.'} {roleFamilyOverride !== null && <button type="button" onClick={() => setRoleFamilyOverride(null)} className="font-semibold text-[#9D3C5E]">Use automatic role family</button>}</p>
+            </div>
+            <div><label htmlFor="application-platform" className="block text-xs font-semibold text-[#736A6D] mb-1.5">Job platform</label>
+              <input id="application-platform" list="application-platform-options" maxLength={200} placeholder="Choose or enter a platform" value={jobPlatform} onChange={event => setJobPlatform(event.target.value)} className="w-full rounded-xl border border-[#F1DDE9] px-3 py-2 text-xs" />
+              <datalist id="application-platform-options">{JOB_PLATFORMS.map(platform => <option key={platform} value={platform === 'WALK_IN' ? 'Walk-in' : platform} />)}</datalist>
+            </div>
+            <div><label htmlFor="application-response" className="block text-xs font-semibold text-[#736A6D] mb-1.5">First employer response</label>
+              <input id="application-response" type="datetime-local" step="0.001" value={firstResponse} onChange={event => setFirstResponse(event.target.value)} className="w-full rounded-xl border border-[#F1DDE9] px-3 py-2 text-xs" />
+              <p className="mt-1 text-[11px] text-[#736A6D]">Your local time. Record the actual first employer response. Blank leaves response timing unknown.</p>
             </div>
           </div>
 

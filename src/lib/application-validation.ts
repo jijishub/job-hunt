@@ -1,11 +1,23 @@
 import { CURRENCIES } from './currencies';
 import { OFFER_PAY_PERIODS } from './salary-offers';
+import { SENIORITY_LEVELS } from './application-analytics-fields';
 
 export const APPLICATION_STATUSES = ['LEAD', 'APPLIED', 'SCREENING', 'INTERVIEWING', 'OFFER', 'ACCEPTED', 'REJECTED', 'WITHDRAWN'] as const;
 
 export function applicationValidationError(input: unknown) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return 'Expected one application object.';
   const body = input as Record<string, unknown>;
+  if (body.seniority_level != null && !SENIORITY_LEVELS.some(item => item.value === body.seniority_level)) return 'Choose a valid seniority level.';
+  for (const field of ['seniority_level_source', 'role_family_source']) {
+    if (body[field] != null && !['derived', 'manual'].includes(body[field] as string)) return 'Choose automatic or manual classification.';
+  }
+  for (const field of ['role_family', 'job_platform']) {
+    if (body[field] != null && (typeof body[field] !== 'string' || (body[field] as string).length > 200)) return `${field.replaceAll('_', ' ')} must be text of at most 200 characters.`;
+  }
+  if (body.first_response_at != null && body.first_response_at !== '') {
+    const value = body.first_response_at;
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value.slice(0, 10)).toISOString().slice(0, 10) !== value.slice(0, 10)) return 'First employer response must be a valid date and time with a timezone.';
+  }
   if (body.ensure_company != null && typeof body.ensure_company !== 'boolean') return 'Invalid company creation flag.';
   if (body.is_lead != null && typeof body.is_lead !== 'boolean') return 'Invalid lead flag.';
   const options: Record<string, readonly string[]> = {
