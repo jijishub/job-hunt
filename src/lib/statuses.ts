@@ -19,6 +19,7 @@ export const MEMBER_STATUS_OPTIONS: StatusOption[] = [
 
 export const SEEDED_STATUS_OPTIONS: StatusOption[] = [
   { id: 'not_started', name: 'Not started', color: 'gray', category: 'LEAD' },
+  { id: 'applied', name: 'Applied', color: 'yellow', category: 'APPLIED' },
   { id: 'accepted', name: 'Accepted', color: 'green', category: 'ACCEPTED' },
   { id: 'accepted_not_proceeding', name: 'Accepted - Not Proceeding', color: 'purple', category: 'OFFER' },
   { id: 'initial_interview', name: 'Initial Interview', color: 'orange', category: 'INTERVIEWING' },
