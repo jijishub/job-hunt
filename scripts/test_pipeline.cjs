@@ -61,19 +61,19 @@ test('analytics scopes and exports work without AI, and changes refresh determin
  rows[0]={...rows[0],status:'INTERVIEWING'};assert.equal((await read('ALL')).funnel[2].count,2);
  const {analyticsPdf}=load('src/lib/analytics-export.ts');const {extractText}=require('unpdf');
  const pdf=await analyticsPdf(rows,'Member','All');const text=(await extractText(new Uint8Array(pdf.output('arraybuffer')),{mergePages:true})).text;
- assert.match(text,/Application effectiveness comparisons/);assert.match(text,/Software Development/);assert.doesNotMatch(text,/NaN|Infinity/);
+ assert.match(text,/Application effectiveness comparisons/);assert.match(text,/Job title keywords/);assert.doesNotMatch(text,/NaN|Infinity/);
  assert.equal((await route.GET(new Request('http://local/api/analytics?scope=forged'))).status,400);
 });
 
 test('role normalization, response cohorts and incomplete history use only recorded evidence',()=>{
- const load=loader();const {normalizedRole,seniority}=load('src/lib/analytics-dimensions.ts');
- assert.equal(normalizedRole('Jr. Software Developer'),'software engineer');assert.equal(normalizedRole('Custom Role',{'custom role':'configured'}),'configured');
+ const load=loader();const {jobTitleKeywords}=load('src/lib/job-title-keywords.ts');const {seniorityLevel:seniority}=load('src/lib/application-analytics-fields.ts');const normalizedRole=title=>jobTitleKeywords(title).map(item=>item.key).join('|');
+ assert.equal(normalizedRole('Jr. Software Developer'),'software|software developer|developer');assert.equal(normalizedRole('Custom Role'),'custom');
  assert.equal(normalizedRole('Constructor'),'constructor');assert.equal(normalizedRole('Senior Constructor'),'constructor');
  assert.equal(seniority('Senior Engineer'),'SENIOR');assert.equal(seniority('Engineer'),'UNSPECIFIED');
  const {pipelineAnalytics}=load('src/lib/analytics.ts');
  const rows=[sample({id:'a',role_title:'Junior Software Developer',date_applied:'2026-10-01',first_response_at:'2026-10-04T00:00:00Z',status:'OFFER',source:'LINKEDIN',stage_history:[{status:'APPLIED',at:'2026-10-01'},{status:'SCREENING',at:'2026-10-04'},{status:'OFFER',at:'2026-10-08'}]}),sample({id:'b',date_applied:'2026-10-01',status:'WITHDRAWN',stage_history:[{status:'WITHDRAWN',at:'2026-10-03'}]}),sample({id:'c',role_title:undefined,date_applied:'bad',status:'REJECTED',stage_history:[{status:'REJECTED',at:'2026-10-05'}]}),sample({id:'d',date_applied:'2026-10-02',status:'OFFER'})];
  const stats=pipelineAnalytics(rows,{},undefined,new Date('2026-10-13'));
- assert.equal(pipelineAnalytics([sample({role_title:'Constructor'})]).dimensions.roles[0].label,'constructor');
+ assert.equal(pipelineAnalytics([sample({role_title:'Constructor'})]).dimensions.keywords[0].label,'Constructor');
  const cohort=stats.dimensions.cohorts.find(row=>row.label==='2026-10');assert.equal(cohort.submitted,3);assert.equal(cohort.responses,1);assert.equal(cohort.medianCallbackDays,3);
  assert.equal(stats.dimensions.cohorts.find(row=>row.label==='Unknown').responses,0);
  assert.equal(stats.dimensions.qualifications[0].label,'UNASSESSED');assert.equal(stats.dimensions.missingResponseDates,3);
@@ -111,12 +111,12 @@ test('analytics database query binds identity and scope and preserves regex boun
 test('all seniority levels derive from explicit titles and manual overrides survive title edits',()=>{
  const {seniorityLevel,analyticsFieldUpdates}=loader()('src/lib/application-analytics-fields.ts');
  for(const [title,level] of [['AI Intern','INTERNSHIP_TRAINEE'],['Engineer Trainee','INTERNSHIP_TRAINEE'],['Graduate Engineer','GRADUATE_ENTRY_LEVEL'],['Entry-level Engineer','GRADUATE_ENTRY_LEVEL'],['Junior AI Engineer','JUNIOR'],['Associate Engineer','ASSOCIATE'],['Mid-level Engineer','MID_LEVEL'],['Intermediate Engineer','MID_LEVEL'],['Senior Engineer','SENIOR'],['Principal Engineer','LEAD_PRINCIPAL'],['Team Lead','LEAD_PRINCIPAL'],['AI Engineer','UNSPECIFIED']]) assert.equal(seniorityLevel(title),level,title);
- const derived=analyticsFieldUpdates(null,{role_title:'Junior Software Developer'});assert.equal(derived.seniority_level,'JUNIOR');assert.equal(derived.role_family,'software engineer');assert.equal(derived.seniority_level_source,'derived');
+ const derived=analyticsFieldUpdates(null,{role_title:'Junior Software Developer'});assert.equal(derived.seniority_level,'JUNIOR');assert.equal(derived.role_family,undefined);assert.equal(derived.seniority_level_source,'derived');
  const saved={...sample({role_title:'Junior Software Developer'}),...derived};
- const renamed={...saved,role_title:'Senior AI Engineer',...analyticsFieldUpdates(saved,{role_title:'Senior AI Engineer'})};assert.equal(renamed.seniority_level,'SENIOR');assert.equal(renamed.role_family,'ai engineer');
- const manual={...renamed,...analyticsFieldUpdates(renamed,{seniority_level:'ASSOCIATE',role_family:'Applied AI'})};assert.equal(manual.seniority_level_source,'manual');assert.equal(manual.role_family_source,'manual');
+ const renamed={...saved,role_title:'Senior AI Engineer',...analyticsFieldUpdates(saved,{role_title:'Senior AI Engineer'})};assert.equal(renamed.seniority_level,'SENIOR');assert.equal(renamed.role_family,undefined);
+ const manual={...renamed,role_family:'Applied AI',role_family_source:'manual',...analyticsFieldUpdates(renamed,{seniority_level:'ASSOCIATE'})};assert.equal(manual.seniority_level_source,'manual');assert.equal(manual.role_family_source,'manual');
  const changed={...manual,role_title:'Junior Developer',...analyticsFieldUpdates(manual,{role_title:'Junior Developer'})};assert.equal(changed.seniority_level,'ASSOCIATE');assert.equal(changed.role_family,'Applied AI');
- const reset=analyticsFieldUpdates(changed,{seniority_level:null,role_family:null});assert.equal(reset.seniority_level,'JUNIOR');assert.equal(reset.role_family,'developer');assert.equal(reset.role_family_source,'derived');
+ const reset=analyticsFieldUpdates(changed,{seniority_level:null,role_family:null});assert.equal(reset.seniority_level,'JUNIOR');assert.equal(reset.role_family,undefined);assert.equal(reset.role_family_source,undefined);
 });
 
 test('classification, platform and response fields validate and affect deterministic comparisons',()=>{
@@ -125,7 +125,7 @@ test('classification, platform and response fields validate and affect determini
  assert.equal(applicationValidationError({seniority_level:'JUNIOR',job_platform:'Bossjob',role_family:'Applied AI',first_response_at:'2026-10-05T12:00:00+08:00'}),null);
  const {pipelineAnalytics}=load('src/lib/analytics.ts');
  const stats=pipelineAnalytics([sample({role_title:'Senior Engineer',seniority_level:'JUNIOR',seniority_level_source:'manual',role_family:'Applied AI',role_family_source:'manual',source:'DIRECT',job_platform:'Bossjob',date_applied:'2026-10-01',first_response_at:'2026-10-05T12:00:00+08:00',stage_history:[{status:'SCREENING',at:'2026-10-08'}]})],{},undefined,new Date('2026-10-13'));
- assert.equal(stats.dimensions.seniority[0].label,'Junior');assert.equal(stats.dimensions.roles[0].label,'Applied AI');assert.equal(stats.dimensions.platforms[0].label,'BOSSJOB');assert.equal(stats.dimensions.cohorts[0].medianCallbackDays,4);
+ assert.equal(stats.dimensions.seniority[0].label,'Junior');assert.equal(stats.dimensions.keywords[0].label,'Engineer');assert.ok(!stats.dimensions.keywords.some(row=>row.label==='Applied AI'));assert.equal(stats.dimensions.platforms[0].label,'BOSSJOB');assert.equal(stats.dimensions.cohorts[0].medianCallbackDays,4);
 });
 
 test('local persistence keeps derived and manual fields through lead promotion and status changes',async()=>{
@@ -133,12 +133,12 @@ test('local persistence keeps derived and manual fields through lead promotion a
  try{
   for(const key of Object.keys(env))delete process.env[key];process.chdir(directory);
   const db=loader()('src/lib/db.ts');const lead=await db.createApplication(sample({status:'LEAD',role_title:'Junior AI Engineer',job_platform:'Bossjob',first_response_at:'2026-10-05T12:30:00Z'}));
-  assert.equal(lead.seniority_level,'JUNIOR');assert.equal(lead.role_family,'ai engineer');
+  assert.equal(lead.seniority_level,'JUNIOR');assert.equal(lead.role_family,undefined);
   await db.updateApplication(lead.id,{status:'APPLIED'});await db.updateApplication(lead.id,{role_title:'Senior AI Engineer'});
   let saved=await db.getApplicationById(lead.id);assert.equal(saved.seniority_level,'SENIOR');assert.equal(saved.job_platform,'Bossjob');assert.equal(saved.first_response_at,'2026-10-05T12:30:00.000Z');
-  await db.updateApplication(lead.id,{seniority_level:'JUNIOR',role_family:'Applied AI'});await db.updateApplication(lead.id,{role_title:'Lead Engineer',status:'INTERVIEWING'});
+  await db.updateApplication(lead.id,{seniority_level:'JUNIOR',role_family:'Applied AI',role_family_source:'manual'});await db.updateApplication(lead.id,{role_title:'Lead Engineer',status:'INTERVIEWING'});
   saved=await db.getApplicationById(lead.id);assert.equal(saved.seniority_level,'JUNIOR');assert.equal(saved.role_family,'Applied AI');assert.equal(saved.role_family_source,'manual');
-  await db.updateApplication(lead.id,{seniority_level:null,role_family:null,first_response_at:null});saved=await db.getApplicationById(lead.id);assert.equal(saved.seniority_level,'LEAD_PRINCIPAL');assert.equal(saved.role_family,'engineer');assert.equal(saved.first_response_at,null);
+  await db.updateApplication(lead.id,{seniority_level:null,first_response_at:null});saved=await db.getApplicationById(lead.id);assert.equal(saved.seniority_level,'LEAD_PRINCIPAL');assert.equal(saved.role_family,'Applied AI');assert.equal(saved.first_response_at,null);
  }finally{process.chdir(original);for(const [key,value]of Object.entries(env)){if(value===undefined)delete process.env[key];else process.env[key]=value;}fs.rmSync(directory,{recursive:true,force:true});}
 });
 
@@ -597,16 +597,19 @@ test('resume profile is scoped to the session account and ignores a forged owner
  assert.equal((await (await route.GET()).json()).resumeText,'Friend resume');await route.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({owner:'user_ji',resumeText:'Updated friend resume'})}));assert.equal(profiles.user_ji,'Private admin resume');assert.equal(profiles.user_friend,'Updated friend resume');user=null;assert.equal((await route.GET()).status,401);
 });
 
-test('visual report groups preserve manual families, submitted denominators and exclusive fit outcomes',()=>{
- const load=loader(),{analyticsReportData,reportRoleFamily}=load('src/lib/analytics-report.ts'),{pipelineAnalytics}=load('src/lib/analytics.ts');
- assert.equal(reportRoleFamily({role_title:'Junior AI Engineer'}),'AI / ML Engineering');assert.equal(reportRoleFamily({role_title:'Software Developer'}),'Software Development');assert.equal(reportRoleFamily({role_title:'IT Support Specialist'}),'IT Support');
- assert.equal(reportRoleFamily({role_title:'Senior AI Engineer',role_family:'My editable family',role_family_source:'manual'}),'My editable family');
- const rows=[sample({id:'a',role_title:'Junior Software Developer',role_fit:'STRONG',status:'OFFER'}),sample({id:'b',role_title:'Software Engineer',role_fit:'STRONG',status:'WITHDRAWN',stage_history:[{status:'OFFER',at:'2026-10-01'}]}),sample({id:'c',role_title:'AI Engineer',role_family:'My editable family',role_family_source:'manual',status:'INTERVIEWING'}),sample({id:'d',role_title:'Unsubmitted role',status:'LEAD'})];
+test('job title keywords are industry-neutral, overlap by distinct submitted application, and ignore legacy families',()=>{
+ const load=loader(),{jobTitleKeywords}=load('src/lib/job-title-keywords.ts'),{analyticsReportData}=load('src/lib/analytics-report.ts'),{pipelineAnalytics}=load('src/lib/analytics.ts');
+ const keys=title=>jobTitleKeywords(title).map(item=>item.key);
+ for(const [title,expected]of [['Senior AI Automation Engineer',['ai','automation','engineer','ai automation']],['Junior Front Office Manager',['front','office','manager','front office']],['Staff Nurse RN',['staff','nurse','rn','staff nurse']],['Customer Service Representative',['customer service','representative']],['Food and Beverage Manager',['food and beverage','manager']],['C++ / C# / .NET Developer',['c++','c#','.net','developer']]])for(const keyword of expected)assert.ok(keys(title).includes(keyword),title+': '+keyword);
+ assert.ok(!keys('Senior Front Office Manager').includes('senior'));assert.deepEqual(keys(''),[]);assert.deepEqual(keys('Hiring full-time remote'),[]);
+ const rows=Array.from({length:5},(_,i)=>sample({id:String(i),role_title:i?'AI Automation Engineer':'AI AI Automation Engineer',role_family:'Wrong historical category',status:i<2?'OFFER':'APPLIED'}));
+ rows.push({...rows[0],updated_at:'2000-01-01',role_title:'Wrong old duplicate'},sample({id:'lead',role_title:'Unsubmitted Secret Title',status:'LEAD'}),sample({id:'hospitality',role_title:'Senior Front Office Manager',status:'SCREENING'}),sample({id:'blank',role_title:undefined}));
  const stats=pipelineAnalytics(rows),report=analyticsReportData(rows,stats);
- assert.equal(report.roles.reduce((sum,row)=>sum+row.submitted,0),stats.submitted);assert.equal(report.roles[0].label,'Software Development');assert.equal(report.roles[0].offers,2);assert.equal(report.roles[0].offerRate,100);
- assert.ok(report.roles.some(row=>row.label==='My editable family'));assert.ok(!report.roles.some(row=>row.label==='Unsubmitted role'));
- const strong=report.fits.find(row=>row.value==='STRONG');assert.equal(strong.outcomes.find(row=>row.key==='OFFER').count,1);assert.equal(strong.outcomes.find(row=>row.key==='CLOSED').count,1);
- for(const fit of report.fits)assert.equal(fit.outcomes.reduce((sum,row)=>sum+row.count,0),fit.submitted);
+ for(const key of ['ai','automation','engineer']){const keyword=report.keywords.find(row=>row.key===key);assert.equal(keyword.submitted,5);assert.equal(keyword.progressed,2);assert.equal(keyword.offers,2);assert.equal(keyword.progressionRate,40);}
+ const office=report.keywords.find(row=>row.key==='front office');assert.equal(office.submitted,1);assert.equal(office.progressionRate,null);
+ assert.ok(!report.keywords.some(row=>/historical|unsubmitted|duplicate/.test(row.key)));assert.ok(report.keywords.reduce((sum,row)=>sum+row.submitted,0)>stats.submitted);
+ assert.equal(report.fits.reduce((sum,row)=>sum+row.submitted,0),stats.submitted);assert.deepEqual(report.keywords,stats.dimensions.keywords);
+ const reordered=pipelineAnalytics([...rows].reverse()).dimensions.keywords;assert.deepEqual(reordered,stats.dimensions.keywords);
 });
 
 test('PDF embeds the original transparent logo on every A4 page and uses plain-language labels',async()=>{
@@ -658,7 +661,7 @@ test('PDF stays four pages across many categories and shows recorded evidence an
  const rows=Array.from({length:160},(_,i)=>sample({id:String(i),role_title:'Junior Software Developer',role_family:'Custom family '+i,role_family_source:'manual',job_platform:'Platform '+i,date_applied:i%2?'2026-08-01':'2026-09-01',first_response_at:i%2?'2026-08-06T00:00:00Z':'2026-09-21T00:00:00Z',status:i%3?'APPLIED':'OFFER',role_fit:i%2?'STRONG':null,role_fit_analysis:{preference_alignment:i%2?'ALIGNED':'MIXED'}}));
  const pdf=await analyticsPdf(rows,'Report Member','All (combined)',{},undefined,{analytics_age_boundaries:[3,10,20]});assert.equal(pdf.getNumberOfPages(),4);
  const doc=await getDocumentProxy(new Uint8Array(pdf.output('arraybuffer'))),text=(await extractText(doc,{mergePages:true})).text;
- for(const title of ['Application pipeline','Application effectiveness','Application timing','Career insights','21+ days','Top 6 of 160','eligible','recorded salary offers'])assert.ok(text.includes(title),title);
+ for(const title of ['Application pipeline','Application effectiveness','Application timing','Career insights','21+ days','Top 3 of 3','eligible','recorded salary offers'])assert.ok(text.includes(title),title);
  assert.doesNotMatch(text,/NaN|Infinity/);
  for(let i=1;i<=doc.numPages;i++){const page=await doc.getPage(i),content=await page.getTextContent();for(const item of content.items){if(!item.str)continue;assert.ok(item.transform[5]>=15&&item.transform[5]<=page.view[3]-25,`Text outside page ${i}: ${item.str}`);assert.ok(item.transform[4]>=25&&item.transform[4]+item.width<=page.view[2]-25,`Text overflows page ${i}: ${item.str}`);}}
  fs.writeFileSync(path.join(ROOT,'.data','analytics-visual-report.pdf'),Buffer.from(pdf.output('arraybuffer')));
@@ -690,7 +693,7 @@ test('insight context minimizes personal data, preserves manual fits and support
  preferences={...preferences,target_roles:['Store supervisor']};assert.notEqual((await pipelineInsightContext(user,'ALL')).snapshotVersion,combined.snapshotVersion);
  resume='';const missing=await pipelineInsightContext(user,'OTHER');assert.equal(missing.payload.candidate.source,'missing');assert.ok(missing.limitations.some(text=>text.includes('No master resume')));assert.equal(missing.stats.total,1);
  rows[0]={...rows[0],status:'OFFER'};assert.notEqual((await pipelineInsightContext(user,'OTHER')).snapshotVersion,missing.snapshotVersion);
- const largeRows=Array.from({length:220},(_,i)=>sample({id:String(i),owner:user.id,role_title:'Custom role '+i}));rows.splice(0,rows.length,...largeRows);const large=await pipelineInsightContext(user,'ALL');assert.equal(large.payload.applicationContext.records.length,200);assert.equal(large.payload.dimensions.roles.length,12);assert.equal(large.stats.total,220);
+ const largeRows=Array.from({length:220},(_,i)=>sample({id:String(i),owner:user.id,role_title:'Occupation'+i+' Specialist'}));rows.splice(0,rows.length,...largeRows);const large=await pipelineInsightContext(user,'ALL');assert.equal(large.payload.applicationContext.records.length,200);assert.equal(large.payload.dimensions.keywords.length,12);assert.equal(large.stats.total,220);
 });
 
 test('saved insights are scoped, marked outdated, never auto-generated and retained after invalid AI or provider failures',async()=>{
@@ -757,10 +760,10 @@ test('job JSON preserves structured descriptions, responsibilities and qualifica
 
 test('Gemini JSON supports new fields while classification remains deterministic',()=>{
  const {parseJobImport,JOB_JSON_PROMPT}=loader()('src/lib/job-import.ts');
- for(const key of ['seniority_level','role_family','job_platform','first_response_at'])assert.ok(JOB_JSON_PROMPT.includes(key));
- assert.match(JOB_JSON_PROMPT,/do not classify them with AI/);assert.match(JOB_JSON_PROMPT,/application_age/);
+ for(const key of ['seniority_level','job_platform','first_response_at'])assert.ok(JOB_JSON_PROMPT.includes(key));
+ assert.match(JOB_JSON_PROMPT,/do not classify it with AI/);assert.doesNotMatch(JOB_JSON_PROMPT,/role_family/);assert.match(JOB_JSON_PROMPT,/application_age/);
  const junior=parseJobImport(JSON.stringify({role_title:'Junior Software Developer',seniority_level:'SENIOR',seniority_level_source:'manual',role_family:'Invented family',role_family_source:'manual',job_url:'https://www.linkedin.com/jobs/view/123',first_response_at:null}));
- assert.equal(junior.seniority_level,'JUNIOR');assert.equal(junior.seniority_level_source,'derived');assert.equal(junior.role_family,'software engineer');assert.equal(junior.role_family_source,'derived');assert.equal(junior.job_platform,'LINKEDIN');assert.equal(junior.first_response_at,undefined);
+ assert.equal(junior.seniority_level,'JUNIOR');assert.equal(junior.seniority_level_source,'derived');assert.equal(junior.role_family,undefined);assert.equal(junior.role_family_source,undefined);assert.equal(junior.job_platform,'LINKEDIN');assert.equal(junior.first_response_at,undefined);
  const bare=parseJobImport(JSON.stringify({role_title:'AI Engineer',seniority_level:'MID_LEVEL'}));assert.equal(bare.seniority_level,'UNSPECIFIED');
  for(const field of ['work_model','job_type'])assert.throws(()=>parseJobImport(JSON.stringify({role_title:'Constructor',[field]:'constructor'})),/must be/);
  const referral=parseJobImport(JSON.stringify({title:'Engineer',job_platform:'Referral',job_url:'https://app.example.com/jobs/1',first_response_at:'2026-10-05T12:30:00+08:00'}));

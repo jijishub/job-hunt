@@ -1,24 +1,7 @@
 import type { JobApplication } from '@/types/job';
 import { applicationDay, currentOutcome, isInternship, uniqueApplications, type PipelineStats } from './analytics';
 import { reachedStage, DEFAULT_REJECTION_STATUSES, type AnalyticsStage } from './analytics-stages';
-import { effectiveRoleFamily } from './application-analytics-fields';
 import { savedRoleFit } from './role-fit';
-
-// Display groups only: saved titles, classifications and dashboard counting rules stay intact.
-export function reportRoleFamily(app: Partial<JobApplication>) {
-  const family = effectiveRoleFamily(app);
-  if (app.role_family?.trim() && app.role_family_source !== 'derived') return family;
-  if (family.toLowerCase() === 'it') return 'IT (function unspecified)';
-  if (/\b(automation|rpa)\b/i.test(family)) return 'Automation / RPA';
-  if (/\b(ai|ml|machine learning|artificial intelligence|deep learning|llm)\b/i.test(family)
-    && /\b(engineer|developer|scientist|research)\b/i.test(family)) return 'AI / ML Engineering';
-  if (/\b(data|analytics|business intelligence)\b/i.test(family)) return 'Data / Analytics';
-  if (/\b(software|frontend|front end|backend|back end|full stack|fullstack|web|mobile|application)\b/i.test(family)
-    && /\b(engineer|developer|development)\b/i.test(family)) return 'Software Development';
-  if (/\b(help ?desk|service desk|it support|technical support|tech support|system administrator|systems administrator|network engineer)\b/i.test(family)) return 'IT Support';
-  if (/\b(business|operations|finance|financial|accountant|accounting|sales|marketing|recruiter|human resources)\b/i.test(family)) return 'Business / Operations';
-  return family;
-}
 
 export const REPORT_OUTCOMES = [
   { key: 'ACTIVE', label: 'Active', color: '#A8CCF0' },
@@ -28,7 +11,6 @@ export const REPORT_OUTCOMES = [
 ] as const;
 export function analyticsReportData(applications: JobApplication[], stats: PipelineStats,
   mapping: Record<string, AnalyticsStage> = {}, rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES) {
-  const groups = new Map<string, { label: string; submitted: number; progressed: number; offers: number }>();
   const fits = stats.fits.filter(fit => fit.submitted > 0).map(fit => ({
     label: fit.label, value: fit.value, submitted: fit.submitted,
     outcomes: REPORT_OUTCOMES.map(outcome => ({ ...outcome, count: 0 })),
@@ -45,10 +27,8 @@ export function analyticsReportData(applications: JobApplication[], stats: Pipel
   for (const app of uniqueApplications(applications)) {
     const rank = reachedStage(app, mapping);
     if (rank < 1) continue;
-    const label = reportRoleFamily(app);
-    if (!groups.has(label)) groups.set(label, { label, submitted: 0, progressed: 0, offers: 0 });
-    const group = groups.get(label)!, type = types[isInternship(app) ? 0 : 1];
-    for (const row of [group, type]) { row.submitted++; if (rank >= 2) row.progressed++; if (rank >= 5) row.offers++; }
+    const type = types[isInternship(app) ? 0 : 1];
+    type.submitted++; if (rank >= 2) type.progressed++; if (rank >= 5) type.offers++;
     const fit = fits.find(row => row.value === (savedRoleFit(app) || 'UNASSESSED'));
     const outcome = currentOutcome(app, mapping, rejectionStatuses);
     if (fit) fit.outcomes.find(row => row.key === (['ACTIVE', 'OFFER', 'REJECTED'].includes(outcome) ? outcome : 'CLOSED'))!.count++;
@@ -66,19 +46,19 @@ export function analyticsReportData(applications: JobApplication[], stats: Pipel
     progressionRate: row.submitted ? Math.round(row.progressed / row.submitted * 100) : null,
     offerRate: row.submitted ? Math.round(row.offers / row.submitted * 100) : null,
   });
-  const roles = [...groups.values()].map(rates).sort((a, b) => b.submitted - a.submitted || a.label.localeCompare(b.label));
+  const keywords = stats.dimensions.keywords;
   const platforms = stats.dimensions.platforms.filter(row => row.submitted > 0).sort((a, b) => b.submitted - a.submitted || a.label.localeCompare(b.label));
   const seniority = stats.dimensions.seniority.filter(row => row.submitted > 0).sort((a, b) => b.submitted - a.submitted || a.label.localeCompare(b.label));
   const responseCount = callbackBins.reduce((sum, bin) => sum + bin.count, 0);
   const responseCohorts = [...cohorts.values()].sort((a, b) => a.month.localeCompare(b.month));
   const heatmapReady = responseCount >= 5 && responseCohorts.filter(row => row.responses > 0).length >= 2;
   const combinedTypes = types.every(row => row.submitted > 0);
-  const topRole = roles[0];
+  const topKeyword = keywords[0];
   const findings = [
-    { title: 'Observed', text: topRole ? `${topRole.label} has the largest submitted sample: ${topRole.submitted} of ${stats.submitted}. ${stats.funnel[1].count} of ${stats.submitted} applications reached screening or later.` : 'No submitted applications in this scope yet.' },
+    { title: 'Observed', text: topKeyword ? `${topKeyword.label} appears in ${topKeyword.submitted} of ${stats.submitted} submitted job titles. ${topKeyword.progressed} of those applications reached screening or later.` : stats.submitted ? 'No usable job-title keywords in this scope yet.' : 'No submitted applications in this scope yet.' },
     { title: 'Limits', text: combinedTypes ? 'Internship and non-internship records span different hiring contexts and observation periods. Compare their scopes separately.' : `${responseCount} of ${stats.submitted} submitted applications have usable response dates. Small groups and missing dates limit comparisons.` },
     { title: 'Suggested next step', text: stats.quality.missingDates ? `Complete ${stats.quality.missingDates} missing submission dates before comparing activity and waiting time.` : stats.timing.unknownResponseTiming ? 'Record actual first employer response dates when known; keep unavailable dates blank.' : stats.recommendations[0] || 'Review relevant application records before changing your targeting.' },
   ];
-  return { roles, platforms, seniority, fits, callbackBins, responseCohorts, responseCount, heatmapReady, types: types.filter(row => row.submitted).map(rates), findings };
+  return { keywords, platforms, seniority, fits, callbackBins, responseCohorts, responseCount, heatmapReady, types: types.filter(row => row.submitted).map(rates), findings };
 }
 export type AnalyticsReportData = ReturnType<typeof analyticsReportData>;

@@ -6,6 +6,7 @@ import type { PersonalPreferences } from './preferences';
 import { formatSalaryRange } from './currencies';
 import { offerPeriodLabel } from './salary-offers';
 import { loadAnalyticsLogo, analyticsLogoSize } from './analytics-branding';
+import { KEYWORD_CHART_LIMIT, KEYWORD_MIN_APPLICATIONS } from './job-title-keywords';
 
 type ReportTargets = Pick<PersonalPreferences, 'target_companies' | 'target_roles' | 'preferred_locations' | 'work_models' | 'job_types' | 'salary_min' | 'salary_currency' | 'dealbreakers' | 'analytics_age_boundaries'>;
 
@@ -97,20 +98,20 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   wrap(`Dates excluded: ${stats.quality.missingDates} missing, ${stats.quality.invalidDates} invalid, ${stats.quality.futureDates} future. Inferred phases indicate later progress, not recorded interviews.`, 16, 270, 178, 7.5, 2);
 
   page('Application effectiveness', 'Application effectiveness comparisons · submitted applications only');
-  panel(16, 59, 178, 100); label('Role families: volume and conversion', 21, 68, 11, colors.ink, true);
+  panel(16, 59, 178, 100); label('Job title keywords', 21, 68, 11, colors.ink, true);
   key('Progression', 124, 68, colors.progression); key('Offer stage', 162, 68, colors.offer);
-  const roles = report.roles.slice(0, 6), roleMax = Math.max(1, ...roles.map(row => row.submitted));
+  const keywords = report.keywords.slice(0, KEYWORD_CHART_LIMIT), keywordMax = Math.max(1, ...keywords.map(row => row.submitted));
   label('Submitted', 96, 78, 7, colors.muted, false, 'center'); label('0%                          100%', 133, 78, 7, colors.muted);
-  if (!roles.length) wrap('Submit an application to start comparing role families.', 21, 90, 168, 9);
-  roles.forEach((row, i) => {
+  if (!keywords.length) wrap('Submit an application with a job title to see its keywords.', 21, 90, 168, 9);
+  keywords.forEach((row, i) => {
     const y = 88 + i * 10.5;
     wrap(row.label, 21, y, 49, 8, 2, colors.ink); label(String(row.submitted), 76, y + 1, 8, colors.muted, false, 'right');
-    bar(80, y - 2, 37, 5, row.submitted / roleMax, colors.recorded);
+    bar(80, y - 2, 37, 5, row.submitted / keywordMax, colors.recorded);
     bar(128, y - 3, 40, 2.7, (row.progressionRate ?? 0) / 100, colors.progression);
     bar(128, y + 1, 40, 2.7, (row.offerRate ?? 0) / 100, colors.offer);
-    label(`${row.progressionRate}% / ${row.offerRate}%`, 189, y + 1, 6.6, colors.muted, false, 'right');
+    label(row.progressionRate === null ? 'Limited data' : `${row.progressionRate}% / ${row.offerRate}%`, 189, y + 1, 6.6, colors.muted, false, 'right');
   });
-  wrap(`Top ${roles.length} of ${report.roles.length} families by submissions. Related automatic titles are grouped; manual families stay intact. Smaller groups are based on limited application data.`, 21, 152, 168, 7.5, 2);
+  wrap(`Top ${keywords.length} of ${report.keywords.length} keywords. Each submitted application counts once per keyword; counts overlap. Rates require at least ${KEYWORD_MIN_APPLICATIONS} applications and describe saved outcomes.`, 21, 152, 168, 7.5, 2);
   panel(16, 166, 87, 99); panel(107, 166, 87, 99);
   label('Role fit and outcomes', 21, 175, 11, colors.ink, true); label('Current outcome of submitted roles', 21, 182, 7, colors.muted);
   report.fits.forEach((fit, i) => {
@@ -130,7 +131,7 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
     wrap(row.label.replaceAll('_', ' '), 112, y, 42, 8, 1, colors.ink); label(applicationsLabel(row.submitted), 189, y, 7.5, colors.muted, false, 'right');
     bar(112, y + 2, 58, 1.8, (row.progressionRate ?? 0) / 100, colors.progression);
     bar(112, y + 4.5, 58, 1.8, (row.offerRate ?? 0) / 100, colors.offer);
-    label(`${row.progressionRate}% / ${row.offerRate}%`, 189, y + 5.5, 6, colors.muted, false, 'right');
+    label(row.progressionRate === null ? 'Limited data' : `${row.progressionRate}% / ${row.offerRate}%`, 189, y + 5.5, 6, colors.muted, false, 'right');
   });
   if (!platforms.length) wrap('No submitted applications to compare yet.', 112, 195, 77, 9);
   wrap(`Top ${platforms.length} of ${report.platforms.length} platforms. Percentages use each platform's submitted applications.`, 112, 253, 77, 7.5, 2);

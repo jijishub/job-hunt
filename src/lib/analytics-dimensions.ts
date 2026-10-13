@@ -1,8 +1,8 @@
 import type { JobApplication } from '@/types/job';
 import { reachedStage, type AnalyticsStage } from './analytics-stages';
 import { savedRoleFit } from './role-fit';
-import { effectiveSeniority, effectiveRoleFamily, SENIORITY_LEVELS } from './application-analytics-fields';
-export { seniorityLevel as seniority, normalizedRole, ROLE_ALIASES } from './application-analytics-fields';
+import { effectiveSeniority, SENIORITY_LEVELS } from './application-analytics-fields';
+import { jobTitleKeywords, KEYWORD_MIN_APPLICATIONS } from './job-title-keywords';
 
 export function firstRecordedResponse(app: JobApplication) {
   // History timestamps record database writes, not employer events.
@@ -12,7 +12,8 @@ export function dimensionAnalytics(apps: JobApplication[], mapping: Record<strin
   day: (value?: string) => string | null, asOf: string) {
   const rate = (n: number, d: number) => d ? Math.round(n / d * 100) : null;
   type Group = { label: string; total: number; submitted: number; progressed: number; offers: number; responses: number; latencyDays: number[] };
-  const roles = new Map<string, Group>(), levels = new Map<string, Group>(), platforms = new Map<string, Group>(), cohorts = new Map<string, Group>(), alignment = new Map<string, Group>();
+  const keywords = new Map<string, Group>(), levels = new Map<string, Group>(), platforms = new Map<string, Group>(), cohorts = new Map<string, Group>(), alignment = new Map<string, Group>();
+  const keywordLabels = new Map<string, string>();
   const group = (map: Map<string, Group>, label: string) => {
     if (!map.has(label)) map.set(label, { label, total: 0, submitted: 0, progressed: 0, offers: 0, responses: 0, latencyDays: [] });
     return map.get(label)!;
@@ -26,10 +27,16 @@ export function dimensionAnalytics(apps: JobApplication[], mapping: Record<strin
     const latency = validSent && response && response >= validSent && response <= asOf ? (Date.parse(response) - Date.parse(validSent)) / 86400000 : null;
     if (submitted && latency === null) missingResponseDates++;
     const savedFit = savedRoleFit(app);
-    const groups = [group(roles, effectiveRoleFamily(app)), group(levels, SENIORITY_LEVELS.find(item => item.value === effectiveSeniority(app))!.label),
+    const groups = [group(levels, SENIORITY_LEVELS.find(item => item.value === effectiveSeniority(app))!.label),
       group(platforms, app.job_platform?.trim().toUpperCase() || app.source?.trim().toUpperCase() || 'UNKNOWN'),
       group(alignment, savedFit && ['STRONG', 'POSSIBLE', 'WEAK'].includes(savedFit) ? savedFit : 'UNASSESSED')];
     if (submitted) groups.push(group(cohorts, validSent?.slice(0, 7) || 'Unknown'));
+    if (submitted) for (const keyword of jobTitleKeywords(app.role_title)) {
+      const item = group(keywords, keyword.key);
+      const previousLabel = keywordLabels.get(keyword.key);
+      if (!previousLabel || keyword.label < previousLabel) keywordLabels.set(keyword.key, keyword.label);
+      groups.push(item);
+    }
     for (const item of groups) {
       item.total++; if (submitted) item.submitted++; if (rank >= 2) item.progressed++; if (rank >= 5) item.offers++;
       if (submitted && validResponse) item.responses++;
@@ -41,5 +48,9 @@ export function dimensionAnalytics(apps: JobApplication[], mapping: Record<strin
     return { ...item, progressionRate: rate(item.progressed, item.submitted), offerRate: rate(item.offers, item.submitted),
       responseRate: rate(item.responses, item.submitted), medianCallbackDays: latencyDays.length ? (latencyDays[middle] + latencyDays[Math.floor((latencyDays.length - 1) / 2)]) / 2 : null };
   });
-  return { roles: finish(roles), seniority: finish(levels), platforms: finish(platforms), cohorts: finish(cohorts), qualifications: finish(alignment), missingResponseDates };
+  const keywordRows = finish(keywords).map(row => ({ ...row, key: row.label, label: keywordLabels.get(row.label)!,
+    progressionRate: row.submitted >= KEYWORD_MIN_APPLICATIONS ? row.progressionRate : null,
+    offerRate: row.submitted >= KEYWORD_MIN_APPLICATIONS ? row.offerRate : null,
+  })).sort((a, b) => b.submitted - a.submitted || a.key.split(' ').length - b.key.split(' ').length || a.key.localeCompare(b.key));
+  return { keywords: keywordRows, seniority: finish(levels), platforms: finish(platforms), cohorts: finish(cohorts), qualifications: finish(alignment), missingResponseDates };
 }

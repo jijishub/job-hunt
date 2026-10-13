@@ -7,7 +7,8 @@ import AnalyticsComparisons from './AnalyticsComparisons';
 import AnalyticsAging from './AnalyticsAging';
 import AnalyticsCareer from './AnalyticsCareer';
 import PipelineInsights from './PipelineInsights';
-import { analyticsReportData, reportRoleFamily } from '@/lib/analytics-report';
+import { analyticsReportData } from '@/lib/analytics-report';
+import { jobTitleKeywords } from '@/lib/job-title-keywords';
 import { effectiveSeniority, SENIORITY_LEVELS } from '@/lib/application-analytics-fields';
 import { applicationAgeDays, awaitingEmployerResponse } from '@/lib/analytics-timing';
 import { analyticsPdf } from '@/lib/analytics-export';
@@ -78,7 +79,7 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
   const scopeLabel = scope === 'INTERNSHIP' ? 'Internships' : scope === 'OTHER' ? 'Regular Employment' : 'All (combined)';
   const reviewApps = scoped.filter(app => {
     if (selection?.kind === 'fit' && selection.submittedOnly && reachedStage(app, mapping) < 1) return false;
-    if (selection?.kind === 'role' && (reachedStage(app, mapping) < 1 || reportRoleFamily(app) !== selection.value)) return false;
+    if (selection?.kind === 'keyword' && (reachedStage(app, mapping) < 1 || !jobTitleKeywords(app.role_title).some(keyword => keyword.key === selection.value))) return false;
     if (selection?.kind === 'platform' && (reachedStage(app, mapping) < 1 || (app.job_platform?.trim().toUpperCase() || app.source?.trim().toUpperCase() || 'UNKNOWN') !== selection.value)) return false;
     if (selection?.kind === 'seniority' && (reachedStage(app, mapping) < 1 || SENIORITY_LEVELS.find(level => level.value === effectiveSeniority(app))!.label !== selection.value)) return false;
     if (selection?.kind === 'type' && (reachedStage(app, mapping) < 1 || isInternship(app) !== (selection.value === 'Internships'))) return false;

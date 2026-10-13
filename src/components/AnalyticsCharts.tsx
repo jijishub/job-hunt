@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { PipelineStats } from '@/lib/analytics';
 import { AnalyticsStage } from '@/lib/analytics-stages';
 
-export type ChartSelection = { kind: 'fit' | 'outcome' | 'month' | 'offer' | 'expected' | 'role' | 'platform' | 'seniority' | 'type'; value: string; label: string; submittedOnly?: boolean }
+export type ChartSelection = { kind: 'fit' | 'outcome' | 'month' | 'offer' | 'expected' | 'keyword' | 'platform' | 'seniority' | 'type'; value: string; label: string; submittedOnly?: boolean }
   | { kind: 'age'; value: string; min: number | null; max: number | null; pending: boolean; label: string }
   | { kind: 'phase'; value: AnalyticsStage; label: string; evidence?: 'recorded' | 'inferred' };
 const card = 'min-w-0 rounded-2xl border border-[#F1DDE9] bg-white p-5 shadow-xs';

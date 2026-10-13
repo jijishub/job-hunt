@@ -43,6 +43,7 @@ export interface JobApplication {
   role_title: string;
   seniority_level?: SeniorityLevel | null;
   seniority_level_source?: 'derived' | 'manual' | null;
+  /** Historical metadata retained for compatibility; unused by current analytics. */
   role_family?: string | null;
   role_family_source?: 'derived' | 'manual' | null;
   job_platform?: string | null;

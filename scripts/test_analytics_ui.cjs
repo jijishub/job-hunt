@@ -142,12 +142,12 @@ test('AI is optional: filters and PDF work during requests and after failures; l
     await page.getByLabel('Job title', { exact: true }).fill('AI Engineer');
     assert.ok(await page.getByRole('option', { name: 'Automatic: Unspecified', exact: true }).count());
     await page.getByLabel('Seniority level', { exact: true }).selectOption('JUNIOR');
-    await page.getByLabel('Role family', { exact: true }).fill('Applied AI');
+    assert.equal(await page.getByLabel('Role family', { exact: true }).count(),0);
     await page.getByRole('button', { name: 'Import job JSON', exact: true }).click();
     await page.getByLabel('Job posting JSON').fill(JSON.stringify({role_title:'AI Engineer',job_platform:'Referral',first_response_at:'2026-10-05T12:30:00+08:00',seniority_level:'MID_LEVEL',role_family:'AI-invented category'}));
     await page.getByRole('button', { name: 'Fill draft from JSON', exact: true }).click();
     assert.equal(await page.getByLabel('Seniority level', { exact: true }).inputValue(), 'JUNIOR');
-    assert.equal(await page.getByLabel('Role family', { exact: true }).inputValue(), 'Applied AI');
+    assert.equal(await page.getByLabel('Role family', { exact: true }).count(),0);
     assert.equal(await page.getByLabel('Job platform', { exact: true }).inputValue(), 'REFERRAL');
     await page.getByRole('button', { name: 'Save Changes', exact: true }).click();
     await page.getByRole('heading', { name: 'Edit Application', exact: true }).waitFor({ state: 'hidden' });
@@ -156,21 +156,21 @@ test('AI is optional: filters and PDF work during requests and after failures; l
     await page.getByText('AI Engineer', { exact: true }).last().click(); await page.getByRole('button', { name: 'Edit', exact: true }).click();
     await page.getByLabel('Job title', { exact: true }).fill('Senior AI Engineer');
     assert.equal(await page.getByLabel('Seniority level', { exact: true }).inputValue(), 'JUNIOR');
-    assert.equal(await page.getByLabel('Role family', { exact: true }).inputValue(), 'Applied AI');
+    assert.equal(await page.getByLabel('Role family', { exact: true }).count(),0);
     const recordedResponse = await page.getByLabel('First employer response', { exact: true }).inputValue();
     await page.getByRole('button', { name: 'Import job JSON', exact: true }).click();
     await page.getByLabel('Job posting JSON').fill(JSON.stringify({role_title:'Senior AI Engineer',job_platform:'WALK_IN',first_response_at:null,seniority_level:'SENIOR',role_family:'AI-invented category'}));
     await page.getByRole('button', { name: 'Fill draft from JSON', exact: true }).click();
     assert.equal(await page.getByLabel('Seniority level', { exact: true }).inputValue(), 'JUNIOR');
-    assert.equal(await page.getByLabel('Role family', { exact: true }).inputValue(), 'Applied AI');
+    assert.equal(await page.getByLabel('Role family', { exact: true }).count(),0);
     assert.equal(await page.getByLabel('First employer response', { exact: true }).inputValue(), recordedResponse);
     assert.equal(await page.getByLabel('Job platform', { exact: true }).inputValue(), 'Walk-in');
     await page.getByLabel('Seniority level', { exact: true }).selectOption('');
-    await page.getByRole('button', { name: 'Use automatic role family', exact: true }).click();
-    assert.equal(await page.getByLabel('Role family', { exact: true }).inputValue(), 'ai engineer');
+    assert.equal(await page.getByRole('button', { name: 'Use automatic role family', exact: true }).count(),0);
+    assert.equal(await page.getByLabel('Role family', { exact: true }).count(),0);
     await page.getByRole('button', { name: 'Save Changes', exact: true }).click();
     await page.getByRole('heading', { name: 'Edit Application', exact: true }).waitFor({ state: 'hidden' });
-    assert.equal(apps[0].seniority_level, 'SENIOR'); assert.equal(apps[0].seniority_level_source, 'derived'); assert.equal(apps[0].role_family, 'ai engineer');
+    assert.equal(apps[0].seniority_level, 'SENIOR'); assert.equal(apps[0].seniority_level_source, 'derived'); assert.equal(apps[0].role_family,undefined);
     assert.equal(assessmentCalls, 0);
   } finally { await browser.close(); }
 });
@@ -204,7 +204,7 @@ test('visual dashboard matches the four-page report and drills into submitted ch
     await page.getByRole('region', { name: 'Response cohort heatmap', exact: true }).waitFor();
     assert.equal(await page.getByRole('img', { name: 'Callback distribution for 6 recorded responses', exact: true }).count(), 1);
     const review = page.locator('#analytics-role-review');
-    for (const name of ['Review Software Development applications','Review LINKEDIN applications','Review Junior applications','Review Strong fit submitted outcomes']) {
+    for (const name of ['Review Software applications','Review LINKEDIN applications','Review Junior applications','Review Strong fit submitted outcomes']) {
       await page.getByRole('button', { name, exact: true }).click();
       assert.match(await review.innerText(), /6 roles in this review/);
       assert.doesNotMatch(await review.innerText(), /Unsubmitted Employer|Other Employer/);

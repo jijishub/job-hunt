@@ -38,7 +38,7 @@ test('mobile menus, lead cards, details and model choices stay inside the viewpo
       assert.equal(await copyPrompt.textContent(), 'Copied!');
       const prompt = await page.evaluate(() => window.copiedPrompt);
       assert.match(prompt, /Extract .*job posting into ONE JSON object/);
-      for (const field of ['seniority_level', 'role_family', 'job_platform', 'first_response_at']) assert.ok(prompt.includes(field));
+      for (const field of ['seniority_level', 'job_platform', 'first_response_at']) assert.ok(prompt.includes(field));
       await noOverflow();
       await page.getByRole('button', { name: 'New App', exact: true }).click();
       await page.getByLabel('Priority', { exact: true }).selectOption('HIGH');

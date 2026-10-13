@@ -23,6 +23,7 @@ test('pasted JSON and reviewed drafts survive account refreshes in both import f
    await page.goto(process.env.PIPELINE_TEST_URL||'http://localhost:3100');
    await page.getByRole('button',{name:quick?'Import job JSON':'New App',exact:true}).click();
    const dialog=page.getByRole('dialog',{name:'New Application / Lead',exact:true});
+   assert.equal(await dialog.getByLabel('Role family',{exact:true}).count(),0);
    if(!quick)await dialog.getByRole('button',{name:'Import job JSON',exact:true}).click();
    const json=dialog.getByLabel('Job posting JSON');
    const posting=JSON.stringify({role_title:'Retail Associate',company_name:'Example Shop',description:'Help customers, manage stock, and maintain accurate sales records.'});
