@@ -4,7 +4,7 @@ import { getSessionAccount } from '@/lib/session-account';
 import { ownsApplication } from '@/lib/ownership';
 import { validRoleFit } from '@/lib/role-fit';
 import { NextResponse } from 'next/server';
-import { getApplications, createApplication, getOrCreateCompany, getCompanies, getCandidatePreferences } from '@/lib/db';
+import { getApplications, hasApplications, createApplication, getOrCreateCompany, getCompanies, getCandidatePreferences } from '@/lib/db';
 import { stageForStatus } from '@/lib/analytics-stages';
 import { isArchivedApplication } from '@/lib/application-workflow';
 import { pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
@@ -18,13 +18,13 @@ export async function GET() {
   try {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
-    let apps = await getApplications();
-    if (apps.length === 0 && user.role === 'admin' && user.notion_enabled) {
+    let apps = await getApplications(true, user);
+    if (apps.length === 0 && user.role === 'admin' && user.notion_enabled && !(await hasApplications())) {
       const config = getNotionConfig();
       if (config.isConfigured) {
         const pull = await pullApplicationsFromNotion();
         if (pull.success) {
-          apps = await getApplications();
+          apps = await getApplications(true, user);
         }
       }
     }

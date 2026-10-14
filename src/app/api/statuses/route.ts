@@ -29,7 +29,7 @@ export async function GET() {
 
     const allStatuses = [...seeded, ...filteredCustom];
     const known = new Set(allStatuses.map(status => status.name.toLowerCase()));
-    for (const app of (await getApplications()).filter(app => ownsApplication(app, user))) {
+    for (const app of (await getApplications(true, user, 'status')).filter(app => ownsApplication(app, user))) {
       for (const rawName of [app.notion_status, ...(app.stage_history || []).map(stage => stage.notion_status)]) {
         const name = rawName ? canonicalStatusName(rawName) : undefined;
         if (name && !known.has(name.toLowerCase())) { allStatuses.push({ id: name, name, color: 'default', category: getStatusCategory(name), isCustom: true }); known.add(name.toLowerCase()); }

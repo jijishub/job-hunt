@@ -10,7 +10,7 @@ export async function GET() {
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const isAdmin = user.role === 'admin';
     let companies = await getCompanies();
-    let applications = (await getApplications()).filter(app => ownsApplication(app, user));
+    let applications = (await getApplications(true, user, 'company')).filter(app => ownsApplication(app, user));
     companies = companies.filter(company => applications.some(app => app.company_id === company.id)
       || company.created_by === user.id || company.created_by?.toLowerCase() === user.email.toLowerCase()
       || (user.id === 'user_ji' && !company.created_by));
@@ -19,7 +19,7 @@ export async function GET() {
       if (config.isConfigured) {
         await pullApplicationsFromNotion();
         companies = (await getCompanies()).filter(company => company.created_by === user.id || company.created_by === user.email || (user.id === 'user_ji' && !company.created_by));
-        applications = (await getApplications()).filter(app => ownsApplication(app, user));
+        applications = (await getApplications(true, user, 'company')).filter(app => ownsApplication(app, user));
       }
     }
 

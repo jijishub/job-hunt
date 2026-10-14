@@ -499,8 +499,29 @@ export async function deleteCompany(id: string): Promise<boolean> {
   return true;
 }
 
-export async function getApplications(includeLeads = true): Promise<JobApplication[]> {
+export async function getApplications(includeLeads = true, user?: Pick<UserAccount, 'id' | 'email' | 'role'>, projection: 'full' | 'company' | 'status' = 'full'): Promise<JobApplication[]> {
   const sql = getPostgresClient();
+  if (sql && user) {
+    // Match ownsApplication before transferring data; summaries retain only the
+    // fields used by their callers. Unscoped maintenance callers stay unchanged.
+    const rows = await sql`
+      SELECT CASE WHEN ${projection} = 'company' THEN jsonb_build_object('company_id', a.company_id, 'owner', a.owner)
+        WHEN ${projection} = 'status' THEN jsonb_build_object('notion_status', a.notion_status, 'stage_history', a.stage_history, 'owner', a.owner)
+        ELSE to_jsonb(a) || jsonb_build_object('company_logo', coalesce(c.logo_url, a.company_logo)) END AS data
+      FROM applications a LEFT JOIN companies c ON c.id = a.company_id
+      WHERE lower(trim(coalesce(a.owner, ''))) IN (${user.id.toLowerCase()}, ${user.email.toLowerCase()})
+        OR (${user.id === 'user_ji'} AND lower(trim(coalesce(a.owner, ''))) IN ('', 'admin'))
+      ORDER BY a.updated_at DESC;
+    `;
+    const leads = includeLeads ? await sql`
+      SELECT CASE WHEN ${projection} = 'company' THEN jsonb_build_object('company_id', data->'company_id', 'owner', data->'owner')
+        WHEN ${projection} = 'status' THEN jsonb_build_object('notion_status', data->'notion_status', 'stage_history', data->'stage_history', 'owner', data->'owner')
+        ELSE data END AS data FROM leads
+      WHERE lower(trim(coalesce(data->>'owner', ''))) IN (${user.id.toLowerCase()}, ${user.email.toLowerCase()})
+        OR (${user.id === 'user_ji'} AND lower(trim(coalesce(data->>'owner', ''))) IN ('', 'admin'));
+    ` : [];
+    return [...rows, ...leads].map(row => row.data as JobApplication);
+  }
   if (sql) {
     const rows = await sql`
       SELECT a.*, coalesce(c.logo_url, a.company_logo) AS company_logo
@@ -511,9 +532,18 @@ export async function getApplications(includeLeads = true): Promise<JobApplicati
     return [...rows, ...leads.map((row) => row.data)] as JobApplication[];
   }
   const db = readLocalDb();
-  return [...db.applications, ...(includeLeads ? db.leads || [] : [])].sort(
+  return [...db.applications, ...(includeLeads ? db.leads || [] : [])].filter(app => !user || ownsApplication(app, user)).sort(
     (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   );
+}
+
+export async function hasApplications(): Promise<boolean> {
+  const sql = getPostgresClient();
+  if (sql) {
+    const rows = await sql`SELECT EXISTS (SELECT 1 FROM applications) OR EXISTS (SELECT 1 FROM leads) AS present;`;
+    return rows[0].present;
+  }
+  return (await getApplications()).length > 0;
 }
 
 // Filter ownership in SQL before transferring records. Phase mappings remain in the
@@ -523,14 +553,14 @@ export async function getAnalyticsApplications(user: Pick<UserAccount, 'id' | 'e
   const internshipPattern = String.raw`\mintern(ship)?\M`;
   if (!sql) return (await getApplications()).filter(app => ownsApplication(app, user));
   const rows = await sql`
-    SELECT to_jsonb(a) - ARRAY['job_description', 'information', 'notes', 'contact_name', 'contact_email'] AS data FROM applications a
+    SELECT to_jsonb(a) - ARRAY['job_description', 'information', 'notes', 'contact_name', 'contact_email', 'company_logo'] AS data FROM applications a
     WHERE (lower(trim(coalesce(owner, ''))) IN (${user.id.toLowerCase()}, ${user.email.toLowerCase()})
       OR (${user.id === 'user_ji'} AND lower(trim(coalesce(owner, ''))) IN ('', 'admin')))
       AND (${scope === 'ALL'} OR
         (CASE WHEN nullif(job_type, '') IS NOT NULL THEN job_type = 'INTERNSHIP'
           ELSE coalesce(role_title, '') ~* ${internshipPattern} END) = ${scope === 'INTERNSHIP'})
     UNION ALL
-    SELECT data - ARRAY['job_description', 'information', 'notes', 'contact_name', 'contact_email'] AS data FROM leads
+    SELECT data - ARRAY['job_description', 'information', 'notes', 'contact_name', 'contact_email', 'company_logo'] AS data FROM leads
     WHERE (lower(trim(coalesce(data->>'owner', ''))) IN (${user.id.toLowerCase()}, ${user.email.toLowerCase()})
       OR (${user.id === 'user_ji'} AND lower(trim(coalesce(data->>'owner', ''))) IN ('', 'admin')))
       AND (${scope === 'ALL'} OR

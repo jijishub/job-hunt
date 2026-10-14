@@ -23,6 +23,22 @@ function loader(overrides={}){
 function insightFixture(){return {summary:'Saved history suggests reviewing targeting.',observations:[{text:'Review the submitted pipeline.',evidence:['pipeline.submitted'],claims:[]}],implications:[{text:'Recorded outcomes describe this history rather than predict hiring.',evidence:['pipeline.offerRate'],claims:[]}],recommendations:[{text:'Review relevant role requirements against your qualifications.',evidence:['pipeline.unassessed'],claims:[]}],limitations:[]};}
 const sample=(values={})=>({id:'app',company_name:'Example',role_title:'Engineer',status:'APPLIED',owner:'user_ji',priority:'MEDIUM',job_type:'FULL_TIME',work_model:'ON_SITE',salary_currency:'PHP',sync_status:'SYNCED',created_at:'2026-10-10T00:00:00Z',updated_at:'2026-10-10T00:00:00Z',...values});
 
+test('scoped database reads bind ownership and project company/status fields before transfer', async () => {
+ const previous=process.env.POSTGRES_URL;const calls=[];
+ const sql=async (parts,...values)=>{calls.push({text:parts.join('?'),values});return [{data:{owner:'member',company_id:'company'}}];};
+ try {
+  process.env.POSTGRES_URL='postgres://mock-only';
+  const db=loader({'@neondatabase/serverless':{neon:()=>sql}})('src/lib/db.ts');
+  const member={id:'member',email:'MEMBER@example.com',role:'member'};
+  for(const projection of ['full','company','status']) {
+   calls.length=0;const rows=await db.getApplications(true,member,projection);assert.equal(rows.length,2);
+   assert.equal(calls.length,2);
+   for(const call of calls){assert.match(call.text,/WHERE lower\(trim\(coalesce/);assert.ok(call.values.includes('member'));assert.ok(call.values.includes('member@example.com'));assert.ok(call.values.includes(false));assert.ok(call.values.includes(projection));assert.match(call.text,/jsonb_build_object\('notion_status'/);}
+  }
+  calls.length=0;await db.getApplications(false,{...member,id:'user_ji'},'company');assert.equal(calls.length,1);assert.ok(calls[0].values.includes(true));
+ } finally {if(previous===undefined)delete process.env.POSTGRES_URL;else process.env.POSTGRES_URL=previous;}
+});
+
 test('RPA API reads private inputs only after admin authentication and has no published fallback',async()=>{
  let user=null,reads=0,profile=null;
  const load=loader({'@/lib/session-account':{getSessionAccount:async()=>user},'@/lib/rpa-profile':{readPrivateRpaProfile:async()=>{reads++;return profile;}}});
