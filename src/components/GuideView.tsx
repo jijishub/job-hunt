@@ -12,6 +12,13 @@ export default function GuideView({ onOpenPreferences, onNavigate }: { onOpenPre
     { title: 'Prepare a tailored application', text: 'AI Resume & ATS compares your master resume with a selected job description. Review its suggestions before using them. It does not submit applications for you.', icon: BookOpen, action: 'AI Resume & ATS', run: () => onNavigate('resume') },
   ];
   return <div className="space-y-4">
+    <figure className="rounded-2xl border border-[#F1DDE9] bg-white p-4 sm:p-5">
+      <figcaption id="tutorial-caption" className="mb-3 text-sm font-bold text-[#4A3E44]">Quick video tutorial</figcaption>
+      <video controls playsInline preload="metadata" aria-labelledby="tutorial-caption" className="mx-auto aspect-video w-full max-w-4xl rounded-xl bg-black object-contain">
+        <source src="/JobHunt_Tutorial.mp4" type="video/mp4" />
+        Your browser does not support video playback. <a href="/JobHunt_Tutorial.mp4">Download the tutorial</a>.
+      </video>
+    </figure>
     <div><h2 className="text-lg font-bold text-[#4A3E44]">Your quick-start guide</h2><p className="mt-1 text-sm text-[#736A6D]">Start with your master resume before using AI tools. Your records and preferences belong to your account.</p></div>
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{steps.map((step, index) => <section key={step.title} className={`rounded-2xl border p-5 ${index === 0 ? 'border-[#E9B8CD] bg-[#FFF0F6]' : 'border-[#F1DDE9] bg-white'}`}><div className="mb-3 flex items-center gap-2"><step.icon aria-hidden="true" className="h-5 w-5 text-[#FF7AB3]" /><span className="text-xs font-semibold text-[#9D3C5E]">Step {index + 1}</span></div><h3 className="text-sm font-bold">{step.title}</h3><p className="mt-2 text-sm leading-relaxed text-[#736A6D]">{step.text}</p><button type="button" onClick={step.run} className="mt-4 rounded-xl border border-[#F1DDE9] bg-[#FFF0F6] px-3 py-2 text-xs font-semibold text-[#9D3C5E]">{step.action}</button></section>)}</div>
     <section aria-labelledby="gemini-easy-add-title" className="rounded-2xl border border-[#F1DDE9] bg-[#FFF0F6] p-5">
