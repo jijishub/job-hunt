@@ -268,6 +268,18 @@ export default function JobHuntDashboard() {
     }
   };
 
+  const handleArchiveLead = async (id: string, archived: boolean) => {
+    const response = await fetch(`/api/applications/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ not_proceeding: archived }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.error || 'Could not update lead archive.');
+    setApplications(prev => prev.map(app => app.id === id ? result.data : app));
+    setSelectedApp(prev => prev?.id === id ? result.data : prev);
+  };
+
   const handleUpdateStatus = async (
     id: string,
     newStatus: ApplicationStatus,
@@ -446,8 +458,8 @@ export default function JobHuntDashboard() {
   ]);
 
   const leads = useMemo(() => {
-    return filteredApplications.filter((app) => app.status === 'LEAD');
-  }, [filteredApplications]);
+    return personalApplications.filter((app) => app.status === 'LEAD' && !isArchivedApplication(app));
+  }, [personalApplications]);
 
   // STRICT COMPANY ISOLATION:
   // 1. Admin sees all companies in her Notion workspace.
@@ -803,6 +815,7 @@ export default function JobHuntDashboard() {
             existingApplications={personalApplications}
             currentUser={currentUser}
             onUpdateStatus={handleUpdateStatus}
+            onArchiveLead={handleArchiveLead}
             onDeleteApplication={handleDeleteApplication}
             onSelectLead={(app) => {
               setSelectedApp(app);
@@ -833,6 +846,7 @@ export default function JobHuntDashboard() {
       {/* Application Details Modal */}
       <ApplicationDetailModal
         app={selectedApp}
+        company={companies.find(company => company.id === selectedApp?.company_id)}
         isOpen={isDetailOpen}
         onClose={() => {
           setIsDetailOpen(false);

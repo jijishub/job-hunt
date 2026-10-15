@@ -698,8 +698,11 @@ export default function ApplicationModal({
               </select><p className="mt-1 text-[11px] text-[#736A6D]">Uses explicit title keywords. Titles without an indicator stay Unspecified.</p>
             </div>
             <div><label htmlFor="application-platform" className="block text-xs font-semibold text-[#736A6D] mb-1.5">Job platform</label>
-              <input id="application-platform" list="application-platform-options" maxLength={200} placeholder="Choose or enter a platform" value={jobPlatform} onChange={event => setJobPlatform(event.target.value)} className="w-full rounded-xl border border-[#F1DDE9] px-3 py-2 text-xs" />
-              <datalist id="application-platform-options">{JOB_PLATFORMS.map(platform => <option key={platform} value={platform === 'WALK_IN' ? 'Walk-in' : platform} />)}</datalist>
+              <select id="application-platform" value={jobPlatform} onChange={event => setJobPlatform(event.target.value)} className="w-full rounded-xl border border-[#F1DDE9] bg-white px-3 py-2 text-xs">
+                <option value="">Choose a platform</option>
+                {jobPlatform && !JOB_PLATFORMS.some(platform => platform === jobPlatform) && <option value={jobPlatform}>{jobPlatform}</option>}
+                {JOB_PLATFORMS.map(platform => <option key={platform} value={platform}>{platform === 'WALK_IN' ? 'Walk-in' : platform.replaceAll('_', ' ')}</option>)}
+              </select>
             </div>
             <div><label htmlFor="application-response" className="block text-xs font-semibold text-[#736A6D] mb-1.5">First employer response</label>
               <input id="application-response" type="datetime-local" step="0.001" value={firstResponse} onChange={event => setFirstResponse(event.target.value)} className="w-full rounded-xl border border-[#F1DDE9] px-3 py-2 text-xs" />

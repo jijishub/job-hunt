@@ -4,7 +4,7 @@ import CloseButton from './CloseButton';
 import RoleFitBadge from './RoleFitBadge';
 
 import React from 'react';
-import { JobApplication } from '@/types/job';
+import { Company, JobApplication } from '@/types/job';
 import StatusBadge from './StatusBadge';
 import { displayApplicationStatusLabel, isArchivedApplication } from '@/lib/application-workflow';
 import { applicationStatusLabel } from '@/lib/statuses';
@@ -26,6 +26,7 @@ import {
 
 interface ApplicationDetailModalProps {
   app: JobApplication | null;
+  company?: Company;
   isOpen: boolean;
   onClose: () => void;
   onEdit: (app: JobApplication) => void;
@@ -35,6 +36,7 @@ interface ApplicationDetailModalProps {
 
 export default function ApplicationDetailModal({
   app,
+  company,
   isOpen,
   onClose,
   onEdit,
@@ -174,10 +176,10 @@ export default function ApplicationDetailModal({
             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[#F1DDE9]/60">
               <div>
                 <span className="text-[11px] font-semibold text-[#736A6D] uppercase tracking-wider block mb-1">
-                  Service / Category
+                  Company industry
                 </span>
                 <span className="text-xs text-[#9D3C5E] font-semibold">
-                  {app.service || 'General'}
+                  {company?.industry?.trim() || 'Not specified'}
                 </span>
               </div>
               <div>

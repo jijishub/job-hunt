@@ -7,7 +7,7 @@ export const SENIORITY_LEVELS: { value: SeniorityLevel; label: string }[] = [
   { value: 'MID_LEVEL', label: 'Mid-level' }, { value: 'SENIOR', label: 'Senior' },
   { value: 'LEAD_PRINCIPAL', label: 'Lead / Principal' }, { value: 'UNSPECIFIED', label: 'Unspecified' },
 ];
-export const JOB_PLATFORMS = ['LINKEDIN', 'JOBSTREET', 'INDEED', 'GOOGLE', 'DIRECT', 'REFERRAL', 'WALK_IN', 'OTHER', 'UNKNOWN'] as const;
+export const JOB_PLATFORMS = ['LINKEDIN', 'JOBSTREET', 'INDEED', 'GOOGLE', 'BOSSJOB', 'GLASSDOOR', 'COMPANY_WEBSITE', 'BAMBOOHR', 'BETTERTEAM', 'WORKABLE', 'CVVIZ', 'ORACLE_HCM', 'GREENHOUSE', 'LEVER', 'WORKDAY', 'ASHBY', 'SMARTRECRUITERS', 'DIRECT', 'REFERRAL', 'WALK_IN', 'OTHER', 'UNKNOWN'] as const;
 export function seniorityLevel(title = ''): SeniorityLevel {
   // Longer explicit phrases win before the single-word rules.
   if (/\b(intern(?:ship)?|trainee|apprentice)\b/i.test(title)) return 'INTERNSHIP_TRAINEE';
