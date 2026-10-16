@@ -58,6 +58,15 @@ export default function ApplicationDetailModal({
     ? `https://notion.so/${app.notion_page_id.replace(/-/g, '')}`
     : null;
 
+  const firstResponseDate = app.first_response_at ? new Date(app.first_response_at) : null;
+  const formattedFirstResponse = firstResponseDate && !Number.isNaN(firstResponseDate.getTime())
+    ? firstResponseDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : 'Not specified';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-xs animate-in fade-in duration-150">
       <div role="dialog" aria-modal="true" aria-label="Application details" className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[#F1DDE9] max-h-[90vh] max-sm:max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden">
@@ -211,6 +220,15 @@ export default function ApplicationDetailModal({
                 <span className="text-xs text-[#4A3E44] flex items-center gap-1 font-medium">
                   <Calendar className="w-3.5 h-3.5 text-stone-400" />
                   {formattedDate}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] font-semibold text-[#736A6D] uppercase tracking-wider block mb-1">
+                  Employer’s First Response Date
+                </span>
+                <span className="text-xs text-[#4A3E44] flex items-center gap-1 font-medium">
+                  <Calendar className="w-3.5 h-3.5 text-stone-400" />
+                  {formattedFirstResponse}
                 </span>
               </div>
             </div>
