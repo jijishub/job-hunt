@@ -14,7 +14,7 @@ function loadTypescript(filename) {
   cache.set(filename, compiled);
   const original = compiled.require.bind(compiled);
   compiled.require = id => {
-    const target = id.startsWith('.') ? path.resolve(path.dirname(filename), id) + '.ts' : null;
+    const target = id.startsWith('@/') ? path.join(root, 'src', id.slice(2)) + '.ts' : id.startsWith('.') ? path.resolve(path.dirname(filename), id) + '.ts' : null;
     return target && fs.existsSync(target) ? loadTypescript(target) : original(id);
   };
   compiled._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
@@ -24,7 +24,14 @@ function loadTypescript(filename) {
 }
 
 async function main() {
-  loadEnvConfig(root);
+  const development = process.argv.includes('--development');
+  loadEnvConfig(root, development);
+  if (development) {
+    if (!process.env.DEV_DATABASE_URL || process.env.VERCEL) throw new Error('Configure an isolated DEV_DATABASE_URL before development migrations.');
+    const env = require('./dev.cjs').developmentEnvironment(process.env);
+    if (env.DB_MODE === 'local') throw new Error('JSON development storage does not require migrations.');
+    for (const key of ['POSTGRES_URL','DATABASE_URL','DB_DRIVER','DB_MODE']) process.env[key] = env[key];
+  }
   if (!process.env.POSTGRES_URL && !process.env.DATABASE_URL && process.argv.includes('--if-configured')) {
     console.log('No PostgreSQL configured; using local JSON storage.');
     return;

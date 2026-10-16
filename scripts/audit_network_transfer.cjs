@@ -1,11 +1,11 @@
 // Read-only: aggregate in Postgres so the audit does not download private records.
 const { loadEnvConfig } = require('@next/env');
-const { neon } = require('@neondatabase/serverless');
+const { getClient } = require('./database_client.cjs');
 loadEnvConfig(process.cwd());
 async function main() {
   const url = process.env.POSTGRES_URL || process.env.DATABASE_URL;
   if (!url) throw new Error('No Postgres connection configured.');
-  const sql = neon(url);
+  const sql = getClient();
   const rows = await sql`
     WITH records AS (
       SELECT 'applications' AS collection, to_jsonb(a) AS data FROM applications a

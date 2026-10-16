@@ -33,6 +33,8 @@ export interface Company {
 }
 
 export interface JobApplication {
+  /** Lightweight list record; hydrate through the detail endpoint before editing. */
+  summary_only?: boolean;
   id: string;
   company_id: string;
   company_name: string;

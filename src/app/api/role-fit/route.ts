@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in to analyze role fit.' }, { status: 401 });
     const body = await request.json();
-    const app = body.id ? await getApplicationById(body.id) : null;
+    const app = body.id ? await getApplicationById(body.id, user) : null;
     if (body.id && (!app || !ownsApplication(app, user))) return NextResponse.json({ success: false, error: 'Application not found.' }, { status: 404 });
     if (app?.role_fit_source === 'manual' && !body.force) return NextResponse.json({ success: true, data: app.role_fit_analysis, application: app, skipped: true });
     const evidence = await candidateEvidence(user);

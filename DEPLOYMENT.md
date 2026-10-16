@@ -47,9 +47,9 @@ Verify your repository is updated at: [https://github.com/jijishub/job-hunt](htt
 
 ## Step 2: Database Setup (Free Serverless Postgres)
 
-Database migrations run before the production build through `npm run build`. They create and update the tables and preserve archived duplicates; normal application requests no longer run schema maintenance. For a local PostgreSQL database, run `npm run db:migrate` after configuring the environment and before starting the app. Local JSON storage does not require a migration.
+Database migrations run explicitly through `npm run db:migrate`, separately from `npm run build`. They create and update the tables and preserve archived duplicates; normal application requests and production builds do not run schema maintenance. Review the target and approve any production migration before running it. For a separate development PostgreSQL database, configure `DEV_DATABASE_URL` and run `npm run db:migrate:dev` before starting the app. Local JSON storage does not require a migration.
 
-The analytics changes require nullable application columns for `seniority_level`, `seniority_level_source`, `role_family`, `role_family_source`, `job_platform`, and `first_response_at`, plus filtering indexes. The role-family columns are historical compatibility data; new drafts and current analytics no longer derive or use them. Keyword analytics requires no new columns or migration. Preferences store configurable application-age boundaries in their existing JSON. Saved optional pipeline reports require the nullable `candidate_profiles.pipeline_insights` JSONB column, added by the same migration. Keep `npm run build` as the deployment command so the required migrations run before the new application code is served. Running `next build` directly checks compilation but does not verify or apply database migrations. The URL platform backfill adds only its platform column when needed and is not a substitute for this full migration.
+The analytics changes require nullable application columns for `seniority_level`, `seniority_level_source`, `role_family`, `role_family_source`, `job_platform`, and `first_response_at`, plus filtering indexes. The role-family columns are historical compatibility data; new drafts and current analytics no longer derive or use them. Keyword analytics requires no new columns or migration. Preferences store configurable application-age boundaries in their existing JSON. Saved optional pipeline reports require the nullable `candidate_profiles.pipeline_insights` JSONB column, added by the same migration. Keep `npm run build` as the deployment command; it checks compilation without verifying or applying database migrations. Confirm required columns separately and apply any missing migration in an approved maintenance window before serving code that requires it. The URL platform backfill adds only its platform column when needed and is not a substitute for this full migration.
 
 ### Option A: Neon Serverless Postgres (Recommended - Generous Free Tier)
 1. Go to [Neon.tech](https://neon.tech) and create a free project named `job-hunt-prod`.
@@ -73,7 +73,7 @@ The analytics changes require nullable application columns for `seniority_level`
 3. In **Project Settings**:
    - **Framework Preset**: `Next.js`
    - **Root Directory**: `./`
-   - **Build Command**: `npm run build` (set by `vercel.json`, includes database migrations)
+   - **Build Command**: `npm run build` (set by `vercel.json`, compilation only)
 4. Expand **Environment Variables** and add:
 
 | Key | Example Value | Description |
@@ -99,7 +99,7 @@ Analytics uses persisted application data and saved fit results. Loading, scope 
 
 The optional admin RPA helper requires a server-side `RPA_PROFILE_JSON` containing its private profile when deployed. Its local fallback file is Git-ignored and will not be present in a Git-based deployment. Do not use a `NEXT_PUBLIC_` variable for this data. Without a configured profile, the helper returns a configuration error while the application and analytics remain available. Keep personal inputs and credentials out of public source control; ignore rules do not remove earlier commits.
 
-5. Click **Deploy** and check the build logs for both migration completion and a successful production build. Then perform the smoke checks below.
+5. After confirming schema readiness, click **Deploy** and check the build logs for a successful production build. Then perform the smoke checks below.
 
 ---
 
@@ -212,4 +212,8 @@ git add .
 git commit -m "feat: your new feature"
 git push origin main
 ```
-With Git deployment configured, commits on the deployment branch trigger the build and deployment. Confirm the migration and build results in the deployment logs, then repeat the smoke checks for changed functionality.
+With Git deployment configured, commits on the deployment branch trigger the build and deployment. Confirm the build results in the deployment logs, then repeat the smoke checks for changed functionality. Schema migrations remain separate approved operations.
+
+## Database efficiency and provider portability
+
+See [DATABASE-OPERATIONS.md](DATABASE-OPERATIONS.md) for `DB_DRIVER`, isolated local storage, opt-in metadata diagnostics, image migration preparation, provider research, and rollback instructions. These read-path changes require no new schema. Do not run a production migration merely to deploy them.

@@ -9,7 +9,7 @@ import { OFFER_PAY_PERIODS } from '@/lib/salary-offers';
 import type { OfferPayPeriod } from '@/types/job';
 import { ROLE_FITS } from '@/lib/role-fit';
 import { parseJobImport, JOB_JSON_PROMPT } from '@/lib/job-import';
-import { SENIORITY_LEVELS, JOB_PLATFORMS, seniorityLevel } from '@/lib/application-analytics-fields';
+import { SENIORITY_LEVELS, JOB_PLATFORMS, seniorityLevel, normalizeJobPlatform } from '@/lib/application-analytics-fields';
 import type { SeniorityLevel } from '@/types/job';
 import type { RoleFit, RoleFitAnalysis } from '@/types/job';
 
@@ -158,15 +158,47 @@ export default function ApplicationModal({
   const [isAddingCustomStatus, setIsAddingCustomStatus] = useState(false);
   const [newStatusInput, setNewStatusInput] = useState('');
   const [isSavingStatus, setIsSavingStatus] = useState(false);
+  const [customPlatforms, setCustomPlatforms] = useState<string[]>([]);
+  const [addingPlatform, setAddingPlatform] = useState(false);
+  const [newPlatform, setNewPlatform] = useState('');
+  const [savingPlatform, setSavingPlatform] = useState(false);
+  const [platformError, setPlatformError] = useState('');
+  const platformOptions = [...new Set<string>([...JOB_PLATFORMS, ...customPlatforms, ...(jobPlatform ? [jobPlatform] : [])])];
+
+  async function addPlatform() {
+    setSavingPlatform(true);
+    setPlatformError('');
+    try {
+      const response = await fetch('/api/preferences', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_platform: newPlatform }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Could not save platform.');
+      setCustomPlatforms(result.data.job_platform_options || []);
+      setJobPlatform(result.platform);
+      setNewPlatform('');
+      setAddingPlatform(false);
+    } catch (error) {
+      setPlatformError(error instanceof Error ? error.message : 'Could not save platform.');
+    } finally { setSavingPlatform(false); }
+  }
 
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
 
   useEffect(() => {
     setAnalyticsMapping({});
+    setCustomPlatforms([]);
+    setAddingPlatform(false);
+    setNewPlatform('');
+    setPlatformError('');
     if (!isOpen) return;
     const controller = new AbortController();
     fetch('/api/preferences', { signal: controller.signal }).then(response => response.json()).then(data => {
-      if (data.success && !controller.signal.aborted) setAnalyticsMapping(data.data?.analytics_status_stages || {});
+      if (data.success && !controller.signal.aborted) {
+        setAnalyticsMapping(data.data?.analytics_status_stages || {});
+        setCustomPlatforms(data.data?.job_platform_options || []);
+      }
     }).catch(() => {});
     return () => controller.abort();
   }, [isOpen, currentUserId]);
@@ -195,7 +227,7 @@ export default function ApplicationModal({
     initializedDraft.current = identity;
     fitRequest.current?.abort(); fitRequest.current = null;
     setSeniorityOverride(initialData?.seniority_level && initialData.seniority_level_source !== 'derived' ? initialData.seniority_level : null);
-    setJobPlatform(initialData?.job_platform || initialData?.source || '');
+    setJobPlatform(normalizeJobPlatform(initialData?.job_platform || initialData?.source) || '');
     setFirstResponse(localDateTime(initialData?.first_response_at));
     setJobDescription(initialData?.information || initialData?.job_description || '');
     setOfferAmount(initialData?.offer_amount != null ? String(initialData.offer_amount) : '');
@@ -282,7 +314,7 @@ export default function ApplicationModal({
       if (job.salary_max != null) setSalaryMax(String(job.salary_max));
       if (job.salary_currency) setSalaryCurrency(job.salary_currency);
       if (job.job_url) setJobUrl(job.job_url);
-      if (job.job_platform) setJobPlatform(job.job_platform);
+      if (job.job_platform) setJobPlatform(normalizeJobPlatform(job.job_platform) || '');
       if (job.first_response_at) setFirstResponse(localDateTime(job.first_response_at));
       setFitAnalysis(null); setRoleFit(null); setUseAiFit(false);
       setImportMessage('Job fields filled in the draft. Review them before saving. No application has been created yet.');
@@ -700,9 +732,16 @@ export default function ApplicationModal({
             <div><label htmlFor="application-platform" className="block text-xs font-semibold text-[#736A6D] mb-1.5">Job platform</label>
               <select id="application-platform" value={jobPlatform} onChange={event => setJobPlatform(event.target.value)} className="w-full rounded-xl border border-[#F1DDE9] bg-white px-3 py-2 text-xs">
                 <option value="">Choose a platform</option>
-                {jobPlatform && !JOB_PLATFORMS.some(platform => platform === jobPlatform) && <option value={jobPlatform}>{jobPlatform}</option>}
-                {JOB_PLATFORMS.map(platform => <option key={platform} value={platform}>{platform === 'WALK_IN' ? 'Walk-in' : platform.replaceAll('_', ' ')}</option>)}
+                {platformOptions.map(platform => <option key={platform} value={platform}>{platform === 'WALK_IN' ? 'Walk-in' : platform.replaceAll('_', ' ')}</option>)}
               </select>
+              {addingPlatform ? <div className="mt-2 space-y-2">
+                <input aria-label="New platform name" maxLength={200} value={newPlatform} onChange={event => setNewPlatform(event.target.value)} placeholder="Platform name" className="w-full rounded-xl border border-[#F1DDE9] bg-white px-3 py-2 text-xs" />
+                <div className="flex gap-2">
+                  <button type="button" disabled={savingPlatform || !newPlatform.trim()} onClick={addPlatform} className="rounded-lg bg-[#FFF0F6] px-3 py-2 text-xs font-semibold text-[#9D3C5E] disabled:opacity-50">{savingPlatform ? 'Saving...' : 'Save platform'}</button>
+                  <button type="button" disabled={savingPlatform} onClick={() => { setAddingPlatform(false); setPlatformError(''); }} className="px-2 py-2 text-xs">Cancel</button>
+                </div>
+              </div> : <button type="button" onClick={() => { setAddingPlatform(true); setPlatformError(''); }} className="mt-2 text-xs font-semibold text-[#9D3C5E]">+ Add platform</button>}
+              {platformError && <p role="alert" className="mt-1 text-xs text-rose-600">{platformError}</p>}
             </div>
             <div><label htmlFor="application-response" className="block text-xs font-semibold text-[#736A6D] mb-1.5">First employer response</label>
               <input id="application-response" type="datetime-local" step="0.001" value={firstResponse} onChange={event => setFirstResponse(event.target.value)} className="w-full rounded-xl border border-[#F1DDE9] px-3 py-2 text-xs" />

@@ -120,7 +120,7 @@ test('members can use Guide, master resume, company search, charts, ATS and real
     page.once('dialog', dialog => dialog.dismiss());
     await page.getByRole('button', { name: 'Mark applied', exact: true }).click();
     assert.equal(statusWrites.length, writesBeforeCancel);
-    await page.getByText('Saved Finance Lead', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Saved Finance Lead', exact: true }).waitFor();
     page.once('dialog', async dialog => {
       assert.match(dialog.message(), /Saved Finance Lead at Finance Company/);
       await dialog.accept();
@@ -133,7 +133,7 @@ test('members can use Guide, master resume, company search, charts, ATS and real
     await page.getByLabel('Company', { exact: true }).fill('Verified Employer');
     await page.getByLabel('Posting URL', { exact: true }).fill('https://example.com/careers/123');
     await page.getByRole('button', { name: 'Save lead', exact: true }).click();
-    await page.getByText('Verified Lead', { exact: true }).waitFor();assert.equal(creations[0].notion_status, 'Not started');
+    await page.getByRole('button', { name: 'Verified Lead', exact: true }).waitFor();assert.equal(creations[0].notion_status, 'Not started');
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
     const launchpads = page.getByRole('region', { name: 'Direct Sourcing Launchpads', exact: true });
     await page.getByLabel('Launchpad keywords').fill('Hospitality Management');

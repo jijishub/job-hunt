@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { loadEnvConfig } = require('@next/env');
-const { neon } = require('@neondatabase/serverless');
+const { getClient } = require('./database_client.cjs');
 const { loadTypescript } = require('./migrate_db.cjs');
 const root = path.resolve(__dirname, '..');
 const { jobPlatformFromUrl } = loadTypescript(path.join(root, 'src/lib/job-platform.ts'));
@@ -105,7 +105,7 @@ async function main() {
   const owner = index >= 0 ? args[index+1] : configured === 'jizellecasia@gmail.com' ? 'jizelle.casia@gmail.com' : configured;
   if (!owner || owner.startsWith('--')) throw new Error('Provide an account ID or email after --owner.');
   const connection = process.env.POSTGRES_URL || process.env.DATABASE_URL;
-  const sql = connection ? neon(connection) : null;
+  const sql = connection && process.env.DB_MODE !== 'local' ? getClient() : null;
   const file = path.join(root, '.data/db.json');
   const snapshot = sql ? await postgresSnapshot(sql, owner) : localSnapshot(file, owner);
   const plan = planRecords(snapshot.records);

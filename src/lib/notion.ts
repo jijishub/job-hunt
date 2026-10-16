@@ -2,6 +2,7 @@ import { Client } from '@notionhq/client';
 import { JobApplication, ApplicationStatus, Priority, WorkModel } from '@/types/job';
 import {
   getApplications,
+  getPendingNotionApplications,
   createApplication,
   updateApplication,
   getCompanies,
@@ -12,9 +13,9 @@ import {
 import { getStatusCategory, canonicalStatusName } from './statuses';
 import { isArchivedApplication } from './application-workflow';
 
-async function isAppEligibleForNotionSync(app: JobApplication): Promise<boolean> {
+async function isAppEligibleForNotionSync(app: JobApplication, knownUsers?: Awaited<ReturnType<typeof getUsers>>): Promise<boolean> {
   if (app.status === 'LEAD') return false;
-  const users = await getUsers();
+  const users = knownUsers || await getUsers();
   const eligibleIds = new Set(
     users.filter((u) => u.role === 'admin' || u.notion_enabled).map((u) => u.id)
   );
@@ -306,9 +307,9 @@ function buildNotionProperties(app: JobApplication) {
   return properties;
 }
 
-export async function pushApplicationToNotion(app: JobApplication, onError?: (message: string) => void): Promise<string | null> {
+export async function pushApplicationToNotion(app: JobApplication, onError?: (message: string) => void, knownUsers?: Awaited<ReturnType<typeof getUsers>>): Promise<string | null> {
   if (isArchivedApplication(app)) return app.notion_page_id || null;
-  const isEligible = await isAppEligibleForNotionSync(app);
+  const isEligible = await isAppEligibleForNotionSync(app, knownUsers);
   if (!isEligible) {
     return null;
   }
@@ -381,7 +382,7 @@ export async function pullApplicationsFromNotion() {
       if (c && c.name) companyMap.set(c.name.trim().toLowerCase(), c);
     });
 
-    const existingApps = await getApplications();
+    const existingApps = await getApplications(true, undefined, 'notion');
     const appMap = new Map<string, any>();
     existingApps.forEach((a) => {
       if (a.notion_page_id) {
@@ -597,19 +598,20 @@ export async function performTwoWaySync() {
     };
   }
 
-  const allApps = await getApplications(false);
+  const allApps = await getPendingNotionApplications();
+  const syncUsers = await getUsers();
   let pushedCount = 0;
   const failed: { id: string; company: string; role: string; error?: string }[] = [];
 
   for (const app of allApps) {
     if (isArchivedApplication(app)) continue;
-    const isEligible = await isAppEligibleForNotionSync(app);
+    const isEligible = await isAppEligibleForNotionSync(app, syncUsers);
     if (!isEligible) {
       continue;
     }
     if (app.sync_status !== 'SYNCED' || !app.notion_page_id) {
       let error: string | undefined;
-      const pageId = await pushApplicationToNotion(app, (message) => { error = message; });
+      const pageId = await pushApplicationToNotion(app, (message) => { error = message; }, syncUsers);
       if (pageId) pushedCount++;
       else failed.push({ id: app.id, company: app.company_name, role: app.role_title, error });
     }

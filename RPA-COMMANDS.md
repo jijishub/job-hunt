@@ -13,7 +13,7 @@ Run commands from the project root. Personal browser helpers are owner-specific 
 
 These workflows depend on the owner's resume and application configuration. Profile helpers can save edits; application submission requires manual review. Generated helpers, browser profiles, and reports belong in the ignored `.data/` directory. Personal inputs should be backed up privately rather than included in a public showcase.
 
-Personal JSON payloads are ignored at `scripts/resume_data.json` and `src/lib/active-resume.json`. The generic scripts remain tracked, including the deployment migration. Bossjob's summary and company-title aliases load from ignored `references/rpa/bossjob-profile.json` (or the process environment variable `BOSSJOB_PROFILE_JSON`). The admin-only RPA API loads ignored `references/rpa/bytedance-profile.json` locally, or server-only `RPA_PROFILE_JSON` when deployed. Missing private inputs produce a configuration error; there is no hardcoded personal-profile fallback. Ignored inputs are not backed up to GitHub.
+Personal JSON payloads are ignored at `scripts/resume_data.json` and `src/lib/active-resume.json`. The generic scripts remain tracked, including the explicit database migration. Bossjob's summary and company-title aliases load from ignored `references/rpa/bossjob-profile.json` (or the process environment variable `BOSSJOB_PROFILE_JSON`). The admin-only RPA API loads ignored `references/rpa/bytedance-profile.json` locally, or server-only `RPA_PROFILE_JSON` when deployed. Missing private inputs produce a configuration error; there is no hardcoded personal-profile fallback. Ignored inputs are not backed up to GitHub.
 
 Detailed owner operating notes are kept locally at `references/rpa/RPA-OPERATIONS.md`, outside the public documentation. That ignored file is not included in a clone of the repository. Browser tests use local fixtures and do not verify a live account.
 
@@ -39,3 +39,7 @@ node scripts/backfill_job_platforms.cjs --owner ACCOUNT_ID_OR_EMAIL --apply
 The default account matches `ADMIN_EMAIL`. Storage uses configured PostgreSQL (`POSTGRES_URL` or `DATABASE_URL`), or `.data/db.json` when neither is set. Existing selections and other accounts are preserved; concurrent edits are skipped. Only platform values and update timestamps change. Missing URLs, email addresses, short links, and unknown hosts remain unclassified. Referral and Walk-in require manual selection.
 
 The helper adds only the platform column if needed; deployment migrations remain separate. Reports and prior values are saved under `.data/job-platform-backfill-*`, with a full pre-update backup for local JSON storage. See [DEPLOYMENT.md](DEPLOYMENT.md#step-2-database-setup-free-serverless-postgres) for migration instructions.
+
+## Offline database diagnostics and logo preparation
+
+`npm run test:database` uses synthetic local PostgreSQL and mocks. `npm run db:metrics -- LOG_FILE` summarizes existing metadata logs without a database connection. `npm run logos:prepare -- --input SNAPSHOT --output NEW_DIRECTORY --base-url HTTPS_ASSET_BASE` prepares validated original logo files from an existing private snapshot; it does not upload or modify the database. See [database operations](DATABASE-OPERATIONS.md) for the migration approval and verification sequence. Builds no longer run migrations automatically.

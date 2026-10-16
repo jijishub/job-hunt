@@ -7,7 +7,12 @@ export const SENIORITY_LEVELS: { value: SeniorityLevel; label: string }[] = [
   { value: 'MID_LEVEL', label: 'Mid-level' }, { value: 'SENIOR', label: 'Senior' },
   { value: 'LEAD_PRINCIPAL', label: 'Lead / Principal' }, { value: 'UNSPECIFIED', label: 'Unspecified' },
 ];
-export const JOB_PLATFORMS = ['LINKEDIN', 'JOBSTREET', 'INDEED', 'GOOGLE', 'BOSSJOB', 'GLASSDOOR', 'COMPANY_WEBSITE', 'BAMBOOHR', 'BETTERTEAM', 'WORKABLE', 'CVVIZ', 'ORACLE_HCM', 'GREENHOUSE', 'LEVER', 'WORKDAY', 'ASHBY', 'SMARTRECRUITERS', 'DIRECT', 'REFERRAL', 'WALK_IN', 'OTHER', 'UNKNOWN'] as const;
+export const JOB_PLATFORMS = ['LINKEDIN', 'GOOGLE', 'JOBSTREET', 'INDEED', 'DIRECT', 'REFERRAL', 'WALK_IN', 'COMPANY_WEBSITE', 'BOSSJOB', 'GLASSDOOR'] as const;
+export function normalizeJobPlatform(value?: string | null) {
+  if (!value?.trim()) return null;
+  const platform = value.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return platform;
+}
 export function seniorityLevel(title = ''): SeniorityLevel {
   // Longer explicit phrases win before the single-word rules.
   if (/\b(intern(?:ship)?|trainee|apprentice)\b/i.test(title)) return 'INTERNSHIP_TRAINEE';
@@ -37,8 +42,8 @@ export function analyticsFieldUpdates(saved: Partial<JobApplication> | null, upd
       Object.assign(result, { [field]: seniorityLevel(title), [source]: 'derived' });
     }
   }
-  if (Object.hasOwn(updates, 'job_platform')) result.job_platform = updates.job_platform?.trim() || null;
-  else if (!saved?.job_platform && updates.source) result.job_platform = updates.source;
+  if (Object.hasOwn(updates, 'job_platform')) result.job_platform = normalizeJobPlatform(updates.job_platform);
+  else if (!saved?.job_platform && updates.source) result.job_platform = normalizeJobPlatform(updates.source);
   if (Object.hasOwn(updates, 'first_response_at')) result.first_response_at = updates.first_response_at ? new Date(updates.first_response_at).toISOString() : null;
   return result;
 }

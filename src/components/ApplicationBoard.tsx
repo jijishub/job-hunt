@@ -2,6 +2,7 @@
 
 import RoleFitBadge from './RoleFitBadge';
 
+import CompanyLogo from './CompanyLogo';
 import React, { useState, useEffect } from 'react';
 import { JobApplication, ApplicationStatus } from '@/types/job';
 import PriorityBadge from './PriorityBadge';
@@ -129,14 +130,7 @@ export default function ApplicationBoard({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
                       <div className="w-5 h-5 rounded bg-stone-50 border border-[#F1DDE9] flex items-center justify-center shrink-0 overflow-hidden">
-                        {app.company_logo?.startsWith('emoji:') ? (
-                          <span className="text-xs">{app.company_logo.replace('emoji:', '')}</span>
-                        ) : app.company_logo ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={app.company_logo} alt="" className="w-3.5 h-3.5 object-contain" />
-                        ) : (
-                          <Building2 className="w-3 h-3 text-stone-300" />
-                        )}
+                        <CompanyLogo src={app.company_logo} alt={app.company_name} className="w-3.5 h-3.5 object-contain" emojiClassName="text-xs" />
                       </div>
                       <span className="text-xs font-semibold text-[#736A6D]">
                         {app.company_name}

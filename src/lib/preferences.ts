@@ -9,6 +9,7 @@ export const DEFAULT_VIEWS: { value: DefaultView; label: string }[] = [
   { value: 'OTHER', label: 'Exclude internships' },
 ];
 export interface PersonalPreferences {
+  job_platform_options?: string[];
   default_view?: DefaultView;
   target_companies: string[];
   target_roles: string[];
@@ -42,11 +43,12 @@ export function validatePreferences(raw: unknown): PersonalPreferences {
   const analytics_rejection_statuses = value.analytics_rejection_statuses === undefined
     ? [...DEFAULT_REJECTION_STATUSES]
     : [...new Set(list('analytics_rejection_statuses').map(name => canonicalStatusName(name).toLowerCase()))];
+  const job_platform_options = [...new Set(list('job_platform_options').map(name => name.toUpperCase().replace(/[\s-]+/g, '_')))];
   const work = list('work_models'); const jobs = list('job_types');
   if (!work.every(model => ['ON_SITE', 'HYBRID', 'REMOTE'].includes(model))) throw new Error('Choose valid work models.');
   if (!jobs.every(type => ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERNSHIP'].includes(type))) throw new Error('Choose valid job types.');
   if (value.salary_min != null && (typeof value.salary_min !== 'number' || !Number.isFinite(value.salary_min) || value.salary_min < 0)) throw new Error('Minimum salary must be a nonnegative number.');
   const currency = value.salary_currency ?? 'PHP'; if (typeof currency !== 'string' || !/^[a-z]{3}$/i.test(currency)) throw new Error('Use a three-letter currency such as PHP.');
   for (const key of ['dealbreakers', 'portfolio_summary']) if (value[key] != null && (typeof value[key] !== 'string' || (value[key] as string).length > 12000)) throw new Error(`${key} must be text under 12,000 characters.`);
-  return { default_view: default_view as DefaultView, analytics_age_boundaries, analytics_status_stages, analytics_rejection_statuses, target_companies: list('target_companies'), target_roles: list('target_roles'), preferred_locations: list('preferred_locations'), work_models: work as WorkModel[], job_types: jobs as JobType[], salary_min: value.salary_min as number | undefined, salary_currency: currency.toUpperCase(), dealbreakers: (value.dealbreakers as string || '').trim(), portfolio_summary: (value.portfolio_summary as string || '').trim() };
+  return { job_platform_options, default_view: default_view as DefaultView, analytics_age_boundaries, analytics_status_stages, analytics_rejection_statuses, target_companies: list('target_companies'), target_roles: list('target_roles'), preferred_locations: list('preferred_locations'), work_models: work as WorkModel[], job_types: jobs as JobType[], salary_min: value.salary_min as number | undefined, salary_currency: currency.toUpperCase(), dealbreakers: (value.dealbreakers as string || '').trim(), portfolio_summary: (value.portfolio_summary as string || '').trim() };
 }

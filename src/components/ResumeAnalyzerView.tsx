@@ -97,13 +97,22 @@ export default function ResumeAnalyzerView({
   const selectedJobTitle = selectedApplication?.role_title || '';
   const selectedCompanyName = selectedApplication?.company_name || '';
   const selectedJobDescription = selectedApplication?.information || selectedApplication?.job_description || '';
+  const selectedIsSummary = selectedApplication?.summary_only;
   useEffect(() => {
+    const controller = new AbortController();
     if (selectedAppId && hasSelectedApplication) {
       setJobTitle(selectedJobTitle);
       setCompanyName(selectedCompanyName);
-      setJobDescription(selectedJobDescription);
+      if (selectedIsSummary) {
+        setJobDescription('');
+        fetch(`/api/applications/${encodeURIComponent(selectedAppId)}`, { signal: controller.signal }).then(r => r.json()).then(result => {
+          if (!result.success || !result.data) throw new Error(result.error || 'Job details could not be loaded.');
+          setJobDescription(result.data.information || result.data.job_description || '');
+        }).catch(error => { if (error.name !== 'AbortError') setError(error.message); });
+      } else setJobDescription(selectedJobDescription);
     }
-  }, [selectedAppId, hasSelectedApplication, selectedJobTitle, selectedCompanyName, selectedJobDescription]);
+    return () => controller.abort();
+  }, [selectedAppId, hasSelectedApplication, selectedJobTitle, selectedCompanyName, selectedJobDescription, selectedIsSummary]);
 
   // Auto-import candidate portfolio/bio from jizellecasia.vercel.app
   const handleAutoImportPortfolio = async () => {

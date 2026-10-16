@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const body = await request.json();
     const { jobTitle, companyName, model } = body;
-    const app = body.applicationId ? await getApplicationById(body.applicationId) : null;
+    const app = body.applicationId ? await getApplicationById(body.applicationId, user) : null;
     if (body.applicationId && (!app || !ownsApplication(app, user))) return NextResponse.json({ success: false, error: 'Application not found.' }, { status: 404 });
     const evidence = await candidateEvidence(user);
     const resumeText = user.role === 'admin' && typeof body.resumeText === 'string' && body.resumeText.trim() ? body.resumeText : evidence.text;

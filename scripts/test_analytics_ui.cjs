@@ -164,7 +164,7 @@ test('AI is optional: filters and PDF work during requests and after failures; l
     assert.equal(await page.getByLabel('Seniority level', { exact: true }).inputValue(), 'JUNIOR');
     assert.equal(await page.getByLabel('Role family', { exact: true }).count(),0);
     assert.equal(await page.getByLabel('First employer response', { exact: true }).inputValue(), recordedResponse);
-    assert.equal(await page.getByLabel('Job platform', { exact: true }).inputValue(), 'Walk-in');
+    assert.equal(await page.getByLabel('Job platform', { exact: true }).inputValue(), 'WALK_IN');
     await page.getByLabel('Seniority level', { exact: true }).selectOption('');
     assert.equal(await page.getByRole('button', { name: 'Use automatic role family', exact: true }).count(),0);
     assert.equal(await page.getByLabel('Role family', { exact: true }).count(),0);

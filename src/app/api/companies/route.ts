@@ -1,4 +1,6 @@
+import { observedJson } from '@/lib/api-observability';
 import { getSessionAccount } from '@/lib/session-account';
+import { getCompanyDirectory } from '@/lib/company-directory';
 import { ownsApplication } from '@/lib/ownership';
 import { NextResponse } from 'next/server';
 import { getCompanies, getOrCreateCompany, getApplications, updateCompany, deleteCompany } from '@/lib/db';
@@ -8,32 +10,9 @@ export async function GET() {
   try {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
-    const isAdmin = user.role === 'admin';
-    let companies = await getCompanies();
-    let applications = (await getApplications(true, user, 'company')).filter(app => ownsApplication(app, user));
-    companies = companies.filter(company => applications.some(app => app.company_id === company.id)
-      || company.created_by === user.id || company.created_by?.toLowerCase() === user.email.toLowerCase()
-      || (user.id === 'user_ji' && !company.created_by));
-    if (companies.length === 0 && applications.length === 0 && isAdmin) {
-      const config = getNotionConfig();
-      if (config.isConfigured) {
-        await pullApplicationsFromNotion();
-        companies = (await getCompanies()).filter(company => company.created_by === user.id || company.created_by === user.email || (user.id === 'user_ji' && !company.created_by));
-        applications = (await getApplications(true, user, 'company')).filter(app => ownsApplication(app, user));
-      }
-    }
+    const enriched = await getCompanyDirectory(user);
 
-    const countsByCompanyId: Record<string, number> = {};
-    applications.forEach((app) => {
-      countsByCompanyId[app.company_id] = (countsByCompanyId[app.company_id] || 0) + 1;
-    });
-
-    const enriched = companies.map((c) => ({
-      ...c,
-      applicationCount: countsByCompanyId[c.id] || 0,
-    }));
-
-    return NextResponse.json({ success: true, data: enriched });
+    return observedJson('companies.list', { success: true, data: enriched }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error?.message }, { status: 500 });
   }
@@ -43,7 +22,9 @@ export async function POST(request: Request) {
   try {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
-    const { id, name, logo_url, website, industry } = await request.json();
+    const { id, name, website, industry, logo_url: suppliedLogo } = await request.json();
+    // Cached presentation URLs must never replace the underlying image value.
+    const logo_url = typeof suppliedLogo === 'string' && suppliedLogo.startsWith('/api/company-logo?') ? undefined : suppliedLogo;
     if (typeof name !== 'string' || !name.trim()) {
       return NextResponse.json({ success: false, error: 'Company name is required' }, { status: 400 });
     }

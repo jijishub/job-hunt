@@ -20,7 +20,7 @@ export async function GET(
   try {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
-    const app = await getApplicationById(id);
+    const app = await getApplicationById(id, user);
     if (!app || !ownsApplication(app, user)) {
       return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });
     }
@@ -39,6 +39,7 @@ export async function PUT(
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
     const body = await request.json();
+    if (body?.summary_only) return NextResponse.json({ success: false, error: 'Load the complete application before editing.' }, { status: 400 });
     const validationError = applicationValidationError(body);
     if (validationError) return NextResponse.json({ success: false, error: validationError }, { status: 400 });
     Object.assign(body, normalizeOfferFields(body));
@@ -46,7 +47,7 @@ export async function PUT(
     if (body.not_proceeding != null && typeof body.not_proceeding !== 'boolean') return NextResponse.json({ success: false, error: 'Invalid Not Proceeding flag.' }, { status: 400 });
     if (Object.hasOwn(body, 'information') || Object.hasOwn(body, 'job_description')) { body.information = body.information ?? body.job_description; body.job_description = body.information; }
 
-    const existingApp = await getApplicationById(id);
+    const existingApp = await getApplicationById(id, user);
     if (!existingApp || !ownsApplication(existingApp, user)) {
       return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });
     }
@@ -108,7 +109,7 @@ export async function DELETE(
   try {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
-    const app = await getApplicationById(id);
+    const app = await getApplicationById(id, user);
     if (!app || !ownsApplication(app, user)) return NextResponse.json({ success: false, error: 'Application not found.' }, { status: 404 });
     await deleteApplication(id);
     return NextResponse.json({ success: true });

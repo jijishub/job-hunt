@@ -1,11 +1,13 @@
 'use client';
 
+import { fetchApplicationSummaries, hydrateApplication } from '@/lib/application-client';
+import { applicationSummary } from '@/lib/application-summary';
 import { ownsApplication } from '@/lib/ownership';
 import { applicationWorkflowUpdates, displayApplicationStatus, displayApplicationStatusLabel, isArchivedApplication } from '@/lib/application-workflow';
 import { isInternship } from '@/lib/analytics';
 import { DefaultView, DEFAULT_VIEWS } from '@/lib/preferences';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import {
@@ -18,7 +20,7 @@ import {
 import Header from '@/components/Header';
 import PreferencesModal from '@/components/PreferencesModal';
 import SSOLandingView from '@/components/SSOLandingView';
-import ApplicationTable from '@/components/ApplicationTable';
+import PaginatedApplications from '@/components/PaginatedApplications';
 import ApplicationBoard from '@/components/ApplicationBoard';
 import CompaniesView from '@/components/CompaniesView';
 import AnalyticsView from '@/components/AnalyticsView';
@@ -110,6 +112,21 @@ export default function JobHuntDashboard() {
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const [userManagementTab, setUserManagementTab] = useState<'accounts' | 'google'>('accounts');
 
+  const [applicationError, setApplicationError] = useState('');
+  const detailRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => detailRequest.current?.abort(), []);
+  const openApplication = async (app: JobApplication, edit = false) => {
+    detailRequest.current?.abort();
+    const controller = new AbortController(); detailRequest.current = controller;
+    setApplicationError('');
+    try {
+      const full = await hydrateApplication(app, controller.signal);
+      if (controller.signal.aborted) return;
+      if (edit) { setEditingApp(full); setIsAppModalOpen(true); }
+      else { setSelectedApp(full); setIsDetailOpen(true); }
+    } catch (error) { if (!controller.signal.aborted) setApplicationError(error instanceof Error ? error.message : 'Could not load application.'); }
+  };
+
   const fetchData = useCallback(async () => {
     try {
       const sessionEmail = session?.user?.email?.toLowerCase().trim();
@@ -123,13 +140,13 @@ export default function JobHuntDashboard() {
         : '';
 
       const [appsRes, compsRes, notionRes, usersRes] = await Promise.all([
-        fetch('/api/applications'),
+        fetchApplicationSummaries(),
         fetch(`/api/companies${compsQuery}`),
         fetch('/api/notion/sync'),
         fetch('/api/users'),
       ]);
 
-      const appsData = await appsRes.json();
+      const appsData = { success: true, data: appsRes };
       const compsData = await compsRes.json();
       const notionData = await notionRes.json();
       const usersData = await usersRes.json();
@@ -138,28 +155,7 @@ export default function JobHuntDashboard() {
       if (compsData.success) setCompanies(compsData.data);
       setNotionStatus(notionData);
 
-      // Auto-recovery: if applications is empty or has fewer than 5 rows on load and Notion is connected, auto-sync!
-      // Strictly restricted to Master Admin!
-      const sessionUserRole = (session?.user as any)?.role;
-      const sessionUserEmail = session?.user?.email?.toLowerCase().trim();
-      const isAdminUser =
-        sessionUserRole === 'admin' ||
-        sessionUserEmail === 'jizellecasia@gmail.com' ||
-        sessionUserEmail === 'jizelle.casia@gmail.com';
-
-      if (
-        isAdminUser &&
-        (!appsData.data || appsData.data.length < 5) &&
-        notionData.configured &&
-        notionData.status?.success
-      ) {
-        const syncRes = await fetch('/api/notion/sync', { method: 'POST' });
-        const syncResult = await syncRes.json();
-        if (syncResult.success) {
-          if (syncResult.data) setApplications(syncResult.data);
-          if (syncResult.companies) setCompanies(syncResult.companies);
-        }
-      }
+      const isAdminUser = isAdmin;
 
       if (usersData.success && usersData.data.length > 0) {
         setUsers(usersData.data);
@@ -185,7 +181,7 @@ export default function JobHuntDashboard() {
         }
       }
     } catch (err) {
-      console.error('Failed to load initial data:', err);
+      setApplicationError(err instanceof Error ? err.message : 'Could not load your applications.');
     } finally {
       setIsLoading(false);
     }
@@ -229,7 +225,7 @@ export default function JobHuntDashboard() {
       if (result.sync_error) alert(`Application saved. Notion sync failed: ${result.sync_error}`);
       if (result.success) {
         setApplications((prev) =>
-          prev.map((a) => (a.id === editingApp.id ? result.data : a))
+          prev.map((a) => (a.id === editingApp.id ? applicationSummary(result.data) : a))
         );
         if (selectedApp?.id === editingApp.id) {
           setSelectedApp(result.data);
@@ -245,7 +241,7 @@ export default function JobHuntDashboard() {
       if (!res.ok || !result.success) throw new Error(result.error || 'Failed to save application');
       if (result.sync_error) alert(`Application saved. Notion sync failed: ${result.sync_error}`);
       if (result.success) {
-        setApplications((prev) => [result.data, ...prev]);
+        setApplications((prev) => [applicationSummary(result.data), ...prev]);
       }
     }
 
@@ -276,7 +272,7 @@ export default function JobHuntDashboard() {
     });
     const result = await response.json();
     if (!response.ok || !result.success) throw new Error(result.error || 'Could not update lead archive.');
-    setApplications(prev => prev.map(app => app.id === id ? result.data : app));
+    setApplications(prev => prev.map(app => app.id === id ? applicationSummary(result.data) : app));
     setSelectedApp(prev => prev?.id === id ? result.data : prev);
   };
 
@@ -366,6 +362,19 @@ export default function JobHuntDashboard() {
     return Array.from(set).sort();
   }, [personalApplications]);
 
+  const [searchMatches, setSearchMatches] = useState<{ query: string; ids: Set<string> } | null>(null);
+  const [searchError, setSearchError] = useState('');
+  const searchVersion = JSON.stringify(personalApplications.map(app => [app.id,app.updated_at]));
+  useEffect(() => {
+    if (!searchQuery.trim() || !personalApplications.some(app => app.summary_only)) { setSearchMatches(null); setSearchError(''); return; }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetchApplicationSummaries(searchQuery.trim(),controller.signal).then(records => { setSearchMatches({query:searchQuery.trim(),ids:new Set(records.map(app=>app.id))}); setSearchError(''); }).catch(error => { if (error.name!=='AbortError') setSearchError('Full-text search is unavailable. Results currently cover visible summary text only.'); });
+    },250);
+    return () => { clearTimeout(timer); controller.abort(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[searchQuery,searchVersion]);
+
   const filteredApplications = useMemo(() => {
     return personalApplications
       .filter((app) => {
@@ -385,6 +394,7 @@ export default function JobHuntDashboard() {
           const matchInfo = app.information?.toLowerCase().includes(q);
           const matchNotionStatus = displayApplicationStatusLabel(app).toLowerCase().includes(q) || app.notion_status?.toLowerCase().includes(q);
           if (
+            !(searchMatches?.query === searchQuery.trim() && searchMatches.ids.has(app.id)) &&
             !matchTitle &&
             !matchCompany &&
             !matchNotes &&
@@ -446,6 +456,7 @@ export default function JobHuntDashboard() {
   }, [
     archiveFilter,
     searchQuery,
+    searchMatches,
     jobTypeFilter,
     roleFitFilter,
     personalApplications,
@@ -761,21 +772,21 @@ export default function JobHuntDashboard() {
           )}
         </div>
 
+        {searchError && <p role="alert" className="mb-3 text-xs text-rose-700">{searchError}</p>}
+        {applicationError && <p role="alert" className="mb-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{applicationError}</p>}
         {isLoading ? (
           <div className="py-24 text-center">
             <div className="w-10 h-10 border-2 border-[#FF7AB3] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             <p className="text-xs text-[#736A6D]">Loading your job hunt pipeline...</p>
           </div>
         ) : activeView === 'table' ? (
-          <ApplicationTable
+          <PaginatedApplications
             applications={filteredApplications}
             onSelectApp={(app) => {
-              setSelectedApp(app);
-              setIsDetailOpen(true);
+              void openApplication(app);
             }}
             onEditApp={(app) => {
-              setEditingApp(app);
-              setIsAppModalOpen(true);
+              void openApplication(app, true);
             }}
             onDeleteApp={handleDeleteApplication}
           />
@@ -784,8 +795,7 @@ export default function JobHuntDashboard() {
             isMember={currentUser?.role === 'member'}
             applications={filteredApplications}
             onSelectApp={(app) => {
-              setSelectedApp(app);
-              setIsDetailOpen(true);
+              void openApplication(app);
             }}
             onNewAppWithStatus={(status, notionStatusName) => {
               setEditingApp({ status, notion_status: notionStatusName } as JobApplication);
@@ -818,8 +828,7 @@ export default function JobHuntDashboard() {
             onArchiveLead={handleArchiveLead}
             onDeleteApplication={handleDeleteApplication}
             onSelectLead={(app) => {
-              setSelectedApp(app);
-              setIsDetailOpen(true);
+              void openApplication(app);
             }}
             onNavigateToResume={(appId) => {
               setResumeTargetAppId(appId);
@@ -828,7 +837,7 @@ export default function JobHuntDashboard() {
           />
         </div>}
         {analyticsVisited && currentUser && <div hidden={activeView !== 'analytics'}>
-          <AnalyticsView key={session.user?.email || currentUser.id} applications={personalApplications} companies={filteredCompanies} accountName={currentUser?.name || 'My account'} preferenceVersion={preferenceVersion} defaultScope={defaultView} onEditApp={app => { setEditingApp(app); setIsAppModalOpen(true); }} />
+          <AnalyticsView key={session.user?.email || currentUser.id} applications={personalApplications} companies={filteredCompanies} accountName={currentUser?.name || 'My account'} preferenceVersion={preferenceVersion} defaultScope={defaultView} onEditApp={app => { void openApplication(app, true); }} />
         </div>}
         {resumeVisited && currentUser && <div hidden={activeView !== 'resume'}>
           <ResumeAnalyzerView key={session.user?.email || currentUser.id} preferenceVersion={preferenceVersion} onOpenPreferences={() => setIsPreferencesOpen(true)}

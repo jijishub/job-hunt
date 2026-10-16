@@ -1,5 +1,6 @@
 'use client';
 
+import CompanyLogo from './CompanyLogo';
 import React, { useState } from 'react';
 import { Company } from '@/types/job';
 import {
@@ -79,18 +80,7 @@ export default function CompaniesView({
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-[#FAF7F9] border border-[#F1DDE9] flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
-                    {company.logo_url?.startsWith('emoji:') ? (
-                      <span className="text-2xl">{company.logo_url.replace('emoji:', '')}</span>
-                    ) : company.logo_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={company.logo_url}
-                        alt={company.name}
-                        className="w-7 h-7 object-contain"
-                      />
-                    ) : (
-                      <Building2 className="w-6 h-6 text-stone-300" />
-                    )}
+                    <CompanyLogo src={company.logo_url} alt={company.name} className="w-7 h-7 object-contain" emojiClassName="text-2xl" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-[#4A3E44] group-hover:text-[#9D3C5E] transition">

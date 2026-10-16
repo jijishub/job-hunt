@@ -6,13 +6,13 @@ import { Company, JobApplication, UserAccount, UserRole } from '@/types/job';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'node:crypto';
-import { neon } from '@neondatabase/serverless';
+import { getDatabaseClient } from './database';
 import { ownsApplication } from './ownership';
 import { analyticsFieldUpdates } from './application-analytics-fields';
 
 const isServer = typeof window === 'undefined';
 
-const DATA_DIR = process.env.VERCEL ? path.join('/tmp', '.data') : path.join(process.cwd(), '.data');
+const DATA_DIR = process.env.VERCEL ? path.join('/tmp', '.data') : process.env.DB_LOCAL_DIR ? path.resolve(process.env.DB_LOCAL_DIR) : path.join(process.cwd(), '.data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 interface LocalDatabase {
@@ -41,9 +41,7 @@ export const INITIAL_USERS: UserAccount[] = [
 ];
 
 function getPostgresClient() {
-  const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
-  if (!connectionString) return null;
-  return neon(connectionString);
+  return getDatabaseClient();
 }
 
 function readLocalDb(): LocalDatabase {
@@ -369,6 +367,7 @@ export async function getOrCreateCompany(
   website?: string,
   created_by?: string
 ): Promise<Company> {
+  if (logo_url?.startsWith('/api/company-logo?')) logo_url = undefined;
   const trimmedName = name.trim().replace(/\s+/g, ' ');
   const companyKey = trimmedName.toLowerCase();
   if (!trimmedName) throw new Error('Company name is required.');
@@ -499,7 +498,7 @@ export async function deleteCompany(id: string): Promise<boolean> {
   return true;
 }
 
-export async function getApplications(includeLeads = true, user?: Pick<UserAccount, 'id' | 'email' | 'role'>, projection: 'full' | 'company' | 'status' = 'full'): Promise<JobApplication[]> {
+export async function getApplications(includeLeads = true, user?: Pick<UserAccount, 'id' | 'email' | 'role'>, projection: 'full' | 'company' | 'status' | 'notion' = 'full'): Promise<JobApplication[]> {
   const sql = getPostgresClient();
   if (sql && user) {
     // Match ownsApplication before transferring data; summaries retain only the
@@ -523,6 +522,11 @@ export async function getApplications(includeLeads = true, user?: Pick<UserAccou
     return [...rows, ...leads].map(row => row.data as JobApplication);
   }
   if (sql) {
+    if (projection === 'notion') {
+      const rows = await sql`SELECT id,owner,notion_page_id,sync_status,status,notion_status,not_proceeding,role_title FROM applications;`;
+      const leads = includeLeads ? await sql`SELECT jsonb_build_object('id',id,'owner',data->'owner','notion_page_id',data->'notion_page_id','sync_status',data->'sync_status','status',data->'status','notion_status',data->'notion_status','not_proceeding',data->'not_proceeding','role_title',data->'role_title') AS data FROM leads;` : [];
+      return [...rows,...leads.map(row => row.data)] as JobApplication[];
+    }
     const rows = await sql`
       SELECT a.*, coalesce(c.logo_url, a.company_logo) AS company_logo
       FROM applications a LEFT JOIN companies c ON c.id = a.company_id
@@ -535,6 +539,15 @@ export async function getApplications(includeLeads = true, user?: Pick<UserAccou
   return [...db.applications, ...(includeLeads ? db.leads || [] : [])].filter(app => !user || ownsApplication(app, user)).sort(
     (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   );
+}
+
+export async function getPendingNotionApplications() {
+  const sql = getPostgresClient();
+  if (sql) {
+    const rows = await sql`SELECT a.* FROM applications a WHERE (a.sync_status IS DISTINCT FROM 'SYNCED' OR nullif(a.notion_page_id,'') IS NULL) AND a.status<>'LEAD' AND coalesce(a.not_proceeding,false)=false AND a.status<>'WITHDRAWN' AND coalesce(a.notion_status,'') NOT ILIKE '%not proceeding%';`;
+    return rows as JobApplication[];
+  }
+  return (await getApplications(false)).filter(app => app.status !== 'LEAD' && (app.sync_status !== 'SYNCED' || !app.notion_page_id));
 }
 
 export async function hasApplications(): Promise<boolean> {
@@ -553,14 +566,14 @@ export async function getAnalyticsApplications(user: Pick<UserAccount, 'id' | 'e
   const internshipPattern = String.raw`\mintern(ship)?\M`;
   if (!sql) return (await getApplications()).filter(app => ownsApplication(app, user));
   const rows = await sql`
-    SELECT to_jsonb(a) - ARRAY['job_description', 'information', 'notes', 'contact_name', 'contact_email', 'company_logo'] AS data FROM applications a
+    SELECT (to_jsonb(a) - ARRAY['job_description', 'information', 'notes', 'contact_name', 'contact_email', 'company_logo', 'role_fit_analysis']) || jsonb_build_object('role_fit_analysis', jsonb_build_object('fit',a.role_fit_analysis->'fit','preference_alignment',a.role_fit_analysis->'preference_alignment')) AS data FROM applications a
     WHERE (lower(trim(coalesce(owner, ''))) IN (${user.id.toLowerCase()}, ${user.email.toLowerCase()})
       OR (${user.id === 'user_ji'} AND lower(trim(coalesce(owner, ''))) IN ('', 'admin')))
       AND (${scope === 'ALL'} OR
         (CASE WHEN nullif(job_type, '') IS NOT NULL THEN job_type = 'INTERNSHIP'
           ELSE coalesce(role_title, '') ~* ${internshipPattern} END) = ${scope === 'INTERNSHIP'})
     UNION ALL
-    SELECT data - ARRAY['job_description', 'information', 'notes', 'contact_name', 'contact_email', 'company_logo'] AS data FROM leads
+    SELECT (data - ARRAY['job_description', 'information', 'notes', 'contact_name', 'contact_email', 'company_logo', 'role_fit_analysis']) || jsonb_build_object('role_fit_analysis', jsonb_build_object('fit',data->'role_fit_analysis'->'fit','preference_alignment',data->'role_fit_analysis'->'preference_alignment')) AS data FROM leads
     WHERE (lower(trim(coalesce(data->>'owner', ''))) IN (${user.id.toLowerCase()}, ${user.email.toLowerCase()})
       OR (${user.id === 'user_ji'} AND lower(trim(coalesce(data->>'owner', ''))) IN ('', 'admin')))
       AND (${scope === 'ALL'} OR
@@ -570,16 +583,16 @@ export async function getAnalyticsApplications(user: Pick<UserAccount, 'id' | 'e
   return rows.map(row => row.data as JobApplication);
 }
 
-export async function getApplicationById(id: string): Promise<JobApplication | null> {
+export async function getApplicationById(id: string, user?: Pick<UserAccount, 'id' | 'email' | 'role'>): Promise<JobApplication | null> {
   const sql = getPostgresClient();
   if (sql) {
-    const rows = await sql`SELECT * FROM applications WHERE id = ${id} LIMIT 1;`;
+    const rows = await sql`SELECT a.*,coalesce(c.logo_url,a.company_logo) AS company_logo FROM applications a LEFT JOIN companies c ON c.id=a.company_id WHERE a.id = ${id} AND (${!user} OR lower(trim(coalesce(a.owner,''))) IN (${user?.id.toLowerCase() || ''},${user?.email.toLowerCase() || ''}) OR (${user?.id === 'user_ji'} AND lower(trim(coalesce(a.owner,''))) IN ('','admin'))) LIMIT 1;`;
     if (rows[0]) return rows[0] as JobApplication;
-    const leads = await sql`SELECT data FROM leads WHERE id = ${id};`;
+    const leads = await sql`SELECT l.data || jsonb_build_object('company_logo',coalesce(c.logo_url,l.data->>'company_logo')) AS data FROM leads l LEFT JOIN companies c ON c.id=l.data->>'company_id' WHERE l.id = ${id} AND (${!user} OR lower(trim(coalesce(l.data->>'owner',''))) IN (${user?.id.toLowerCase() || ''},${user?.email.toLowerCase() || ''}) OR (${user?.id === 'user_ji'} AND lower(trim(coalesce(l.data->>'owner',''))) IN ('','admin')));`;
     return (leads[0]?.data as JobApplication) || null;
   }
   const db = readLocalDb();
-  return [...db.applications, ...(db.leads || [])].find((a) => a.id === id) || null;
+  return [...db.applications, ...(db.leads || [])].find((a) => a.id === id && (!user || ownsApplication(a,user))) || null;
 }
 
 export async function getApplicationByNotionId(notionPageId: string): Promise<JobApplication | null> {
@@ -899,11 +912,21 @@ export async function getUsers(): Promise<UserAccount[]> {
 }
 
 export async function getUserById(id: string): Promise<UserAccount | null> {
+  const sql = getPostgresClient();
+  if (sql) {
+    const rows = await sql`SELECT id,name,email,role,industry,avatar,notion_enabled,created_at,updated_at FROM users WHERE id=${id} LIMIT 1;`;
+    return (rows[0] as UserAccount) || null;
+  }
   const users = await getUsers();
   return users.find((u) => u.id === id) || null;
 }
 
 export async function getUserByEmail(email: string): Promise<UserAccount | null> {
+  const sql = getPostgresClient();
+  if (sql) {
+    const rows = await sql`SELECT id,name,email,role,industry,avatar,notion_enabled,created_at,updated_at FROM users WHERE lower(trim(email))=${email.trim().toLowerCase()} LIMIT 1;`;
+    return (rows[0] as UserAccount) || null;
+  }
   const users = await getUsers();
   const lower = email.trim().toLowerCase();
   return users.find((u) => u.email.toLowerCase() === lower) || null;

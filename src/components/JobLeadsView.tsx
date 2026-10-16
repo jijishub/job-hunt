@@ -1,5 +1,6 @@
 'use client';
 
+import CompanyLogo from './CompanyLogo';
 import { useRef, useState } from 'react';
 import { JobApplication, UserAccount, ApplicationStatus, Company } from '@/types/job';
 import JobDiscoveryHub from './JobDiscoveryHub';
@@ -72,10 +73,7 @@ export default function JobLeadsView({ onAddToTracker, existingApplications, cur
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2.5">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#F1DDE9] bg-[#FAF7F9]">
-                {app.company_logo?.startsWith('emoji:') ? <span className="text-xs">{app.company_logo.slice(6)}</span> : app.company_logo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={app.company_logo} alt="" className="h-4 w-4 object-contain" />
-                ) : <Building2 className="h-4 w-4 text-stone-300" />}
+                <CompanyLogo src={app.company_logo} alt={app.company_name} className="h-4 w-4 object-contain" emojiClassName="text-xs" />
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-[#4A3E44]">{app.company_name}</p>

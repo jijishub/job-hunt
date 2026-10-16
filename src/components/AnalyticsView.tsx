@@ -61,6 +61,9 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
   const [snapshot, setSnapshot] = useState<{ key: string; stats: PipelineStats } | null>(null);
   const snapshotKey = JSON.stringify([scope, preferenceVersion, reportDay, applications.map(app => [app.id, app.updated_at])]);
   useEffect(() => {
+    // The dashboard has already loaded every compact history record. Reuse it
+    // rather than asking the server to download the same metadata a second time.
+    if (applications.every(app => app.summary_only)) { setSnapshot(null); return; }
     const controller = new AbortController();
     fetch(`/api/analytics?scope=${scope}`, { signal: controller.signal, cache: 'no-store' }).then(r => r.json()).then(data => {
       if (data.success && data.data && typeof data.data.total === 'number' && data.data.dimensions && data.data.timing) setSnapshot({ key: snapshotKey, stats: data.data });

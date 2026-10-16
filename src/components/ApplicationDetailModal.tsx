@@ -3,6 +3,7 @@ import CloseButton from './CloseButton';
 
 import RoleFitBadge from './RoleFitBadge';
 
+import CompanyLogo from './CompanyLogo';
 import React from 'react';
 import { Company, JobApplication } from '@/types/job';
 import StatusBadge from './StatusBadge';
@@ -67,18 +68,7 @@ export default function ApplicationDetailModal({
         <div className="px-4 sm:px-7 pt-0 pb-4 relative flex flex-col sm:flex-row sm:items-end justify-between max-sm:gap-4 border-b border-[#F1DDE9] shrink-0">
           <div className="-mt-9 flex min-w-0 items-end gap-3.5">
             <div className="w-16 h-16 rounded-2xl bg-white border-2 border-[#F1DDE9] shadow-md flex items-center justify-center overflow-hidden shrink-0">
-              {app.company_logo?.startsWith('emoji:') ? (
-                <span className="text-3xl">{app.company_logo.replace('emoji:', '')}</span>
-              ) : app.company_logo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={app.company_logo}
-                  alt={app.company_name}
-                  className="w-10 h-10 object-contain"
-                />
-              ) : (
-                <Building2 className="w-8 h-8 text-stone-300" />
-              )}
+              <CompanyLogo src={app.company_logo} alt={app.company_name} className="w-10 h-10 object-contain" emojiClassName="text-3xl" />
             </div>
             <div className="min-w-0">
               <h1 className="text-xl font-bold text-[#4A3E44] tracking-tight max-sm:break-words">

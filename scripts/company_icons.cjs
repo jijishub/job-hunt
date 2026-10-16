@@ -171,7 +171,7 @@ async function main(args = process.argv.slice(2)) {
   require('@next/env').loadEnvConfig(ROOT);
   const url = process.env.POSTGRES_URL || process.env.DATABASE_URL;
   if (!url) throw new Error('Add POSTGRES_URL to .env.local. This job requires the live Postgres database.');
-  const sql = require('@neondatabase/serverless').neon(url);
+  const sql = require('./database_client.cjs').getClient();
   const directory = path.join(ROOT, '.data', 'company-icons', `${Date.now()}-${randomUUID().slice(0, 8)}`);
   const summary = await runJob({ sql, directory, dryRun: args.includes('--dry-run') });
   if (summary.failed) process.exitCode = 1;

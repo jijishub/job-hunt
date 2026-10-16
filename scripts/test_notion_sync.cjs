@@ -16,6 +16,7 @@ const db = {
   getUsers: async () => [{ id: 'user_ji', role: 'admin', notion_enabled: true }],
   getCompanies: async () => [],
   getApplications: async (includeLeads = true) => records.filter((app) => includeLeads || app.status !== 'LEAD'),
+  getPendingNotionApplications: async () => records.filter(app => app.status !== 'LEAD' && (app.sync_status !== 'SYNCED' || !app.notion_page_id)),
   updateApplication: async (id, updates) => {
     const record = records.find((app) => app.id === id);
     Object.assign(record, updates);

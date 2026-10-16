@@ -109,13 +109,13 @@ Set `NEXTAUTH_URL` to `http://localhost:3000` for local development, and add you
 | Administrator Notion sync | `NOTION_API_KEY`, `NOTION_DATABASE_ID` |
 | Optional Notion webhook | `NOTION_WEBHOOK_SECRET` |
 
-Local development uses a JSON fallback when PostgreSQL is not configured. Keep credentials in your environment files, outside source control. See the [deployment guide](DEPLOYMENT.md) for hosting and Google OAuth setup.
+`npm run dev` defaults to isolated local JSON storage even when production database URLs are configured. Use a separate `DEV_DATABASE_URL` and optional `DEV_DB_DRIVER` for PostgreSQL development. Set `DB_MODE=local` and `DB_LOCAL_DIR=.data/development` to explicitly isolate development from inherited production URLs. `DB_DRIVER=postgres` supports ordinary PostgreSQL; Neon remains the default driver. Keep credentials in your environment files, outside source control. See the [deployment guide](DEPLOYMENT.md) for hosting and Google OAuth setup.
 
 An AI API key is required only for explicitly AI-powered features. Application tracking, deterministic analytics, filtering, and PDF export remain available without it.
 
 Start the development server with `npm run dev`, then open [localhost:3000](http://localhost:3000). Google sign-in requires the OAuth configuration above.
 
-When PostgreSQL is configured, run `npm run db:migrate` before local development. `npm run build` runs migrations before the production build; keep that build command in deployment settings so ordinary requests can skip schema maintenance.
+When `DEV_DATABASE_URL` is configured, run `npm run db:migrate:dev` before local development. The generic `db:migrate` command targets the configured primary database and requires a separate approved change window. `npm run build` compiles without database migrations. Run migrations explicitly against an approved target; ordinary requests also skip schema maintenance.
 
 Application saves finish after database persistence. Administrator Notion sync runs after the response, and company refresh runs without holding the form open. Failed Notion writes remain marked `ERROR`; pending or failed records can be retried with Sync Notion. Refresh the workspace to see completed background sync state.
 
@@ -124,7 +124,9 @@ Application saves finish after database persistence. Administrator Notion sync r
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Start local development. |
-| `npm run build` | Migrate configured PostgreSQL, then create the production build. |
+| `npm run test:database` | Validate SQL projections, privacy, transactions, and offline logo preparation locally. |
+| `npm run db:metrics -- LOG_FILE` | Summarize opt-in database/API metadata logs without connecting to the database. |
+| `npm run build` | Create the production build without changing database schema or data. |
 | `npm run db:migrate` | Apply database setup and migrations explicitly. |
 | `npm run start` | Serve the production build. |
 | `npm run test:pipeline` | Check analytics, application APIs, and persistence. |
@@ -143,11 +145,13 @@ Application saves finish after database persistence. Administrator Notion sync r
 
 Browser checks use Chrome and `http://localhost:3100` by default. Start the app with `npx next dev -p 3100`, or set `PIPELINE_TEST_URL` to your local server.
 
+The dashboard uses compact application summaries, paginated table views, complete-history analytics, and on-demand application details. Embedded company logos remain visible through cached image URLs. See [database operations](DATABASE-OPERATIONS.md) for diagnostics, provider adapters, offline logo migration preparation, recovery research, and approval boundaries.
+
 The `scripts/` directory contains database migrations, company-icon tooling, personal application/profile helpers, diagnostics, and regression tests. See [RPA-COMMANDS.md](RPA-COMMANDS.md) for the concise automation overview and internal URL platform backfill. Detailed owner operating notes stay in ignored local reference guidance.
 
 The platform backfill uses hostname rules and does not open job sites or call AI. It preserves selected platforms and leaves missing or unrecognized URLs unclassified. A posting URL identifies its destination platform; it cannot prove a referral or walk-in, so choose those manually. Reports and previous values stay local under `.data/job-platform-backfill-*`. Use the explicit account option in the RPA guide to process a member's records.
 
-For troubleshooting, `npm run diagnose:ai` checks AI configuration and tests authentication with a small model request when using the app's default AI gateway. `npm run audit:duplicates` reads application records and writes a local backup and duplicate report without changing database records. These commands use the configured services; the audit keeps artifacts in `.data/`. Neither is needed for normal app startup.
+For troubleshooting, `npm run diagnose:ai` checks AI configuration and tests authentication with a small model request when using the app's default AI gateway. `npm run audit:duplicates` reads narrow application identity/status references and reports duplicate counts without changing database records; `--full-backup` explicitly requests a full local backup. These commands use the configured services; the audit keeps artifacts in `.data/`. Neither is needed for normal app startup.
 
 ### Company icons
 

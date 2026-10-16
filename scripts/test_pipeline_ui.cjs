@@ -18,6 +18,7 @@ test('dashboard isolates account data, defaults new roles, saves manual/AI fits,
    else if(url.pathname==='/api/statuses')data={success:true,data:[{id:'not_started',name:'Not started',color:'gray',category:'LEAD'},{id:'applied',name:'Applied',color:'blue',category:'APPLIED'},{id:'interview',name:'Initial Interview',color:'orange',category:'INTERVIEWING'}]};
    else if(url.pathname==='/api/companies')data={success:true,data:companyRows};
    else if(url.pathname==='/api/applications'&&method==='POST'){const payload=request.postDataJSON();if(payload.ensure_company){let company=companyRows.find(company=>company.name.toLowerCase()===payload.company_name.toLowerCase());if(!company){company={id:'company-'+companyRows.length,name:payload.company_name,created_by:user.id};companyRows.push(company);}payload.company_id=company.id;}const app={...payload,id:'new'+creations.length,created_at:'2026-10-11',updated_at:'2026-10-11'};creations.push(app);apps.push(app);data={success:true,data:app};}
+   else if(url.pathname.startsWith('/api/applications/')&&method==='GET')data={success:true,data:apps.find(app=>app.id===url.pathname.split('/').at(-1))};
    else if(url.pathname.startsWith('/api/applications/')&&method==='PUT'){const payload=request.postDataJSON();updates.push(payload);const id=url.pathname.split('/').pop();const app=apps.find(app=>app.id===id);Object.assign(app,payload,{updated_at:new Date().toISOString()});data={success:true,data:app};}
    else if(url.pathname==='/api/applications')data={success:true,data:apps};
    else if(url.pathname==='/api/role-fit'){fitCalls++;data={success:true,data:{fit:'STRONG',explanation:'The supplied requirements match TypeScript and SQL experience.',strengths:['TypeScript','SQL'],gaps:[],analyzed_at:'2026-10-11'}};}
@@ -57,7 +58,7 @@ test('dashboard isolates account data, defaults new roles, saves manual/AI fits,
   await page.screenshot({path:'.data/pipeline-analytics-review.png',fullPage:true});
   await page.getByText('No salary offers recorded yet. Add an actual offer in an application to start comparing.').waitFor();
   await page.getByRole('button',{name:'Table View',exact:true}).click();
-  await page.getByText('Manual-fit Developer',{exact:true}).last().click();await page.getByRole('button',{name:'Edit',exact:true}).click();
+  await page.getByRole('table').getByText('Manual-fit Developer',{exact:true}).click();await page.getByRole('button',{name:'Edit',exact:true}).click();
   assert.equal(creations[0].date_applied,'2026-10-01T00:00:00.000Z');
   assert.equal(creations[0].ensure_company,true);
   assert.ok(await page.getByRole('button',{name:'Companies (4)',exact:true}).isVisible());

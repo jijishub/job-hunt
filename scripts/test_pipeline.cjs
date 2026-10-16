@@ -151,7 +151,7 @@ test('local persistence keeps derived and manual fields through lead promotion a
   const db=loader()('src/lib/db.ts');const lead=await db.createApplication(sample({status:'LEAD',role_title:'Junior AI Engineer',job_platform:'Bossjob',first_response_at:'2026-10-05T12:30:00Z'}));
   assert.equal(lead.seniority_level,'JUNIOR');assert.equal(lead.role_family,undefined);
   await db.updateApplication(lead.id,{status:'APPLIED'});await db.updateApplication(lead.id,{role_title:'Senior AI Engineer'});
-  let saved=await db.getApplicationById(lead.id);assert.equal(saved.seniority_level,'SENIOR');assert.equal(saved.job_platform,'Bossjob');assert.equal(saved.first_response_at,'2026-10-05T12:30:00.000Z');
+  let saved=await db.getApplicationById(lead.id);assert.equal(saved.seniority_level,'SENIOR');assert.equal(saved.job_platform,'BOSSJOB');assert.equal(saved.first_response_at,'2026-10-05T12:30:00.000Z');
   await db.updateApplication(lead.id,{seniority_level:'JUNIOR',role_family:'Applied AI',role_family_source:'manual'});await db.updateApplication(lead.id,{role_title:'Lead Engineer',status:'INTERVIEWING'});
   saved=await db.getApplicationById(lead.id);assert.equal(saved.seniority_level,'JUNIOR');assert.equal(saved.role_family,'Applied AI');assert.equal(saved.role_family_source,'manual');
   await db.updateApplication(lead.id,{seniority_level:null,first_response_at:null});saved=await db.getApplicationById(lead.id);assert.equal(saved.seniority_level,'LEAD_PRINCIPAL');assert.equal(saved.role_family,'Applied AI');assert.equal(saved.first_response_at,null);

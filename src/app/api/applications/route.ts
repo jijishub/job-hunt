@@ -1,10 +1,12 @@
+import { observedJson } from '@/lib/api-observability';
+import { getApplicationList } from '@/lib/application-list';
 import { applicationValidationError } from '@/lib/application-validation';
 import { ANALYTICS_STAGES } from '@/lib/analytics-stages';
 import { getSessionAccount } from '@/lib/session-account';
 import { ownsApplication } from '@/lib/ownership';
 import { validRoleFit } from '@/lib/role-fit';
 import { NextResponse } from 'next/server';
-import { getApplications, hasApplications, createApplication, getOrCreateCompany, getCompanies, getCandidatePreferences } from '@/lib/db';
+import { getApplications, createApplication, getOrCreateCompany, getCompanies, getCandidatePreferences } from '@/lib/db';
 import { stageForStatus } from '@/lib/analytics-stages';
 import { isArchivedApplication } from '@/lib/application-workflow';
 import { pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
@@ -14,21 +16,22 @@ import { analyticsFieldUpdates } from '@/lib/application-analytics-fields';
 
 export const maxDuration = 60;
 
-export async function GET() {
+export async function GET(request?: Request) {
   try {
     const user = await getSessionAccount();
     if (!user) return NextResponse.json({ success: false, error: 'Sign in required.' }, { status: 401 });
-    let apps = await getApplications(true, user);
-    if (apps.length === 0 && user.role === 'admin' && user.notion_enabled && !(await hasApplications())) {
-      const config = getNotionConfig();
-      if (config.isConfigured) {
-        const pull = await pullApplicationsFromNotion();
-        if (pull.success) {
-          apps = await getApplications(true, user);
-        }
-      }
+    const params = request ? new URL(request.url).searchParams : new URLSearchParams();
+    // Preserve the full-record contract for a browser still running an older
+    // deployment. New clients explicitly opt into summaries and hydrate edits.
+    if (!params.has('view') || params.get('view') === 'full') {
+      const apps = (await getApplications(true,user)).filter(app => ownsApplication(app,user));
+      return observedJson('applications.legacy', { success: true, data: apps }, { headers: { 'Cache-Control': 'private, no-store' } });
     }
-    return NextResponse.json({ success: true, data: apps.filter(app => ownsApplication(app, user)) });
+    if (params.get('view') !== 'summary') return NextResponse.json({ success: false, error: 'Invalid application view.' }, { status: 400 });
+    const limit = Number(params.get('limit') || 500), offset = Number(params.get('offset') || 0);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500 || !Number.isSafeInteger(offset) || offset < 0 || (params.get('q') || '').length > 200) return NextResponse.json({ success: false, error: 'Invalid list parameters.' }, { status: 400 });
+    const result = await getApplicationList(user, { search: params.get('q') || '', limit, offset });
+    return observedJson('applications.list', { success: true, data: result.data, pagination: { total: result.total, limit, offset } }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error?.message || 'Failed to fetch applications' },
