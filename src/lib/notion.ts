@@ -447,7 +447,7 @@ export async function pullApplicationsFromNotion() {
         // 5. Work Model
         const workModelProp = props['Work Model'] || props.Workplace || props.Setup;
         const workModelRaw = (workModelProp?.select?.name || '').toUpperCase();
-        let work_model: WorkModel = existingApp?.work_model || 'HYBRID';
+        let work_model: WorkModel | null = existingApp?.work_model ?? null;
         if (workModelRaw.includes('REMOTE')) work_model = 'REMOTE';
         else if (workModelRaw.includes('ON-SITE') || workModelRaw.includes('ONSITE')) work_model = 'ON_SITE';
         else if (workModelRaw.includes('HYBRID')) work_model = 'HYBRID';

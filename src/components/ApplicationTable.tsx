@@ -141,7 +141,7 @@ export default function ApplicationTable({
 
                   <td className="py-3.5 px-4 text-[#736A6D]">
                     <div className="flex items-center gap-1 font-medium capitalize">
-                      {app.work_model.toLowerCase().replace('_', '-')}
+                      {app.work_model?.toLowerCase().replace('_', '-') || 'Unknown'}
                     </div>
                     {app.location && (
                       <div className="flex items-center gap-0.5 text-[11px] text-[#736A6D]/80 mt-0.5 truncate max-w-[140px]">

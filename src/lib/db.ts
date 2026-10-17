@@ -2,13 +2,15 @@ import { getAdminEmail } from './admin-email';
 import type { PersonalPreferences } from './preferences';
 import type { InsightEntry, PipelineInsight } from './pipeline-insights';
 import type { DefaultView } from './preferences';
-import { Company, JobApplication, UserAccount, UserRole } from '@/types/job';
+import { Company, JobApplication, RoleFitAnalysis, UserAccount, UserRole } from '@/types/job';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'node:crypto';
 import { getDatabaseClient } from './database';
 import { ownsApplication } from './ownership';
 import { analyticsFieldUpdates } from './application-analytics-fields';
+import { migrateCaptureSchema } from './capture-schema';
+import type { CaptureRecord, ExtensionCredential } from './capture-store';
 
 const isServer = typeof window === 'undefined';
 
@@ -16,6 +18,8 @@ const DATA_DIR = process.env.VERCEL ? path.join('/tmp', '.data') : process.env.D
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 interface LocalDatabase {
+  posting_captures?: CaptureRecord[];
+  extension_credentials?: ExtensionCredential[];
   profiles?: Record<string, { resume_text: string; updated_at: string; preferences?: PersonalPreferences; pipeline_insights?: Partial<Record<DefaultView,InsightEntry>> }>;
   companies: Company[];
   applications: JobApplication[];
@@ -137,6 +141,14 @@ function writeLocalDb(data: LocalDatabase): void {
   }
 }
 
+// Synchronous local capture commits share the same file as applications, so a
+// capture receipt and its lead are persisted by one atomic file replacement.
+export function readLocalCaptureDatabase() {
+  if (getPostgresClient()) throw new Error('Local capture storage cannot be used with PostgreSQL.');
+  return readLocalDb();
+}
+export function writeLocalCaptureDatabase(data: LocalDatabase) { writeLocalDb(data); }
+
 let schemaInitialized = false;
 async function initPostgresSchema(sql: any) {
   if (schemaInitialized) return;
@@ -177,12 +189,12 @@ async function initPostgresSchema(sql: any) {
         service TEXT,
         information TEXT,
         priority TEXT NOT NULL,
-        job_type TEXT NOT NULL,
-        work_model TEXT NOT NULL,
+        job_type TEXT,
+        work_model TEXT,
         location TEXT,
         salary_min NUMERIC,
         salary_max NUMERIC,
-        salary_currency TEXT DEFAULT 'PHP',
+        salary_currency TEXT,
         job_url TEXT,
         source TEXT DEFAULT 'DIRECT',
         owner TEXT DEFAULT 'admin',
@@ -205,7 +217,10 @@ async function initPostgresSchema(sql: any) {
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS analytics_stage TEXT;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS not_proceeding BOOLEAN DEFAULT FALSE;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS stage_history JSONB;`;
-    await sql`ALTER TABLE applications ALTER COLUMN salary_currency SET DEFAULT 'PHP';`;
+    await sql`ALTER TABLE applications ALTER COLUMN job_type DROP NOT NULL;`;
+    await sql`ALTER TABLE applications ALTER COLUMN work_model DROP NOT NULL;`;
+    await sql`ALTER TABLE applications ALTER COLUMN salary_currency DROP DEFAULT;`;
+    await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS record_version BIGINT NOT NULL DEFAULT 0;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS offer_amount NUMERIC;`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS offer_currency TEXT DEFAULT 'PHP';`;
     await sql`ALTER TABLE applications ADD COLUMN IF NOT EXISTS offer_pay_period TEXT DEFAULT 'MONTHLY';`;
@@ -323,6 +338,7 @@ async function initPostgresSchema(sql: any) {
         WHERE nullif(notion_page_id, '') IS NOT NULL;
       `,
     ]);
+    await migrateCaptureSchema(sql);
     schemaInitialized = true;
   } catch (err) {
     console.error('Postgres schema init error:', err);
@@ -615,6 +631,10 @@ export async function createApplication(
 
   const newApp: JobApplication = {
     ...data,
+    record_version: 1,
+    job_type: data.job_type ?? null,
+    work_model: data.work_model ?? null,
+    salary_currency: data.salary_currency || null,
     ...analyticsFieldUpdates(null, data),
     information: data.information ?? data.job_description,
     job_description: data.information ?? data.job_description,
@@ -655,12 +675,12 @@ export async function createApplication(
   if (sql) {
     const inserted = await sql`
       INSERT INTO applications (
-        id, company_id, company_name, company_logo, role_title, seniority_level, seniority_level_source, role_family, role_family_source, job_platform, first_response_at, analytics_stage, not_proceeding, job_description, role_fit, role_fit_source, role_fit_analysis, stage_history, status, notion_status, service, information, priority,
+        id, record_version, company_id, company_name, company_logo, role_title, seniority_level, seniority_level_source, role_family, role_family_source, job_platform, first_response_at, analytics_stage, not_proceeding, job_description, role_fit, role_fit_source, role_fit_analysis, stage_history, status, notion_status, service, information, priority,
         job_type, work_model, location, salary_min, salary_max, salary_currency, offer_amount, offer_currency, offer_pay_period, expected_salary_amount, expected_salary_currency, expected_salary_pay_period,
         job_url, source, owner, contact_name, contact_email, date_applied, follow_up_date, notes,
         notion_page_id, last_synced_at, sync_status, created_at, updated_at
       ) VALUES (
-        ${newApp.id}, ${newApp.company_id || null}, ${newApp.company_name}, ${newApp.company_logo || null},
+        ${newApp.id}, ${newApp.record_version}, ${newApp.company_id || null}, ${newApp.company_name}, ${newApp.company_logo || null},
         ${newApp.role_title}, ${newApp.seniority_level || null}, ${newApp.seniority_level_source || null}, ${newApp.role_family || null}, ${newApp.role_family_source || null}, ${newApp.job_platform || null}, ${newApp.first_response_at || null}, ${newApp.analytics_stage || null}, ${newApp.not_proceeding || false}, ${newApp.job_description || null}, ${newApp.role_fit || null}, ${newApp.role_fit_source || null}, ${JSON.stringify(newApp.role_fit_analysis || null)}::jsonb, ${JSON.stringify(newApp.stage_history || [])}::jsonb, ${newApp.status}, ${newApp.notion_status || null}, ${newApp.service || null}, ${newApp.information || null},
         ${newApp.priority}, ${newApp.job_type},
         ${newApp.work_model}, ${newApp.location || null}, ${newApp.salary_min || null},
@@ -701,6 +721,8 @@ export async function updateApplication(
   if (Object.hasOwn(updates, 'information') || Object.hasOwn(updates, 'job_description')) { const description=updates.information ?? updates.job_description; updates={...updates,information:description,job_description:description}; }
   const saved = await getApplicationById(id);
   if (!saved) return null;
+  // Ignore client-supplied revisions. Each write advances the server revision.
+  updates = { ...updates, record_version: Number(saved.record_version || 0) + 1 };
   updates = { ...updates, ...analyticsFieldUpdates(saved, updates) };
   if ((updates.status && updates.status !== saved.status) || (updates.notion_status && updates.notion_status !== saved.notion_status)) {
     updates = { ...updates, stage_history: [...(saved.stage_history || [{ status: saved.status, notion_status: saved.notion_status, at: saved.updated_at }]), { status: updates.status || saved.status, notion_status: updates.notion_status || saved.notion_status, at: new Date().toISOString() }] };
@@ -709,12 +731,14 @@ export async function updateApplication(
     const merged = { ...saved, ...updates, id, updated_at: new Date().toISOString() };
     const sql = getPostgresClient();
     if (sql) {
-      await sql`
-        WITH removed AS (DELETE FROM applications WHERE id = ${id} RETURNING id)
-        INSERT INTO leads (id, data) SELECT id, ${JSON.stringify(merged)}::jsonb FROM removed;
+      const rows = await sql`
+        WITH removed AS (DELETE FROM applications WHERE id = ${id} AND record_version = ${Number(saved.record_version || 0)} RETURNING id)
+        INSERT INTO leads (id, data) SELECT id, ${JSON.stringify(merged)}::jsonb FROM removed RETURNING data;
       `;
+      return (rows[0]?.data as JobApplication) || null;
     } else {
       const db = readLocalDb();
+      if (!db.applications.some(app => app.id === id && Number(app.record_version || 0) === Number(saved.record_version || 0))) return null;
       db.applications = db.applications.filter((app) => app.id !== id);
       db.leads = [...(db.leads || []), merged];
       writeLocalDb(db);
@@ -726,9 +750,11 @@ export async function updateApplication(
     const sql = getPostgresClient();
     if (merged.status === 'LEAD') {
       if (sql) {
-        await sql`UPDATE leads SET data = ${JSON.stringify(merged)}::jsonb WHERE id = ${id};`;
+        const rows = await sql`UPDATE leads SET data = jsonb_set(${JSON.stringify(merged)}::jsonb, '{record_version}', to_jsonb(COALESCE((data->>'record_version')::bigint, 0) + 1)) WHERE id = ${id} RETURNING data;`;
+        return (rows[0]?.data as JobApplication) || null;
       } else {
         const db = readLocalDb();
+        if (!(db.leads || []).some(app => app.id === id && Number(app.record_version || 0) === Number(saved.record_version || 0))) return null;
         db.leads = (db.leads || []).map((lead) => lead.id === id ? merged : lead);
         writeLocalDb(db);
       }
@@ -736,7 +762,7 @@ export async function updateApplication(
     }
     if (sql) {
       const promoted = await sql`
-        WITH removed AS (DELETE FROM leads WHERE id = ${id} RETURNING id)
+        WITH removed AS (DELETE FROM leads WHERE id = ${id} AND COALESCE((data->>'record_version')::bigint, 0) = ${Number(saved.record_version || 0)} RETURNING id)
         INSERT INTO applications
         SELECT record.* FROM removed,
           jsonb_populate_record(NULL::applications, ${JSON.stringify(merged)}::jsonb) AS record
@@ -744,13 +770,12 @@ export async function updateApplication(
       `;
       return (promoted[0] as JobApplication) || null;
     }
-    const promoted = await createApplication(merged);
-    {
-      const db = readLocalDb();
-      db.leads = (db.leads || []).filter((lead) => lead.id !== id);
-      writeLocalDb(db);
-    }
-    return promoted;
+    const db = readLocalDb();
+    if (!(db.leads || []).some(app => app.id === id && Number(app.record_version || 0) === Number(saved.record_version || 0))) return null;
+    db.applications.unshift(merged);
+    db.leads = (db.leads || []).filter((lead) => lead.id !== id);
+    writeLocalDb(db);
+    return merged;
   }
   const sql = getPostgresClient();
   if (sql) {
@@ -761,6 +786,7 @@ export async function updateApplication(
 
     const updated = await sql`
       UPDATE applications SET
+        record_version = record_version + 1,
         company_id = ${merged.company_id},
         company_name = ${merged.company_name},
         company_logo = ${merged.company_logo || null},
@@ -788,7 +814,7 @@ export async function updateApplication(
         location = ${merged.location || null},
         salary_min = ${merged.salary_min || null},
         salary_max = ${merged.salary_max || null},
-        salary_currency = ${merged.salary_currency || 'PHP'},
+        salary_currency = ${merged.salary_currency || null},
         offer_amount = ${merged.offer_amount ?? null},
         offer_currency = ${merged.offer_currency || 'PHP'},
         offer_pay_period = ${merged.offer_pay_period || 'MONTHLY'},
@@ -816,6 +842,7 @@ export async function updateApplication(
   const db = readLocalDb();
   const index = db.applications.findIndex((a) => a.id === id);
   if (index === -1) return null;
+  if (Number(db.applications[index].record_version || 0) !== Number(saved.record_version || 0)) return null;
   const updatedApp: JobApplication = {
     ...db.applications[index],
     ...updates,
@@ -824,6 +851,47 @@ export async function updateApplication(
   db.applications[index] = updatedApp;
   writeLocalDb(db);
   return updatedApp;
+}
+
+/** Apply AI output only to the record revision it evaluated, in either store.
+ * This deliberately updates only assessment fields, never a stale full record.
+ * A forced manual reassessment still cannot replace a subsequent user edit.
+ */
+export async function saveRoleFitIfCurrent(snapshot: JobApplication, analysis: RoleFitAnalysis): Promise<JobApplication | null> {
+  const version = Number(snapshot.record_version || 0);
+  const priority = analysis.fit !== snapshot.role_fit && ['WEAK', 'STRONG'].includes(analysis.fit)
+    ? analysis.fit === 'WEAK' ? 'LOW' : 'HIGH' : snapshot.priority;
+  const sql = getPostgresClient();
+  if (sql) {
+    const patch = JSON.stringify({ role_fit: analysis.fit, role_fit_source: 'ai', role_fit_analysis: analysis, priority });
+    const rows = await sql`
+      WITH application_write AS (
+        UPDATE applications SET role_fit = ${analysis.fit}, role_fit_source = 'ai',
+          role_fit_analysis = ${JSON.stringify(analysis)}::jsonb, priority = ${priority},
+          record_version = record_version + 1, updated_at = clock_timestamp()
+        WHERE id = ${snapshot.id} AND record_version = ${version}
+          AND owner IS NOT DISTINCT FROM ${snapshot.owner ?? null}
+        RETURNING to_jsonb(applications) AS data
+      ), lead_write AS (
+        UPDATE leads SET data = data || ${patch}::jsonb || jsonb_build_object(
+          'record_version', ${version}::bigint + 1, 'updated_at', clock_timestamp())
+        WHERE id = ${snapshot.id} AND COALESCE((data->>'record_version')::bigint, 0) = ${version}
+          AND data->>'owner' IS NOT DISTINCT FROM ${snapshot.owner ?? null}
+        RETURNING data
+      ) SELECT data FROM application_write UNION ALL SELECT data FROM lead_write;
+    `;
+    return (rows[0]?.data as JobApplication) || null;
+  }
+  // Local storage uses synchronous read/check/write without yielding between them.
+  const db = readLocalDb();
+  const current = [...db.applications, ...(db.leads || [])].find(app => app.id === snapshot.id);
+  if (!current || Number(current.record_version || 0) !== version || current.owner !== snapshot.owner) return null;
+  const updated = { ...current, role_fit: analysis.fit, role_fit_source: 'ai' as const, role_fit_analysis: analysis,
+    priority, record_version: version + 1, updated_at: new Date().toISOString() };
+  db.applications = db.applications.map(app => app.id === snapshot.id ? updated : app);
+  db.leads = (db.leads || []).map(app => app.id === snapshot.id ? updated : app);
+  writeLocalDb(db);
+  return updated;
 }
 
 export async function deleteApplication(id: string): Promise<boolean> {

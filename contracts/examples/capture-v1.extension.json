@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "capture_id": "11111111-2222-4333-8444-555555555555",
+  "captured_at": "2026-10-18T06:00:00Z",
+  "posting": {
+    "role_title": "Support Engineer",
+    "company_name": "Example",
+    "description": "Requirements:\n- Build reliable TypeScript services and SQL databases.\n- Support customers and document production incidents.\n- Test and deploy changes with the team.",
+    "qualifications": [],
+    "location": null,
+    "work_model": null,
+    "job_type": null,
+    "salary_min": null,
+    "salary_max": null,
+    "salary_currency": null,
+    "salary_period": null,
+    "salary_pay_period": null,
+    "job_url": "https://job-boards.greenhouse.io/example/jobs/123",
+    "seniority_level": null,
+    "job_platform": "GREENHOUSE",
+    "first_response_at": null
+  },
+  "source": {
+    "method": "dom",
+    "adapter_id": "greenhouse-dom",
+    "adapter_version": "1",
+    "extractor_version": "posting-pilot-v1",
+    "page_url": "https://job-boards.greenhouse.io/example/jobs/123",
+    "candidate_index": 0,
+    "requisition_id": "123",
+    "employer_key": "job-boards.greenhouse.io/example",
+    "variants": [
+      {
+        "id": "rendered",
+        "method": "dom",
+        "text": "Requirements:\n- Build reliable TypeScript services and SQL databases.\n- Support customers and document production incidents.\n- Test and deploy changes with the team."
+      }
+    ],
+    "field_provenance": {
+      "description": {
+        "method": "dom",
+        "locator": ".job__description",
+        "variant_id": "rendered"
+      }
+    },
+    "corrections": {},
+    "warnings": [
+      {
+        "id": "quality-unknown_work_model-work_model",
+        "code": "unknown_work_model",
+        "message": "Work model is unknown; it has been left blank.",
+        "field": "work_model"
+      },
+      {
+        "id": "quality-unknown_job_type-job_type",
+        "code": "unknown_job_type",
+        "message": "Job type is unknown; it has been left blank.",
+        "field": "job_type"
+      },
+      {
+        "id": "quality-requirements_unverified",
+        "code": "requirements_unverified",
+        "message": "Completeness is unverified. Compare the preview with the full posting, including collapsed sections."
+      }
+    ]
+  },
+  "review": {
+    "reviewed_at": "2026-10-17T18:58:08.675Z",
+    "resolutions": [
+      {
+        "warning_id": "quality-requirements_unverified",
+        "action": "verified_irrelevant",
+        "note": "Compared the complete synthetic posting with the original source."
+      }
+    ]
+  },
+  "request_assessment": false
+}

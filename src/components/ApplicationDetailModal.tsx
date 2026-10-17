@@ -186,7 +186,7 @@ export default function ApplicationDetailModal({
                   Work Model & Type
                 </span>
                 <span className="text-xs text-[#4A3E44] capitalize font-medium">
-                  {app.work_model.toLowerCase().replace('_', ' ')} • {app.job_type.toLowerCase().replace('_', ' ')}
+                  {app.work_model?.toLowerCase().replace('_', ' ') || 'Work model unknown'} • {app.job_type?.toLowerCase().replace('_', ' ') || 'Job type unknown'}
                 </span>
               </div>
             </div>
@@ -250,6 +250,7 @@ export default function ApplicationDetailModal({
 
           {app.role_fit_analysis && <section className="rounded-xl border border-[#F1DDE9] bg-[#FFF5F8] p-4 text-xs space-y-2">
             <h3 className="font-semibold text-[#9D3C5E]">Role fit assessment</h3>
+            {app.role_fit_analysis.origin === 'extension' && <p className="text-[#736A6D]">Assessed in the extension · {app.role_fit_analysis.extension_context?.resume_label || 'Selected resume'} · {app.role_fit_analysis.extension_context?.model}</p>}
             <p>{app.role_fit_analysis.explanation}</p>
             {app.role_fit_analysis.strengths.length > 0 && <p><strong>Experience evidence:</strong> {app.role_fit_analysis.strengths.join('; ')}</p>}
             {app.role_fit_analysis.gaps.length > 0 && <p><strong>Requirements to address:</strong> {app.role_fit_analysis.gaps.join('; ')}</p>}

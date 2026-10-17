@@ -6,6 +6,7 @@ import CurrencyInput from './CurrencyInput';
 import { CURRENCIES } from '@/lib/currencies';
 import { ANALYTICS_STAGES, STAGE_LABELS, stageForStatus, AnalyticsStage, DEFAULT_REJECTION_STATUSES } from '@/lib/analytics-stages';
 import CandidateProfileEditor from './CandidateProfileEditor';
+import ExtensionCredentials from './ExtensionCredentials';
 import { DEFAULT_AGE_BOUNDARIES } from '@/lib/analytics-timing';
 import { canonicalStatusName } from '@/lib/statuses';
 
@@ -29,6 +30,7 @@ export default function PreferencesModal({ isOpen, onClose, onSaved, isAdmin = f
       <section role="dialog" aria-modal="true" aria-label="My preferences" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#F1DDE9] bg-white p-6">
         <div className="flex items-center justify-between"><h2 className="font-bold text-[#4A3E44]">My preferences</h2><CloseButton onClick={onClose} label="Close preferences" /></div>
         <div className="mt-4"><CandidateProfileEditor onSaved={onSaved} /></div>
+        <ExtensionCredentials />
         <p className="mt-4 mb-4 text-xs text-[#736A6D]">Saved to your account. AI compares these with each role separately from your experience fit.</p>
         <form className="space-y-4 text-xs" onSubmit={async event => {
           event.preventDefault(); setBusy(true); setMessage('');

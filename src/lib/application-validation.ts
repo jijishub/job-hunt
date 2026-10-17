@@ -30,6 +30,7 @@ export function applicationValidationError(input: unknown) {
   for (const field of ['role_title', 'company_name', 'information', 'job_description', 'notes', 'notion_status', 'location', 'contact_name', 'contact_email', 'salary_currency']) {
     if (body[field] != null && typeof body[field] !== 'string') return `${field.replaceAll('_', ' ')} must be text.`;
   }
+  if (body.salary_currency != null && body.salary_currency !== '' && !/^[A-Za-z]{3}$/.test(body.salary_currency as string)) return 'Salary currency must be a three-letter code or unknown.';
   if (body.job_url != null && body.job_url !== '' && (typeof body.job_url !== 'string' || !/^https?:\/\//i.test(body.job_url))) return 'Use an http or https job posting URL.';
   for (const field of ['salary_min', 'salary_max']) {
     if (body[field] != null && body[field] !== '' && (!['number', 'string'].includes(typeof body[field]) || !String(body[field]).trim() || !Number.isFinite(Number(body[field])) || Number(body[field]) < 0)) return 'Salary must be a nonnegative amount.';

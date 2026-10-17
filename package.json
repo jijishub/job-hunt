@@ -28,6 +28,8 @@
     "rpa:job-platforms:preview": "node scripts/backfill_job_platforms.cjs",
     "test:job-platforms": "node --test scripts/test_job_platforms.cjs",
     "test:core": "node --test scripts/test_pipeline.cjs scripts/test_lead_storage.cjs scripts/test_notion_sync.cjs scripts/test_secret_config.cjs",
+    "test:captures": "node --test scripts/test_capture_foundations.cjs scripts/test_capture_ingestion.cjs",
+    "test:captures:ui": "node --test scripts/test_extension_credentials_ui.cjs",
     "test:mobile:ui": "node --test scripts/test_mobile_ui.cjs",
     "test:report": "node scripts/test_report_export.cjs",
     "diagnose:ai": "node scripts/check_ai_auth.cjs",

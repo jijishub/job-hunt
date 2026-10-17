@@ -1,6 +1,14 @@
 export type RoleFit = 'STRONG' | 'POSSIBLE' | 'WEAK';
 export type SeniorityLevel = 'INTERNSHIP_TRAINEE' | 'GRADUATE_ENTRY_LEVEL' | 'JUNIOR' | 'ASSOCIATE' | 'MID_LEVEL' | 'SENIOR' | 'LEAD_PRINCIPAL' | 'UNSPECIFIED';
-export interface RoleFitAnalysis { preference_alignment?: 'ALIGNED' | 'MIXED' | 'MISALIGNED' | 'UNKNOWN'; preference_notes?: string; fit: RoleFit; explanation: string; strengths: string[]; gaps: string[]; analyzed_at: string; }
+export interface RoleFitAnalysis {
+  preference_alignment?: 'ALIGNED' | 'MIXED' | 'MISALIGNED' | 'UNKNOWN'; preference_notes?: string;
+  fit: RoleFit; explanation: string; strengths: string[]; gaps: string[]; analyzed_at: string;
+  origin?: 'extension' | 'server';
+  extension_context?: {
+    assessment_id: string; model: string; prompt_version: string; posting_hash: string;
+    resume_id: string; resume_label: string | null; resume_hash: string; preferences_hash: string | null;
+  };
+}
 
 export type ApplicationStatus =
   | 'LEAD'
@@ -33,10 +41,12 @@ export interface Company {
 }
 
 export interface JobApplication {
+  /** Server-managed revision; legacy records start at zero. */
+  record_version?: number;
   /** Lightweight list record; hydrate through the detail endpoint before editing. */
   summary_only?: boolean;
   id: string;
-  company_id: string;
+  company_id: string | null;
   company_name: string;
   company_logo?: string;
   stage_history?: { status: ApplicationStatus; notion_status?: string; at: string }[];
@@ -59,12 +69,12 @@ export interface JobApplication {
   service?: string;
   information?: string;
   priority: Priority;
-  job_type: JobType;
-  work_model: WorkModel;
+  job_type: JobType | null;
+  work_model: WorkModel | null;
   location?: string;
   salary_min?: number;
   salary_max?: number;
-  salary_currency: string;
+  salary_currency: string | null;
   offer_amount?: number | null;
   offer_currency?: string | null;
   offer_pay_period?: OfferPayPeriod | null;

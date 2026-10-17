@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Original structured posting facts for capture v1",
+  "$comment": "Evidence only, not normalized posting input. Missing fields are permitted. Runtime must additionally enforce UTF-16 lengths and total UTF-8 request size; JSON Schema maxLength counts Unicode code points.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "title": { "type": ["string", "null"] },
+    "company": { "type": ["string", "null"] },
+    "description": { "type": ["string", "null"], "maxLength": 120000 },
+    "qualifications": { "$ref": "#/definitions/textList" },
+    "location": { "type": ["string", "null"] },
+    "employmentType": { "$ref": "#/definitions/textList" },
+    "salary_min": { "type": ["number", "null"], "minimum": 0 },
+    "salary_max": { "type": ["number", "null"], "minimum": 0 },
+    "salary_currency": { "type": ["string", "null"], "pattern": "^[A-Za-z]{3}$" },
+    "salary_period": { "type": ["string", "null"] }
+  },
+  "definitions": {
+    "textList": { "type": "array", "maxItems": 200, "items": { "type": "string", "maxLength": 4000 } }
+  }
+}

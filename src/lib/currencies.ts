@@ -8,7 +8,7 @@ export function formatSalaryRange(minimum: SalaryAmount, maximum: SalaryAmount, 
     return Number.isFinite(numeric) ? numeric.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : undefined;
   };
   const min = amount(minimum), max = amount(maximum);
-  const code = currency?.trim().toUpperCase() || 'PHP';
+  const code = currency?.trim().toUpperCase() || 'Currency unknown';
   if (min !== undefined && max !== undefined) return `${code} ${min} – ${max}`;
   if (min !== undefined) return `${code} ${min}`;
   if (max !== undefined) return `Up to ${code} ${max}`;

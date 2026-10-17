@@ -1,0 +1,42 @@
+[
+  {
+    "name": "whole paragraphs match after whitespace normalization",
+    "posting": { "description": "Build reliable services.\n\nSQL   experience", "qualifications": ["SQL experience", "Customer support"] },
+    "expected": "Build reliable services.\n\nSQL   experience\n\nQualifications:\n- Customer support"
+  },
+  {
+    "name": "wrapped bullet lines and numeric markers",
+    "posting": { "description": "Requirements\n- Build reliable\n  services\n2) SQL experience", "qualifications": ["Build reliable services", "SQL experience", "Python"] },
+    "expected": "Requirements\n- Build reliable\n  services\n2) SQL experience\n\nQualifications:\n- Python"
+  },
+  {
+    "name": "unicode bullet and asterisk markers",
+    "posting": { "description": "• SQL experience\n* Customer support", "qualifications": ["SQL experience", "Customer support"] },
+    "expected": "• SQL experience\n* Customer support"
+  },
+  {
+    "name": "substrings and different case are not duplicates",
+    "posting": { "description": "SQL experience with production systems", "qualifications": ["SQL experience", "sql experience with production systems"] },
+    "expected": "SQL experience with production systems\n\nQualifications:\n- SQL experience\n- sql experience with production systems"
+  },
+  {
+    "name": "blank qualifications do not add text and repeated new items survive",
+    "posting": { "description": "Actual requirements", "qualifications": ["", "  ", "Python", "Python"] },
+    "expected": "Actual requirements\n\nQualifications:\n- Python\n- Python"
+  },
+  {
+    "name": "CRLF source is preserved",
+    "posting": { "description": "Required:\r\n- SQL experience\r\n\r\nCustomer support", "qualifications": ["SQL experience", "Customer support"] },
+    "expected": "Required:\r\n- SQL experience\r\n\r\nCustomer support"
+  },
+  {
+    "name": "qualifications only",
+    "posting": { "description": "", "qualifications": ["SQL experience"] },
+    "expected": "Qualifications:\n- SQL experience"
+  },
+  {
+    "name": "empty requirements",
+    "posting": { "description": null, "qualifications": [] },
+    "expected": ""
+  }
+]

@@ -16,8 +16,8 @@ test('pasted JSON and reviewed drafts survive account refreshes in both import f
     else if(pathname==='/api/users')data.data=[{...user,avatar:refresh?`/ask-gemini.png?refresh=${refresh}`:undefined}];
     else if(pathname==='/api/preferences')data.data={default_view:'ALL',target_roles:[],target_companies:[],preferred_locations:[],work_models:[],job_types:[],dealbreakers:'',salary_currency:'PHP'};
     else if(pathname==='/api/notion/sync')data={configured:false};
-    else if(pathname==='/api/role-fit'){fitCalls++;data.data={fit:'STRONG',explanation:'Saved retail experience matches these requirements.',strengths:['Customer service'],gaps:[],analyzed_at:'2026-10-14'};}
-    else if(pathname==='/api/applications'&&request.method()==='POST'){writes++;data.data={...request.postDataJSON(),id:'saved-draft'};}
+    else if(pathname==='/api/role-fit'){fitCalls++;for(const field of ['job_type','work_model','salary_currency'])assert.equal(request.postDataJSON().jobFacts[field],null);data.data={fit:'STRONG',explanation:'Saved retail experience matches these requirements.',strengths:['Customer service'],gaps:[],analyzed_at:'2026-10-14'};}
+    else if(pathname==='/api/applications'&&request.method()==='POST'){writes++;for(const field of ['job_type','work_model','salary_currency'])assert.equal(request.postDataJSON()[field],null);data.data={...request.postDataJSON(),id:'saved-draft'};}
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
    });
    await page.goto(process.env.PIPELINE_TEST_URL||'http://localhost:3100');
@@ -46,6 +46,9 @@ test('pasted JSON and reviewed drafts survive account refreshes in both import f
    assert.equal(await dialog.getByLabel('Job title').inputValue(),'Retail Associate');
    assert.match(await dialog.getByLabel('Job description').inputValue(),/Help customers/);
    assert.equal(await dialog.getByLabel('Personal comments').inputValue(),'My reviewed draft');
+   assert.equal(await dialog.getByLabel('Job type',{exact:true}).inputValue(),'');
+   assert.equal(await dialog.getByLabel('Work model',{exact:true}).inputValue(),'');
+   assert.equal(await dialog.getByLabel('Salary currency',{exact:true}).inputValue(),'');
    assert.equal(fitCalls,quick?1:0,'Refreshing must not regenerate role fit');assert.equal(writes,0);
    if(quick)assert.equal(await dialog.getByLabel('Role fit',{exact:true}).inputValue(),'STRONG');
    fs.mkdirSync('.data',{recursive:true});await dialog.screenshot({path:`.data/draft-refresh-${quick?'quick':'regular'}.png`});

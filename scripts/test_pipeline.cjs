@@ -446,7 +446,7 @@ test('application APIs scope reads, ignore forged owner, and enforce new default
  let user={id:'user_ji',email:'ji@example.com',role:'admin'};const apps=[sample(),sample({id:'friend',owner:'user_friend'})];let created;
  const load=loader({'@/lib/session-account':{getSessionAccount:async()=>user},'@/lib/db':{getApplications:async()=>apps,getCompanies:async()=>[],createApplication:async data=>(created={...data,id:'new'}),getApplicationById:async id=>id==='new'?created:apps.find(app=>app.id===id),updateApplication:async()=>{throw Error('Should not update another account');},deleteApplication:async()=>{throw Error('Should not delete another account');}},'@/lib/notion':{getNotionConfig:()=>({isConfigured:false}),pushApplicationToNotion:async()=>{}}});
  const routes=load('src/app/api/applications/route.ts');const result=await (await routes.GET()).json();assert.deepEqual(result.data.map(app=>app.id),['app']);
- const response=await routes.POST(new Request('http://local/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:'New',role_title:'Engineer',owner:'user_friend'})}));assert.equal(response.status,201);assert.equal(created.owner,'user_ji');assert.equal(created.notion_status,'Not started');assert.equal(created.status,'LEAD');assert.equal(created.work_model,'ON_SITE');assert.equal(created.salary_currency,'PHP');
+ const response=await routes.POST(new Request('http://local/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:'New',role_title:'Engineer',owner:'user_friend'})}));assert.equal(response.status,201);assert.equal(created.owner,'user_ji');assert.equal(created.notion_status,'Not started');assert.equal(created.status,'LEAD');assert.equal(created.work_model,null);assert.equal(created.job_type,null);assert.equal(created.salary_currency,null);
  const id=load('src/app/api/applications/[id]/route.ts');assert.equal((await id.GET(new Request('http://local'),{params:Promise.resolve({id:'friend'})})).status,404);assert.equal((await id.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({status:'ACCEPTED'})}),{params:Promise.resolve({id:'friend'})})).status,404);assert.equal((await id.DELETE(new Request('http://local',{method:'DELETE'}),{params:Promise.resolve({id:'friend'})})).status,404);user=null;assert.equal((await routes.GET()).status,401);
 });
 
@@ -507,13 +507,13 @@ test('concurrent Postgres company creation reuses case and whitespace variants w
 });
 test('role-fit AI validates evidence, protects manual ratings, and rejects foreign records',async()=>{
  let app=sample({role_fit:'STRONG',role_fit_source:'manual'});let raw={fit:'WEAK',explanation:'Missing requirements',strengths:['Python'],gaps:['SQL']};let calls=0;let writes=0;
- const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',email:'ji@example.com'})},'@/lib/db':{getApplicationById:async()=>app,getCandidateProfile:async()=> 'Resume evidence',updateApplication:async(id,data)=>{writes++;return {...app,...data};}},'@/lib/ai':{callGeminiJSON:async()=>{calls++;if(raw instanceof Error)throw raw;return raw;}}})('src/app/api/role-fit/route.ts');
+ const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',email:'ji@example.com'})},'@/lib/db':{getApplicationById:async()=>app,getCandidateProfile:async()=> 'Resume evidence',saveRoleFitIfCurrent:async(snapshot,data)=>{writes++;return {...app,role_fit:data.fit,role_fit_source:'ai',role_fit_analysis:data};}},'@/lib/ai':{callGeminiJSON:async()=>{calls++;if(raw instanceof Error)throw raw;return raw;}}})('src/app/api/role-fit/route.ts');
  const request=body=>new Request('http://local',{method:'POST',body:JSON.stringify(body)});
  assert.equal((await route.POST(request({id:'app'}))).status,200);assert.equal(calls,0);app={...app,owner:'user_friend'};assert.equal((await route.POST(request({id:'app',force:true}))).status,404);app=sample();assert.equal((await route.POST(request({id:'app'}))).status,422);app={...app,job_description:'Experience building Python services with SQL databases.'};raw={fit:'INVENTED'};assert.equal((await route.POST(request({id:'app'}))).status,502);assert.equal(writes,0);raw={fit:'POSSIBLE',explanation:'Python transfers; SQL is missing.',strengths:['Python'],gaps:['SQL']};const data=await (await route.POST(request({id:'app'}))).json();assert.equal(data.application.role_fit,'POSSIBLE');assert.equal(data.application.role_fit_source,'ai');assert.equal(writes,1);raw=new DOMException('timeout','TimeoutError');const timedOut=await route.POST(request({id:'app'}));assert.equal(timedOut.status,502);assert.match((await timedOut.json()).error,/leave this role unassessed/);assert.equal(writes,1);
 });
 test('weak and strong fit default priority and preserve independent overrides',async()=>{
  let saved=sample({job_description:'Experience building Python services with SQL databases.'});
- const load=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',role:'member'})},'@/lib/notion':{},'@/lib/db':{getCompanies:async()=>[],createApplication:async data=>(saved={...sample(),...data}),getApplicationById:async()=>saved,updateApplication:async(id,data)=>(saved={...saved,...data})},'@/lib/ai':{callGeminiJSON:async()=>({fit:'WEAK',explanation:'Missing required experience.',strengths:[],gaps:['SQL']})}});
+ const load=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'user_ji',role:'member'})},'@/lib/notion':{},'@/lib/db':{getCompanies:async()=>[],createApplication:async data=>(saved={...sample(),...data}),getApplicationById:async()=>saved,updateApplication:async(id,data)=>(saved={...saved,...data}),saveRoleFitIfCurrent:async(snapshot,data)=>(saved={...saved,role_fit:data.fit,role_fit_source:'ai',role_fit_analysis:data,priority:data.fit!==snapshot.role_fit&&['WEAK','STRONG'].includes(data.fit)?data.fit==='WEAK'?'LOW':'HIGH':snapshot.priority})},'@/lib/ai':{callGeminiJSON:async()=>({fit:'WEAK',explanation:'Missing required experience.',strengths:[],gaps:['SQL']})}});
  const req=body=>new Request('http://local',{method:'POST',body:JSON.stringify(body)});
  const create=load('src/app/api/applications/route.ts');
  assert.equal((await create.POST(req({company_name:'Example',role_title:'Engineer',role_fit:'WEAK'}))).status,201);
@@ -793,13 +793,13 @@ test('Gemini JSON supports new fields while classification remains deterministic
  assert.throws(()=>parseJobImport(JSON.stringify({title:'Engineer',job_platform:'x'.repeat(201)})),/200/);
 });
 
-test('salary displays group numeric database strings, retain zero and default to PHP',()=>{
+test('salary displays group numeric database strings, retain zero and preserve unknown currency',()=>{
  const {formatSalaryRange}=loader()('src/lib/currencies.ts');
- assert.equal(formatSalaryRange('60000.00','80000.00'),'PHP 60,000.00 – 80,000.00');
+ assert.equal(formatSalaryRange('60000.00','80000.00'),'Currency unknown 60,000.00 – 80,000.00');
  assert.equal(formatSalaryRange(50000.5,75000.75,'php'),'PHP 50,000.50 – 75,000.75');
  assert.equal(formatSalaryRange(1200,2000,'USD'),'USD 1,200.00 – 2,000.00');
- assert.equal(formatSalaryRange(0,undefined),'PHP 0.00');
- assert.equal(formatSalaryRange(undefined,80000),'Up to PHP 80,000.00');
+ assert.equal(formatSalaryRange(0,undefined),'Currency unknown 0.00');
+ assert.equal(formatSalaryRange(undefined,80000),'Up to Currency unknown 80,000.00');
  assert.equal(formatSalaryRange(null,'',null),'');assert.equal(formatSalaryRange(NaN,Infinity),'');
 });
 

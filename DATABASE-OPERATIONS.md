@@ -1,6 +1,6 @@
 # Database efficiency, portability, and recovery
 
-Status: local implementation and research, reviewed October 16, 2026. No production database queries, migrations, logo uploads, cloud provisioning, replication, or provider switches were performed during this optimization work. A Git push may trigger the existing Vercel integration; builds now compile without migrating the database.
+Status: local implementation and research, documentation reviewed October 18, 2026. No production database queries, migrations, logo uploads, cloud provisioning, replication, or provider switches were performed during this optimization work. A Git push may trigger the existing Vercel integration; builds now compile without migrating the database.
 
 ## Findings and implemented changes
 
@@ -22,6 +22,20 @@ The exhausted monthly allowance is a reported incident, not an established attri
 For safe rolling deployments, the legacy `/api/applications` full-record contract remains available to old clients; new code explicitly requests `?view=summary`. This prevents an old editor from treating previews as complete descriptions. Legacy response metrics identify remaining callers so this compatibility path can be retired deliberately.
 
 Analytics keep all history, custom status mappings, recorded and inferred stages, withdrawal handling, salary fields, and event dates. The dashboard reuses complete summaries instead of immediately downloading analytics metadata again. Server analytics use a reduced projection and retain the existing deterministic calculation rules. This is not a rewrite of every chart into SQL aggregation: a separately tested SQL rollup can be considered if compact metadata becomes significant.
+
+## Capture foundations
+
+Before deploying the capture foundations, apply the explicit schema migration to make job type/work model nullable, remove the advertised currency default, and add `applications.record_version BIGINT NOT NULL DEFAULT 0`. The build and normal requests do not apply it. Existing known facts are preserved. Local JSON storage needs no migration.
+
+`updateApplication` advances the server-managed revision, ignoring client-supplied versions. `saveRoleFitIfCurrent` updates assessment fields only when the saved record revision and owner still match. It handles both JSON leads and application rows; promotion/demotion also advances the revision. The session role-fit endpoint returns `409` / `STALE_ASSESSMENT` after intervening edits or deletion. Direct SQL tooling that changes assessment inputs must also advance `record_version`; the conditional write depends on that invariant.
+
+The same explicit migration now adds `extension_credentials` and `posting_captures`. Credentials store only SHA-256 hashes, have fixed 24-hour expiry, and can be revoked from preferences. Capture rows preserve original payloads, canonical request hashes, owner/review bindings, receipts and posting identity links. PostgreSQL request/opening advisory locks serialize duplicate imports; the lead and capture receipt commit in one transaction. Local JSON performs a synchronous check and one atomic file replacement. Failed persistence leaves no partial lead, and ambiguous lost responses retry the same capture UUID and immutable body.
+
+Capture rows deliberately survive application deletion as request/identity tombstones: identical delivery replays its old receipt, and a new capture of that linked deleted opening returns `410` rather than recreating it. Backups and recovery must include `posting_captures` together with applications/leads; restoring only leads can lose deduplication/deletion history. Sources remain private account data. Do not log payloads, raw tokens, or database errors in capture responses.
+
+The new capture flow can include an extension-generated fit result. Ingestion verifies its posting digest, bounds its fields and records resume/model/context hashes; it does not fetch the server resume/preferences, call an AI provider, or queue server AI. New leads receive that result in the same transaction. Existing ratings, edits and priority remain unchanged; the result is retained in capture history with a `stored_only` receipt. Other resume variants and full resume text stay in the extension. Existing server-side role fit remains available separately. This reduces those server AI calls and associated evidence reads, but does not establish why the previous Neon allowance was exhausted or guarantee free-tier operation; capture sources/results still use database storage and reads/transfers. Verify provider usage and account billing history rather than attributing the incident to model inference.
+
+Run `npm run test:captures` to exercise schema upgrades, credential scope/expiry/revocation, validation, atomic ingestion, concurrent retries, account isolation, promotion, deletion and conditional assessment writes using embedded PostgreSQL and temporary local JSON. `npm run test:captures:ui` checks the credential controls against a running local server. These checks do not verify deployed endpoints, a scheduler, or live extension uploads. Evidence/preferences versions, PATCH corrections and queue execution remain future work in the [capture API contract](EXTENSION-CAPTURE-CONTRACT.md).
 
 ## Local configuration and driver interface
 

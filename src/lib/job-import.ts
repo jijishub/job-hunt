@@ -4,7 +4,7 @@ import { jobPlatformFromUrl } from './job-platform';
 import { applicationValidationError } from './application-validation';
 
 export const JOB_JSON_PROMPT = `Extract the supplied job posting into ONE JSON object. Allowed keys: role_title, company_name, description, qualifications (array of strings), location, work_model (ON_SITE, HYBRID, or REMOTE), job_type (FULL_TIME, PART_TIME, CONTRACT, or INTERNSHIP), salary_min, salary_max, salary_currency, job_url, seniority_level, job_platform, first_response_at.
-Use numeric salaries and a three-letter currency. Copy the supplied posting URL exactly.
+Use numeric salaries and a three-letter currency. Return null for unknown work_model, job_type, or salary_currency; never infer a currency from location or convert salary periods. Copy the supplied posting URL exactly.
 Return seniority_level: null. Job Hunt derives seniority deterministically from the title when importing; do not classify it with AI. An unlabeled title such as AI Engineer must never be assumed mid-level. A manual seniority override is available in the application form.
 For job_platform, copy an explicitly supplied application channel or recognizable posting platform. Suggestions: ${JOB_PLATFORMS.map(value => value === 'WALK_IN' ? 'Walk-in' : value).join(', ')}. ATS platform names and custom channels are also accepted. Referral and Walk-in require explicit user-provided context; never infer them from a URL. Return null when unknown; Job Hunt can match recognized URL hosts locally without AI or opening the URL.
 Return first_response_at: null for a job posting alone. Include a non-null value ONLY if the user explicitly supplies their actual first employer response date and time, in ISO 8601 with a timezone (Z or an offset). Posting/publication dates, application deadlines, status update times, submission dates, and today's date are not response dates. Do not invent or estimate a response.
@@ -46,7 +46,7 @@ export function parseJobImport(raw: string): Partial<JobApplication> {
     if (typeof value !== 'string') throw new Error(`${field} must be text.`);
     return value.trim();
   };
-  const result: Partial<JobApplication> = {};
+  const result: Partial<JobApplication> = { work_model: null, job_type: null, salary_currency: null };
   const title = text(job.role_title ?? job.job_title ?? job.title, 'Role title');
   const company = text(job.company_name ?? (typeof job.company === 'object' && job.company ? (job.company as Record<string, unknown>).name : job.company), 'Company');
   const description = sectionText(job.description ?? job.job_description ?? job.jobDescription, 'Description');

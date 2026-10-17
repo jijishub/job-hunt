@@ -117,8 +117,8 @@ export default function ApplicationModal({
   const [customLogoUrl, setCustomLogoUrl] = useState('');
   const [status, setStatus] = useState<ApplicationStatus>('LEAD');
   const [priority, setPriority] = useState<Priority>('MEDIUM');
-  const [jobType, setJobType] = useState<JobType>('FULL_TIME');
-  const [workModel, setWorkModel] = useState<WorkModel>('ON_SITE');
+  const [jobType, setJobType] = useState<JobType | ''>('');
+  const [workModel, setWorkModel] = useState<WorkModel | ''>('');
   const [location, setLocation] = useState('');
   const [service, setService] = useState('');
   const [notionStatus, setNotionStatus] = useState('Not started');
@@ -126,7 +126,7 @@ export default function ApplicationModal({
   const [notProceeding,setNotProceeding] = useState(false);
   const [salaryMin, setSalaryMin] = useState<string>('');
   const [salaryMax, setSalaryMax] = useState<string>('');
-  const [salaryCurrency, setSalaryCurrency] = useState('PHP');
+  const [salaryCurrency, setSalaryCurrency] = useState('');
   const [offerAmount, setOfferAmount] = useState('');
   const [offerCurrency, setOfferCurrency] = useState('PHP');
   const [offerPayPeriod, setOfferPayPeriod] = useState<OfferPayPeriod>('MONTHLY');
@@ -252,12 +252,12 @@ export default function ApplicationModal({
       setStatus(statusCategoryForLabel(resolvedNotionStatus, initialData.status || getStatusCategory(resolvedNotionStatus)));
       setService(initialData.service || '');
       setPriority(initialData.priority || 'MEDIUM');
-      setJobType(initialData.job_type || 'FULL_TIME');
-      setWorkModel(initialData.work_model || 'ON_SITE');
+      setJobType(initialData.job_type || '');
+      setWorkModel(initialData.work_model || '');
       setLocation(initialData.location || '');
       setSalaryMin(initialData.salary_min != null ? String(initialData.salary_min) : '');
       setSalaryMax(initialData.salary_max != null ? String(initialData.salary_max) : '');
-      setSalaryCurrency(initialData.salary_currency || 'PHP');
+      setSalaryCurrency(initialData.salary_currency || '');
       setJobUrl(initialData.job_url || '');
       setContactName(initialData.contact_name || '');
       setContactEmail(initialData.contact_email || '');
@@ -272,12 +272,12 @@ export default function ApplicationModal({
       setStatus('LEAD');
       setService('');
       setPriority('MEDIUM');
-      setJobType('FULL_TIME');
-      setWorkModel('ON_SITE');
+      setJobType('');
+      setWorkModel('');
       setLocation('');
       setSalaryMin('');
       setSalaryMax('');
-      setSalaryCurrency('PHP');
+      setSalaryCurrency('');
       setJobUrl('');
       setContactName('');
       setContactEmail('');
@@ -308,11 +308,11 @@ export default function ApplicationModal({
       if (job.company_name) setCompanyName(job.company_name);
       if (job.job_description) setJobDescription(job.job_description);
       if (job.location) setLocation(job.location);
-      if (job.work_model) setWorkModel(job.work_model);
-      if (job.job_type) setJobType(job.job_type);
+      setWorkModel(job.work_model || '');
+      setJobType(job.job_type || '');
       if (job.salary_min != null) setSalaryMin(String(job.salary_min));
       if (job.salary_max != null) setSalaryMax(String(job.salary_max));
-      if (job.salary_currency) setSalaryCurrency(job.salary_currency);
+      setSalaryCurrency(job.salary_currency || '');
       if (job.job_url) setJobUrl(job.job_url);
       if (job.job_platform) setJobPlatform(normalizeJobPlatform(job.job_platform) || '');
       if (job.first_response_at) setFirstResponse(localDateTime(job.first_response_at));
@@ -327,7 +327,7 @@ export default function ApplicationModal({
         }
         setIsSubmitting(true); setIsFitAnalyzing(true); setFitError('');
         try {
-          await analyzeFit({ roleTitle: job.role_title || roleTitle, jobDescription: importedDescription, jobFacts: { company: job.company_name || companyName, location: job.location || location, work_model: job.work_model || workModel, job_type: job.job_type || jobType, salary_min: job.salary_min ?? (salaryMin ? Number(salaryMin) : undefined), salary_max: job.salary_max ?? (salaryMax ? Number(salaryMax) : undefined), salary_currency: job.salary_currency || salaryCurrency } });
+          await analyzeFit({ roleTitle: job.role_title || roleTitle, jobDescription: importedDescription, jobFacts: { company: job.company_name || companyName, location: job.location || location, work_model: job.work_model, job_type: job.job_type, salary_min: job.salary_min ?? (salaryMin ? Number(salaryMin) : undefined), salary_max: job.salary_max ?? (salaryMax ? Number(salaryMax) : undefined), salary_currency: job.salary_currency } });
         } catch (error) { if (!(error instanceof Error && error.name === 'AbortError')) setFitError(error instanceof Error ? error.message : 'Role fit analysis failed.'); }
         finally { setIsSubmitting(false); setIsFitAnalyzing(false); }
       }
@@ -338,7 +338,7 @@ export default function ApplicationModal({
     if (fitRequest.current) return;
     const controller = new AbortController(); fitRequest.current = controller;
     try {
-    const response = await fetch('/api/role-fit', { method: 'POST', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(imported || { roleTitle, jobDescription, jobFacts: { company: companyName, location, work_model: workModel, job_type: jobType, salary_min: salaryMin ? Number(salaryMin) : undefined, salary_max: salaryMax ? Number(salaryMax) : undefined, salary_currency: salaryCurrency } }) });
+    const response = await fetch('/api/role-fit', { method: 'POST', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(imported || { roleTitle, jobDescription, jobFacts: { company: companyName, location, work_model: workModel || null, job_type: jobType || null, salary_min: salaryMin ? Number(salaryMin) : undefined, salary_max: salaryMax ? Number(salaryMax) : undefined, salary_currency: salaryCurrency || null } }) });
     const result = await response.json();
     if (!response.ok || !result.success) throw new Error(result.error || 'Role fit analysis failed.');
     setRoleFit(result.data.fit); setFitAnalysis(result.data); setUseAiFit(true); setFitError('');
@@ -373,12 +373,12 @@ export default function ApplicationModal({
         information: jobDescription.trim(),
         not_proceeding: notProceeding,
         priority,
-        job_type: jobType,
-        work_model: workModel,
+        job_type: jobType || null,
+        work_model: workModel || null,
         location: location.trim() || undefined,
         salary_min: salaryMin ? Number(salaryMin) : undefined,
         salary_max: salaryMax ? Number(salaryMax) : undefined,
-        salary_currency: salaryCurrency,
+        salary_currency: salaryCurrency || null,
         offer_amount: offerAmount.trim() ? Number(offerAmount) : null,
         offer_currency: offerCurrency,
         offer_pay_period: offerPayPeriod,
@@ -660,6 +660,7 @@ export default function ApplicationModal({
                 onChange={(e) => setWorkModel(e.target.value as WorkModel)}
                 className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
               >
+                <option value="">Unknown</option>
                 <option value="REMOTE">Remote</option>
                 <option value="HYBRID">Hybrid</option>
                 <option value="ON_SITE">On-site</option>
@@ -671,10 +672,12 @@ export default function ApplicationModal({
                 Job Type
               </label>
               <select
+                aria-label="Job type"
                 value={jobType}
                 onChange={(e) => setJobType(e.target.value as JobType)}
                 className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
               >
+                <option value="">Unknown</option>
                 <option value="FULL_TIME">Full-time</option>
                 <option value="CONTRACT">Contract</option>
                 <option value="PART_TIME">Part-time</option>
@@ -706,7 +709,7 @@ export default function ApplicationModal({
                 value={salaryMin}
                 onValueChange={setSalaryMin}
                 className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs text-[#4A3E44] transition"
-              /><select aria-label="Salary currency" value={salaryCurrency} onChange={e=>setSalaryCurrency(e.target.value)} className="rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs">{CURRENCIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+              /><select aria-label="Salary currency" value={salaryCurrency} onChange={e=>setSalaryCurrency(e.target.value)} className="rounded-lg border border-[#F1DDE9] bg-white p-2 text-xs"><option value="">Unknown currency</option>{salaryCurrency && !CURRENCIES.some(c => c === salaryCurrency) && <option value={salaryCurrency}>{salaryCurrency}</option>}{CURRENCIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#736A6D] uppercase tracking-wider mb-1.5">

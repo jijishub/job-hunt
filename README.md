@@ -73,6 +73,14 @@ Changing a role to **Weak fit** automatically sets priority to **Low**; changing
 
 The workspace adapts to mobile screens: lead cards fit the viewport, account menus stay on screen, long job titles leave room for modal actions, and AI model choices wrap inside their card. Account creation places the action below the icon picker on mobile.
 
+Unknown posting facts stay unknown: JSON imports and new records no longer assume Full-time, On-site, or PHP when job type, work model, or advertised salary currency is missing. You can select these values in the form. Salary amounts without a currency are labeled **Currency unknown**. Offers and personal salary expectations keep their separate units.
+
+Saved-role assessments preserve edits made while AI is running. If the record changes, reload it before assessing again.
+
+The new extension capture flow is designed to assess a posting against a selected local resume variant through the extension's configured AI gateway, then send the posting and completed result together. The tracker validates and saves them without running AI for that import. Existing server-side role fit and Gemini JSON import remain available. This aims to reduce server work; database usage still needs measurement before claiming cost savings.
+
+The tracker side is implemented and tested locally, with authenticated capture ingestion and revocable 24-hour credentials under **My preferences → Job Hunt extension**. Capture delivery preserves source evidence, links exact duplicate openings, and saves new roles as Not started. New records retain the supplied fit and resume/model provenance; existing records keep their ratings and priority. The extension now implements selected-resume fit and frozen delivery, with local tracker interoperability reported as passing; its tracker requests remain restricted to loopback. Production migration and deployment remain pending. See the [capture API contract](EXTENSION-CAPTURE-CONTRACT.md) for the handoff and validation evidence.
+
 ### Analytics from your saved records
 
 Analytics reuses saved applications, assessments, and preferences. Loading the dashboard, changing scope, reviewing charts, and exporting a PDF never generate new AI assessments. Missing fit ratings stay **Unassessed**. The optional **Pipeline insights** card above the charts interprets computed statistics with your saved resume, assessments and preferences only after a click. Successful results are saved per scope, marked outdated after data changes, and preserved after failed retries.
@@ -135,6 +143,8 @@ Application saves finish after database persistence. Administrator Notion sync r
 | `npm run start` | Serve the production build. |
 | `npm run test:pipeline` | Check analytics, application APIs, and persistence. |
 | `npm run test:core` | Check pipeline, lead storage, Notion retry behavior, and secret configuration. |
+| `npm run test:captures` | Check capture validation, credentials, atomic imports, replay/deduplication, unknown facts, and conditional assessments using local JSON and embedded PostgreSQL. |
+| `npm run test:captures:ui` | Check credential creation, one-time display, closing preferences, and revocation against a local server. |
 | `npm run test:pipeline:ui` | Check browser flows against a running local server. |
 | `npm run test:analytics:ui` | Check aging drilldowns, configurable ranges, optional AI failures, application fields, and PDF export against a running local server. |
 | `npm run test:job-platforms` | Check URL classification, account isolation, selected-platform preservation, and guarded backfill writes. |
