@@ -63,7 +63,7 @@ test('rejection preferences update metrics and PDF; structured job JSON fills a 
     await page.getByLabel('Count Rejected as rejection', { exact: true }).check();
     await page.getByRole('button', { name: 'Save preferences', exact: true }).click();
     await page.getByText(/Preferences saved/).waitFor();
-    assert.deepEqual(preferences.analytics_rejection_statuses, ['not accepted', 'rejected']);
+    assert.deepEqual(preferences.analytics_rejection_statuses, ['not accepted', 'failed assessment', 'rejected']);
     await page.getByRole('button', { name: 'Close preferences' }).click();
     await page.waitForFunction(() => [...document.querySelectorAll('p')].some(p => p.textContent === 'Rejections' && p.nextElementSibling?.textContent === '2'));
     assert.match(await rejectionCard.innerText(), /67% of submitted/);

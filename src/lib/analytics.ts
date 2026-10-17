@@ -1,5 +1,5 @@
 ﻿import { reachedStage, recordedStages, stageForStatus, AnalyticsStage, ANALYTICS_STAGES, DEFAULT_REJECTION_STATUSES } from './analytics-stages';
-import { applicationStatusLabel, canonicalStatusName } from './statuses';
+import { applicationStatusLabel, canonicalStatusName, isRejectionStatus, statusCategoryForLabel } from './statuses';
 import { JobApplication } from '@/types/job';
 import { ROLE_FITS, savedRoleFit } from './role-fit';
 import { salaryOfferAnalytics } from './salary-offers';
@@ -11,8 +11,7 @@ export function isInternship(app: JobApplication) {
 }
 export function isSubmitted(app: JobApplication) { return reachedStage(app) >= 1; }
 export function isRejection(app: JobApplication, rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES) {
-  const label = canonicalStatusName(app.notion_status?.trim() || applicationStatusLabel(app.status)).toLowerCase();
-  return rejectionStatuses.some(status => canonicalStatusName(status).toLowerCase() === label);
+  return isRejectionStatus(app.notion_status?.trim() || applicationStatusLabel(app.status), rejectionStatuses);
 }
 export function uniqueApplications(applications: JobApplication[]) {
   const byId = new Map<string, JobApplication>();
@@ -28,7 +27,7 @@ export function currentOutcome(app: JobApplication, mapping: Record<string, Anal
   if (isRejection(app, rejectionStatuses)) return 'REJECTED';
   if (app.not_proceeding || app.status === 'WITHDRAWN' || /not proceeding/i.test(canonicalStatusName(app.notion_status || ''))) return 'NOT_PROCEEDING';
   if (['ACCEPTED', 'OFFER'].includes(app.status) || stageForStatus(app.notion_status || app.status, app.status, mapping) === 'OFFER') return 'OFFER';
-  if (app.status === 'REJECTED') return 'OTHER_CLOSED';
+  if (statusCategoryForLabel(app.notion_status || '', app.status) === 'REJECTED') return 'OTHER_CLOSED';
   return 'ACTIVE';
 }
 // Calendar dates stay as entered; timestamps use the project's reporting timezone.

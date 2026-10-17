@@ -19,7 +19,7 @@ async function dashboard(browser, role = 'admin') {
   const apps = statuses.map(status => ({ ...sample, id: status.id, role_title: `${status.id} engineer`, status: status.category, notion_status: status.name }));
   Object.assign(apps[1], { salary_min: '60000.00', salary_max: '80000.00', salary_currency: null, role_fit: 'STRONG', role_fit_source: 'manual', analytics_stage: 'INTERVIEW' });
   Object.assign(apps[2], { salary_min: 1200, salary_max: 2000, salary_currency: 'USD' });
-  const state = { statuses, apps, writes: [], failNextMove: false, aiCalls: 0 };
+  const state = { statuses, apps, writes: [], failNextMove: false, aiCalls: 0, preferences: {} };
   await page.route('**/api/**', async route => {
     const request = route.request(); const url = new URL(request.url());
     let data = { success: true, data: [] }, status = 200;
@@ -28,6 +28,10 @@ async function dashboard(browser, role = 'admin') {
     else if (url.pathname === '/api/notion/sync') data = { configured: false };
     else if (url.pathname === '/api/statuses') data = { success: true, data: statuses };
     else if (url.pathname === '/api/profile') data = { success: true, resumeText: 'Python developer' };
+    else if (url.pathname === '/api/preferences') {
+      if (request.method() === 'PUT') state.preferences = request.postDataJSON();
+      data = { success: true, data: state.preferences };
+    }
     else if (url.pathname === '/api/role-fit') state.aiCalls++;
     else if (url.pathname === '/api/applications') data = { success: true, data: apps };
     else if (url.pathname.startsWith('/api/applications/') && request.method() === 'PUT') {
@@ -41,7 +45,10 @@ async function dashboard(browser, role = 'admin') {
     }
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
   });
-  await page.goto(process.env.PIPELINE_TEST_URL || 'http://localhost:3100');
+  await Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === '/api/preferences'),
+    page.goto(process.env.PIPELINE_TEST_URL || 'http://localhost:3100'),
+  ]);
   await page.getByRole('button', { name: 'Board View', exact: true }).waitFor();
   return { page, state };
 }
@@ -98,7 +105,7 @@ test('member board shows every saved category once, including rejected and offer
   try {
     const { page, state } = await dashboard(browser, 'member');
     state.apps.push({ ...state.apps[1], id: 'assessment', role_title: 'assessment engineer', status: 'SCREENING', notion_status: 'Online Assessment' });
-    await page.reload();
+    await Promise.all([page.waitForResponse(response => new URL(response.url()).pathname === '/api/preferences'), page.reload()]);
     await page.getByLabel('Application visibility').selectOption('ALL');await page.getByRole('button', { name: 'Board View', exact: true }).click();
     await page.getByLabel('Move rejected engineer at Example').waitFor();
     await page.waitForFunction(count => document.querySelectorAll('h4').length === count, state.apps.length);
@@ -108,5 +115,38 @@ test('member board shows every saved category once, including rejected and offer
     assert.equal(await screeningColumn.getByRole('heading', { name: 'assessment engineer', exact: true }).count(), 1);
     assert.equal(await screeningColumn.getByRole('heading', { name: 'interview engineer', exact: true }).count(), 1);
     assert.equal(await page.getByRole('heading', { name: 'Screening', exact: true }).count(), 0);
+  } finally { await browser.close(); }
+});
+
+test('assessment cards leave Applied and rejection preferences update the board immediately', async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const { page, state } = await dashboard(browser);
+    state.statuses.push(
+      { id: 'assessment', name: 'Online Assessment', category: 'APPLIED', color: 'blue' },
+      { id: 'failed', name: 'Failed Assessment', category: 'APPLIED', color: 'red' },
+      { id: 'physical', name: 'In Person Assessment', category: 'APPLIED', color: 'blue' },
+      { id: 'review', name: 'Company review', category: 'APPLIED', color: 'blue' },
+    );
+    for (const [id, name] of [['assessment','Online Assessment'],['failed','Failed Assessment'],['physical','In Person Assessment'],['review','Company review']]) state.apps.push({ ...state.apps[0], id, role_title: `${id} role`, status: 'APPLIED', notion_status: name });
+    state.preferences = { analytics_status_stages: { 'company review': 'SCREENING' }, analytics_rejection_statuses: ['Not Accepted','Failed Assessment'] };
+    await Promise.all([page.waitForResponse(response => new URL(response.url()).pathname === '/api/preferences'), page.reload()]);
+    await page.getByRole('button', { name: 'Board View', exact: true }).click();
+    const column = title => page.getByRole('heading', { name: title, exact: true }).locator('..').locator('..').locator('..');
+    await column('Screening / Interview').getByRole('heading', { name: 'assessment role', exact: true }).waitFor();
+    await column('Screening / Interview').getByRole('heading', { name: 'physical role', exact: true }).waitFor();
+    await column('Screening / Interview').getByRole('heading', { name: 'review role', exact: true }).waitFor();
+    await column('Archived / Rejected').getByRole('heading', { name: 'failed role', exact: true }).waitFor();
+    assert.equal(await column('Applied').getByRole('heading', { name: /^(assessment|failed|physical|review) role$/ }).count(), 0);
+    await page.getByRole('button', { name: 'My preferences', exact: true }).click();
+    await page.getByLabel('Count Company review as rejection', { exact: true }).check();
+    await page.getByRole('button', { name: 'Save preferences', exact: true }).click();
+    await page.getByText('Preferences saved.', { exact: false }).waitFor();
+    await page.getByRole('button', { name: 'Close preferences', exact: true }).click();
+    await column('Archived / Rejected').getByRole('heading', { name: 'review role', exact: true }).waitFor();
+    assert.equal(await column('Screening / Interview').getByRole('heading', { name: 'review role', exact: true }).count(), 0);
+    await Promise.all([page.waitForResponse(response => new URL(response.url()).pathname === '/api/preferences'), page.reload()]);
+    await page.getByRole('button', { name: 'Board View', exact: true }).click();
+    await column('Archived / Rejected').getByRole('heading', { name: 'review role', exact: true }).waitFor();
   } finally { await browser.close(); }
 });

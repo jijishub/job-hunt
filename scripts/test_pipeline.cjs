@@ -814,6 +814,31 @@ test('screening statuses map to screening without changing interview or rejectio
  assert.equal(getStatusCategory('Screening - Not Accepted'),'REJECTED');
  assert.equal(getStatusCategory('Screening - Rejected'),'REJECTED');
 });
+
+test('assessment outcomes stay separate from reached phases, including legacy Applied records', () => {
+ const load=loader();const statuses=load('src/lib/statuses.ts');const stages=load('src/lib/analytics-stages.ts');const workflow=load('src/lib/application-workflow.ts');const {pipelineAnalytics}=load('src/lib/analytics.ts');
+ for(const name of ['Failed Assessment','Failed Online Assessment','Failed In Person Assessment','Interview - Rejected','Technical Test - Failed']) assert.equal(statuses.getStatusCategory(name),'REJECTED',name);
+ for(const name of ['Assessment','Online Assessment','In Person Assessment']) {
+  assert.equal(statuses.getStatusCategory(name),'SCREENING');
+  assert.equal(workflow.displayApplicationStatus(sample({status:'APPLIED',notion_status:name})),'SCREENING');
+ }
+ const failed=sample({status:'APPLIED',notion_status:'Failed Online Assessment'});
+ assert.equal(workflow.displayApplicationStatusLabel(failed),'Failed Assessment');
+ assert.equal(workflow.displayApplicationStatus(failed),'REJECTED');
+ assert.equal(load('src/lib/analytics.ts').currentOutcome(failed,{},[]),'OTHER_CLOSED');
+ assert.equal(stages.stageForStatus(failed.notion_status,failed.status),'SCREENING');
+ assert.equal(stages.stageForStatus('Failed Assessment','REJECTED',{'failed online assessment':'INTERVIEW'}),'INTERVIEW');
+ const updates=workflow.applicationWorkflowUpdates(failed,{notion_status:'Failed Online Assessment'});
+ assert.equal(updates.status,'REJECTED');assert.equal(updates.notion_status,'Failed Assessment');assert.equal(updates.analytics_stage,'SCREENING');
+ const stats=pipelineAnalytics([failed,sample({id:'active',notion_status:'Online Assessment'}),sample({id:'physical',notion_status:'In Person Assessment'})]);
+ assert.equal(stats.rejections,1);assert.equal(stats.funnel[1].count,3);assert.equal(stats.funnel[2].count,0);
+ const mapped=sample({notion_status:'Company reviewing'});
+ assert.equal(workflow.displayApplicationStatus(mapped,{'company reviewing':'SCREENING'}),'SCREENING');
+ assert.equal(workflow.displayApplicationStatus(mapped,{'company reviewing':'SCREENING'},['Company reviewing']),'REJECTED');
+ assert.equal(workflow.displayApplicationStatus({...mapped,not_proceeding:true},{},['Company reviewing']),'WITHDRAWN');
+ const {validatePreferences}=load('src/lib/preferences.ts');const prefs=validatePreferences({analytics_status_stages:{'Failed Online Assessment':'SCREENING'},analytics_rejection_statuses:['Failed Online Assessment']});
+ assert.deepEqual(prefs.analytics_rejection_statuses,['failed assessment']);assert.equal(prefs.analytics_status_stages['failed assessment'],'SCREENING');
+});
 test('preferences validate fields and save only to the signed-in account',async()=>{
  const {validatePreferences}=loader()('src/lib/preferences.ts');assert.throws(()=>validatePreferences({work_models:['INVALID']}));assert.throws(()=>validatePreferences({salary_min:-1}));let saved;const route=loader({'@/lib/session-account':{getSessionAccount:async()=>({id:'member'})},'@/lib/db':{getCandidatePreferences:async()=>null,saveCandidatePreferences:async(owner,data)=>{saved={owner,data};}}})('src/app/api/preferences/route.ts');assert.equal((await (await route.GET()).json()).data.salary_currency,'PHP');const response=await route.PUT(new Request('http://local',{method:'PUT',body:JSON.stringify({owner:'friend',target_roles:['Developer','Developer'],portfolio_summary:'Built Python tools',work_models:['REMOTE']})}));assert.equal(response.status,200);assert.equal(saved.owner,'member');assert.deepEqual(saved.data.target_roles,['Developer']);assert.equal(saved.data.portfolio_summary,'Built Python tools');
 });
@@ -855,7 +880,7 @@ test('rejections use selected current statuses and preserve reached phases',()=>
  const before=pipelineAnalytics(apps);assert.equal(before.rejections,1);assert.equal(before.rejectionRate,25);assert.equal(before.fits[0].rejections,1);assert.equal(before.fits[0].rejectionRate,100);assert.equal(before.funnel[3].count,2);
  const selected=pipelineAnalytics(apps,{},['NOT ACCEPTED','Rejected','not accepted']);assert.equal(selected.rejections,2);assert.equal(selected.rejectionRate,50);assert.equal(selected.fits[1].rejections,1);assert.equal(selected.funnel[3].count,before.funnel[3].count);
  assert.equal(pipelineAnalytics(apps,{},[]).rejections,0);assert.equal(pipelineAnalytics([]).rejectionRate,null);
- const {validatePreferences}=loader()('src/lib/preferences.ts');assert.deepEqual(validatePreferences({}).analytics_rejection_statuses,['Not Accepted']);assert.deepEqual(validatePreferences({analytics_rejection_statuses:['Rejected','rejected','Not Accepted']}).analytics_rejection_statuses,['rejected','not accepted']);assert.deepEqual(validatePreferences({analytics_rejection_statuses:[]}).analytics_rejection_statuses,[]);assert.throws(()=>validatePreferences({analytics_rejection_statuses:'Rejected'}));
+ const {validatePreferences}=loader()('src/lib/preferences.ts');assert.deepEqual(validatePreferences({}).analytics_rejection_statuses,['Not Accepted','Failed Assessment']);assert.deepEqual(validatePreferences({analytics_rejection_statuses:['Rejected','rejected','Not Accepted']}).analytics_rejection_statuses,['rejected','not accepted']);assert.deepEqual(validatePreferences({analytics_rejection_statuses:[]}).analytics_rejection_statuses,[]);assert.throws(()=>validatePreferences({analytics_rejection_statuses:'Rejected'}));
 });
 
 test('legacy withdrawal labels cannot reappear as a live status option',async()=>{

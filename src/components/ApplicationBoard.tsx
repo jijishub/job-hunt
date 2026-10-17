@@ -10,6 +10,7 @@ import StatusBadge from './StatusBadge';
 import { displayApplicationStatusLabel, displayApplicationStatus } from '@/lib/application-workflow';
 import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, applicationStatusLabel, StatusOption } from '@/lib/statuses';
 import { formatSalaryRange } from '@/lib/currencies';
+import type { PersonalPreferences } from '@/lib/preferences';
 import {
   Building2,
   MapPin,
@@ -19,6 +20,7 @@ import {
 
 interface ApplicationBoardProps {
   isMember?: boolean;
+  preferences?: Pick<PersonalPreferences, 'analytics_status_stages' | 'analytics_rejection_statuses'>;
   applications: JobApplication[];
   onSelectApp: (app: JobApplication) => void;
   onNewAppWithStatus: (status: ApplicationStatus, notionStatus: string) => void;
@@ -35,6 +37,7 @@ const COLUMNS: { status: ApplicationStatus; title: string; color: string; badgeD
 
 export default function ApplicationBoard({
   isMember = false,
+  preferences,
   applications,
   onSelectApp,
   onNewAppWithStatus,
@@ -55,11 +58,12 @@ export default function ApplicationBoard({
       })
       .catch(() => {});
   }, [isMember]);
-  const availableStatuses = [...statusOptions];
+  const categoryFor = (app: Pick<JobApplication, 'status' | 'notion_status' | 'not_proceeding'>) => displayApplicationStatus(app, preferences?.analytics_status_stages, preferences?.analytics_rejection_statuses);
+  const availableStatuses = statusOptions.map(option => ({ ...option, category: categoryFor({ status: option.category, notion_status: option.name }) }));
   for (const app of applications) {
     const name = displayApplicationStatusLabel(app);
     if (!availableStatuses.some(option => option.name === name)) {
-      availableStatuses.push({ id: name, name, category: displayApplicationStatus(app), color: 'default' });
+      availableStatuses.push({ id: name, name, category: categoryFor(app), color: 'default' });
     }
   }
   const matchesColumn = (status: ApplicationStatus, column: ApplicationStatus) => {
@@ -88,7 +92,7 @@ export default function ApplicationBoard({
     {moveError && <p role="alert" className="mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">{moveError}</p>}
     <div className="flex gap-4 overflow-x-auto pb-6 pt-1 items-start min-h-[600px]">
       {columns.map((col) => {
-        const colApps = applications.filter(app => matchesColumn(displayApplicationStatus(app), col.status));
+        const colApps = applications.filter(app => matchesColumn(categoryFor(app), col.status));
         const preferredLabel = applicationStatusLabel(col.status === 'OFFER' && !isMember ? 'ACCEPTED' : col.status);
         const newStatus = availableStatuses.find(option => option.name === preferredLabel && matchesColumn(option.category, col.status)) ||
           availableStatuses.find(option => option.category === col.status) ||

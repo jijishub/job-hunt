@@ -13,6 +13,7 @@ import { pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
 import { scheduleApplicationNotionSync } from '@/lib/application-notion-sync';
 import { normalizeOfferFields } from '@/lib/salary-offers';
 import { analyticsFieldUpdates } from '@/lib/application-analytics-fields';
+import { canonicalStatusName, statusCategoryForLabel } from '@/lib/statuses';
 
 export const maxDuration = 60;
 
@@ -48,6 +49,10 @@ export async function POST(request: Request) {
     const validationError = applicationValidationError(body);
     if (validationError) return NextResponse.json({ success: false, error: validationError }, { status: 400 });
     Object.assign(body, normalizeOfferFields(body));
+    if (typeof body.notion_status === 'string') {
+      body.notion_status = canonicalStatusName(body.notion_status);
+      body.status = statusCategoryForLabel(body.notion_status, body.status || 'LEAD');
+    }
     if (body.analytics_stage != null && !ANALYTICS_STAGES.includes(body.analytics_stage)) return NextResponse.json({ success: false, error: 'Invalid analytics phase.' }, { status: 400 });
     if (body.not_proceeding != null && typeof body.not_proceeding !== 'boolean') return NextResponse.json({ success: false, error: 'Invalid Not Proceeding flag.' }, { status: 400 });
     body.owner = user.id;

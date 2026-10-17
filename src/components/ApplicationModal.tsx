@@ -27,7 +27,7 @@ import {
   Plus,
   Upload,
 } from 'lucide-react';
-import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, applicationStatusLabel, getStatusCategory, StatusOption } from '@/lib/statuses';
+import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, applicationStatusLabel, canonicalStatusName, statusCategoryForLabel, getStatusCategory, StatusOption } from '@/lib/statuses';
 
 interface ApplicationModalProps {
   isOpen: boolean;
@@ -247,9 +247,9 @@ export default function ApplicationModal({
       setCompanyName(initialData.company_name || '');
       setCustomLogoUrl(initialData.company_logo || '');
       const resolvedNotionStatus =
-        initialData.notion_status?.trim() || applicationStatusLabel(initialData.status);
+        canonicalStatusName(initialData.notion_status || '') || applicationStatusLabel(initialData.status);
       setNotionStatus(resolvedNotionStatus);
-      setStatus(initialData.status || getStatusCategory(resolvedNotionStatus));
+      setStatus(statusCategoryForLabel(resolvedNotionStatus, initialData.status || getStatusCategory(resolvedNotionStatus)));
       setService(initialData.service || '');
       setPriority(initialData.priority || 'MEDIUM');
       setJobType(initialData.job_type || 'FULL_TIME');
@@ -480,7 +480,7 @@ export default function ApplicationModal({
                         const chosen = e.target.value;
                         if (getStatusCategory(chosen) === 'WITHDRAWN' || /not proceeding/i.test(chosen)) { setNotProceeding(true); return; }
                         setNotionStatus(chosen);
-                        setStatus(getStatusCategory(chosen));
+                        setStatus(statusOptions.find(option => option.name === chosen)?.category || getStatusCategory(chosen));
                       }}
                       className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
                     >
@@ -519,7 +519,7 @@ export default function ApplicationModal({
                               const newOpt = data.data;
                               setStatusOptions((prev) => [...prev, newOpt]);
                               setNotionStatus(newOpt.name);
-                              setStatus(getStatusCategory(newOpt.name));
+                              setStatus(newOpt.category || getStatusCategory(newOpt.name));
                               setNewStatusInput('');
                               setIsAddingCustomStatus(false);
                             }

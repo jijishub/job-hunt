@@ -1,18 +1,24 @@
 import type { JobApplication } from '@/types/job';
-import { ANALYTICS_STAGES, reachedStage, type AnalyticsStage } from './analytics-stages';
-import { applicationStatusLabel, canonicalStatusName } from './statuses';
+import { ANALYTICS_STAGES, DEFAULT_REJECTION_STATUSES, reachedStage, stageForStatus, type AnalyticsStage } from './analytics-stages';
+import { applicationStatusLabel, canonicalStatusName, isRejectionStatus, statusCategoryForLabel } from './statuses';
 
 export function isArchivedApplication(app: Pick<JobApplication, 'status' | 'notion_status' | 'not_proceeding'>) {
   return app.not_proceeding === true || app.status === 'WITHDRAWN'
     || /not proceeding/i.test(canonicalStatusName(app.notion_status || ''));
 }
 
-export function displayApplicationStatus(app: Pick<JobApplication, 'status' | 'notion_status' | 'not_proceeding'>) {
-  return isArchivedApplication(app) ? 'WITHDRAWN' : app.status;
+export function displayApplicationStatus(app: Pick<JobApplication, 'status' | 'notion_status' | 'not_proceeding'>, mapping: Record<string, AnalyticsStage> = {}, rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES) {
+  if (isArchivedApplication(app)) return 'WITHDRAWN';
+  const label = app.notion_status?.trim() || applicationStatusLabel(app.status);
+  if (isRejectionStatus(label, rejectionStatuses)) return 'REJECTED';
+  const status = statusCategoryForLabel(label, app.status);
+  if (['REJECTED', 'ACCEPTED', 'OFFER'].includes(status)) return status;
+  const stage = stageForStatus(label, status, mapping);
+  return ({ NOT_SUBMITTED: 'LEAD', SUBMITTED: 'APPLIED', SCREENING: 'SCREENING', INTERVIEW: 'INTERVIEWING', FINAL: 'INTERVIEWING', OFFER: 'OFFER' } as const)[stage];
 }
 
 export function displayApplicationStatusLabel(app: Pick<JobApplication, 'status' | 'notion_status' | 'not_proceeding'>) {
-  return isArchivedApplication(app) ? 'Not Proceeding' : app.notion_status?.trim() || applicationStatusLabel(app.status);
+  return isArchivedApplication(app) ? 'Not Proceeding' : canonicalStatusName(app.notion_status || '') || applicationStatusLabel(app.status);
 }
 
 export function applicationWorkflowUpdates(saved: JobApplication, updates: Partial<JobApplication>, mapping: Record<string, AnalyticsStage> = {}) {
@@ -34,6 +40,12 @@ export function applicationWorkflowUpdates(saved: JobApplication, updates: Parti
     }
   } else if (next.status && next.status !== saved.status && isArchivedApplication(saved)) {
     next.not_proceeding = false;
+  }
+  if (!withdrawing && !isArchivedApplication({ ...saved, ...next })) {
+    const label = canonicalStatusName(next.notion_status ?? saved.notion_status ?? '');
+    const category = statusCategoryForLabel(label, next.status || saved.status);
+    if (next.notion_status !== undefined) next.notion_status = label;
+    if (category !== (next.status || saved.status)) next.status = category;
   }
   const candidate = { ...saved, ...next, analytics_stage: saved.analytics_stage };
   next.analytics_stage = ANALYTICS_STAGES[Math.max(reachedStage(saved, mapping), reachedStage(candidate, mapping))];

@@ -5,7 +5,7 @@ import { applicationSummary } from '@/lib/application-summary';
 import { ownsApplication } from '@/lib/ownership';
 import { applicationWorkflowUpdates, displayApplicationStatus, displayApplicationStatusLabel, isArchivedApplication } from '@/lib/application-workflow';
 import { isInternship } from '@/lib/analytics';
-import { DefaultView, DEFAULT_VIEWS } from '@/lib/preferences';
+import { DefaultView, DEFAULT_VIEWS, type PersonalPreferences } from '@/lib/preferences';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Image from 'next/image';
@@ -83,14 +83,17 @@ export default function JobHuntDashboard() {
 
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [preferenceVersion, setPreferenceVersion] = useState(0);
+  const [workflowPreferences, setWorkflowPreferences] = useState<Pick<PersonalPreferences, 'analytics_status_stages' | 'analytics_rejection_statuses'>>({});
 
   useEffect(() => {
     setDefaultView('ALL'); setJobTypeFilter('ALL');
     setArchiveFilter('ACTIVE');
+    setWorkflowPreferences({});
     if (authStatus !== 'authenticated' || !currentUser?.id) return;
     const controller = new AbortController();
     fetch('/api/preferences', { signal: controller.signal }).then(response => response.json()).then(data => {
       if (!data.success || controller.signal.aborted) return;
+      setWorkflowPreferences(data.data);
       const saved = data.data.default_view;
       const view: DefaultView = DEFAULT_VIEWS.some(option => option.value === saved) ? saved : 'ALL';
       setDefaultView(view); setJobTypeFilter(view);
@@ -407,7 +410,7 @@ export default function JobHuntDashboard() {
           }
         }
 
-        if (statusFilter !== 'ALL' && displayApplicationStatus(app) !== statusFilter) {
+        if (statusFilter !== 'ALL' && displayApplicationStatus(app, workflowPreferences.analytics_status_stages, workflowPreferences.analytics_rejection_statuses) !== statusFilter) {
           return false;
         }
 
@@ -461,6 +464,7 @@ export default function JobHuntDashboard() {
     roleFitFilter,
     personalApplications,
     statusFilter,
+    workflowPreferences,
     notionStatusFilter,
     serviceFilter,
     positionFilter,
@@ -792,6 +796,7 @@ export default function JobHuntDashboard() {
           />
         ) : activeView === 'board' ? (
           <ApplicationBoard
+            preferences={workflowPreferences}
             isMember={currentUser?.role === 'member'}
             applications={filteredApplications}
             onSelectApp={(app) => {
@@ -849,7 +854,7 @@ export default function JobHuntDashboard() {
 
       <PreferencesModal isOpen={isPreferencesOpen} isAdmin={currentUser?.role === 'admin'} onClose={() => setIsPreferencesOpen(false)} onSaved={preferences => {
         setPreferenceVersion(version => version + 1);
-        if (preferences) { const view = preferences.default_view || 'ALL'; setDefaultView(view); setJobTypeFilter(view); }
+        if (preferences) { setWorkflowPreferences(preferences); const view = preferences.default_view || 'ALL'; setDefaultView(view); setJobTypeFilter(view); }
       }} />
 
       {/* Application Details Modal */}

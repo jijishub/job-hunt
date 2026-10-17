@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { getCustomStatuses, createCustomStatus, deleteCustomStatus, getApplications } from '@/lib/db';
 import { getSessionAccount } from '@/lib/session-account';
 import { ownsApplication } from '@/lib/ownership';
-import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, getStatusCategory, canonicalStatusName, StatusOption } from '@/lib/statuses';
+import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, getStatusCategory, canonicalStatusName, statusCategoryForLabel, StatusOption } from '@/lib/statuses';
 
 export async function GET() {
   try {
@@ -15,7 +15,7 @@ export async function GET() {
       id: c.id,
       name: canonicalStatusName(c.name),
       color: c.color || 'default',
-      category: c.category || getStatusCategory(c.name),
+      category: statusCategoryForLabel(c.name, c.category || getStatusCategory(c.name)),
       isCustom: true,
     }));
 
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
 
     if (category != null && !APPLICATION_STATUSES.includes(category)) return NextResponse.json({ success: false, error: 'Invalid status category.' }, { status: 400 });
     const trimmedName = canonicalStatusName(name);
-    const resolvedCategory = category || getStatusCategory(trimmedName);
+    const resolvedCategory = statusCategoryForLabel(trimmedName, category || getStatusCategory(trimmedName));
 
     const created = await createCustomStatus({
       owner: user.id,

@@ -21,6 +21,7 @@ export const SEEDED_STATUS_OPTIONS: StatusOption[] = [
   { id: 'not_started', name: 'Not started', color: 'gray', category: 'LEAD' },
   { id: 'applied', name: 'Applied', color: 'yellow', category: 'APPLIED' },
   { id: 'screening', name: 'Screening', color: 'blue', category: 'SCREENING' },
+  { id: 'failed_assessment', name: 'Failed Assessment', color: 'red', category: 'REJECTED' },
   { id: 'accepted', name: 'Accepted', color: 'green', category: 'ACCEPTED' },
   { id: 'accepted_not_proceeding', name: 'Accepted - Not Proceeding', color: 'purple', category: 'OFFER' },
   { id: 'initial_interview', name: 'Initial Interview', color: 'orange', category: 'INTERVIEWING' },
@@ -47,7 +48,21 @@ export function applicationStatusLabel(status?: ApplicationStatus): string {
 }
 
 export function canonicalStatusName(statusName: string): string {
-  return statusName.trim().toLowerCase() === 'do not proceed' ? 'Not Proceeding' : statusName.trim();
+  const name = statusName.trim();
+  if (name.toLowerCase() === 'do not proceed') return 'Not Proceeding';
+  if (/^failed (?:online )?assessment$/i.test(name)) return 'Failed Assessment';
+  return name;
+}
+
+// Older assessment records and custom options were saved as APPLIED.
+export function statusCategoryForLabel(name: string, savedCategory: ApplicationStatus): ApplicationStatus {
+  if (/\bassessment\b/i.test(name) && !['ACCEPTED', 'OFFER', 'REJECTED', 'WITHDRAWN'].includes(savedCategory)) return getStatusCategory(name);
+  return savedCategory;
+}
+
+export function isRejectionStatus(name: string, rejectionStatuses: readonly string[]): boolean {
+  const key = canonicalStatusName(name).toLowerCase();
+  return rejectionStatuses.some(status => canonicalStatusName(status).toLowerCase() === key);
 }
 
 export function getStatusCategory(statusName: string): ApplicationStatus {
@@ -58,6 +73,8 @@ export function getStatusCategory(statusName: string): ApplicationStatus {
   if (match) return match.category;
 
   // Heuristic categorization for custom user statuses
+  if (/\b(failed|unsuccessful|rejected)\b/.test(lower) || lower.includes('not accepted') || lower.includes('repeated')) return 'REJECTED';
+  if (lower.includes('withdraw') || lower.includes('not proceeding') || lower.includes('drop')) return 'WITHDRAWN';
   if (lower.includes('accept') && !lower.includes('not accept')) return 'ACCEPTED';
   if (lower.includes('offer')) return 'OFFER';
   if (lower.includes('screen') && !lower.includes('not accept') && !lower.includes('reject')) return 'SCREENING';
@@ -173,7 +190,7 @@ export function getStatusStyle(statusName: string): StatusStyle {
     };
   }
 
-  if (lower === 'not accepting interns' || lower === 'not proceeding' || lower === 'do not proceed') {
+  if (lower === 'not accepting interns' || lower === 'not proceeding' || lower === 'do not proceed' || canonicalStatusName(statusName) === 'Failed Assessment') {
     return {
       bg: 'bg-rose-50',
       text: 'text-rose-800',
