@@ -185,12 +185,15 @@ Once deployed, run these smoke checks:
    - Review incoming leads from portfolio or add a new lead.
    - Click **Promote to Applied**: verify the lead converts seamlessly into an active tracked application.
 6. **Application fields for admins and members**:
+   - Confirm online and in-person assessments appear in **Screening / Interview**, after Applied. Check an older assessment saved as Applied as well as a newly created record.
+   - Set a record to **Failed Assessment** and verify it appears under **Archived / Rejected**, retains Screening in analytics, and does not count as having reached Interview. The older **Failed Online Assessment** label should display as **Failed Assessment**.
    - Open an application and confirm **Referral** and **Walk-in** are suggested in Job platform; custom values remain available.
    - Confirm **Junior AI Engineer** derives as Junior and **AI Engineer** as Unspecified. Set a manual seniority or role-family override, change the title, and verify it persists. Reset to Automatic and verify the title rules take over.
    - Record an actual first employer response date, save, reopen, and confirm it is retained. The form uses local time and stores UTC.
    - Test the bottom-right **Import job JSON** shortcut for an admin and a member: the paste box should open immediately, **Fill draft & assess fit** should request fit only for that draft, and **Create Application** should remain available after an AI failure. Closing without creating must not save a record.
 
 7. **AI-independent analytics and PDF**:
+   - In My preferences, map a custom status to Screening and select **Counts as rejection**. Save and confirm its cards move to **Archived / Rejected** immediately and remain there after reload, while analytics retains the phase reached. Check the rejection total in the dashboard and exported PDF. Existing rejection selections should be preserved; defaults for accounts without saved selections are **Not Accepted** and **Failed Assessment**. Use `npm run test:pipeline:ui` against a local server for the automated board, preference, and export checks.
    - Check the matching Pipeline, Effectiveness, Timing, and Career insights sections. A normal export should have four readable pages; long preference targets or extra salary units may add an appendix. Verify chart sample sizes and click through to the corresponding records.
    - Use a preview environment without an AI key, or block the AI endpoint in a test browser. Confirm Analytics loads and internship/regular-employment scope changes update charts without assessment requests.
    - Review role-family, seniority, platform, saved-fit and cohort comparisons. Missing assessments should remain Unassessed; missing response dates should remain unknown.

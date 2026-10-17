@@ -32,7 +32,7 @@ The analytics are the part I get excited about: which roles reach interviews, ho
 
 | Feature | What it brings to your search |
 | --- | --- |
-| **Your application pipeline** | Switch between a table and board; keep job descriptions, personal notes, dates, and hiring stages together. |
+| **Your application pipeline** | Switch between a table and board; keep job descriptions, personal notes, dates, and hiring stages together. Screening and interviews share a **Screening / Interview** column after Applied, including online and in-person assessments. |
 | **Automatic progress and reversible archiving** | Analytics follows the highest recorded hiring phase. Not Proceeding archives locally without changing the recorded job status or Notion backup. Use Archive to review a record and uncheck Not Proceeding to restore it. Works for admins and members. |
 | **A home for promising leads** | Browse Saved leads or Discover, and open Quick Add from the same toolbar to save a real posting in a modal. See each lead's profile-fit rating and click it to open that lead's details and saved assessment. |
 | **AI when you need it** | Use your master resume for ATS matching and role-fit assessments, with explanations you can review. Switching tabs keeps the current ATS report available when you return. |
@@ -52,6 +52,8 @@ The analytics are the part I get excited about: which roles reach interviews, ho
 4. **Explore your progress.** Review the patterns in Analytics and decide what to try next.
 
 New applications start at **Not started** with today's date; both are editable. Role-fit analysis runs when you request it. AI discovery provides search ideas to research, and leads stay separate until you mark them applied. Salary comparisons pair the same application with matching currency and pay period.
+
+Use **Failed Assessment** for an unsuccessful assessment, whether online or in person. It belongs under **Archived / Rejected** on the board and retains **Screening** as its recruitment phase in analytics. The older **Failed Online Assessment** label is recognized as **Failed Assessment**.
 
 Saved leads sort primarily by role fit and secondarily by priority, showing **Strong fit**, **Possible fit**, **Weak fit**, or **Unassessed**, using their saved role-fit data. Open a lead through its title or fit badge to review its details; AI Match opens the resume matcher for that role. Discover generates search keywords for LinkedIn, JobStreet, Indeed, and Google Jobs.
 
@@ -76,6 +78,8 @@ The workspace adapts to mobile screens: lead cards fit the viewport, account men
 Analytics reuses saved applications, assessments, and preferences. Loading the dashboard, changing scope, reviewing charts, and exporting a PDF never generate new AI assessments. Missing fit ratings stay **Unassessed**. The optional **Pipeline insights** card above the charts interprets computed statistics with your saved resume, assessments and preferences only after a click. Successful results are saved per scope, marked outdated after data changes, and preserved after failed retries.
 
 The dashboard and PDF follow four readable sections: **Pipeline, Effectiveness, Timing, and Career insights**. The branded PDF refreshes saved data at export time, contains no AI interpretations, and normally fits four pages. Click dashboard charts to review their applications; long preference targets or extra salary units can add a PDF appendix.
+
+In **My preferences → Analytics status mappings**, **Highest phase reached** records how far a status progressed; **Counts as rejection** records its outcome. A failed assessment can therefore reach Screening and count as a rejection without implying an interview took place. Rejection counting defaults to **Not Accepted** and **Failed Assessment**; existing saved selections remain in effect. Saving these mappings updates board placement immediately and persists after reload. **Not Proceeding** continues to use the separate archive workflow.
 
 Seniority uses explicit title keywords: **Junior AI Engineer** is Junior, while **AI Engineer** is Unspecified. The eight categories run from Internship / Trainee through Lead / Principal, including Graduate / Entry-level, Junior, Associate, Mid-level, and Senior. Automatic seniority follows title edits; manual overrides stay intact until you reset them. Keyword charts count distinct submitted applications containing each title word or short phrase; counts overlap, and progression comparisons require at least five applications. The form's **Job platform** field accepts custom values alongside its suggestions, including **Referral** and **Walk-in** for all users.
 
