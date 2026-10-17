@@ -12,7 +12,7 @@ export interface StatusOption {
 export const MEMBER_STATUS_OPTIONS: StatusOption[] = [
   { id: 'member_not_started', name: 'Not started', color: 'gray', category: 'LEAD' },
   { id: 'member_applied', name: 'Applied', color: 'yellow', category: 'APPLIED' },
-  { id: 'member_interview', name: 'Interview', color: 'blue', category: 'INTERVIEWING' },
+  { id: 'member_interview', name: 'Screening / Interview', color: 'blue', category: 'INTERVIEWING' },
   { id: 'member_accepted', name: 'Accepted', color: 'green', category: 'ACCEPTED' },
   { id: 'member_not_proceeding', name: 'Not Proceeding', color: 'gray', category: 'WITHDRAWN' },
 ];
@@ -20,6 +20,7 @@ export const MEMBER_STATUS_OPTIONS: StatusOption[] = [
 export const SEEDED_STATUS_OPTIONS: StatusOption[] = [
   { id: 'not_started', name: 'Not started', color: 'gray', category: 'LEAD' },
   { id: 'applied', name: 'Applied', color: 'yellow', category: 'APPLIED' },
+  { id: 'screening', name: 'Screening', color: 'blue', category: 'SCREENING' },
   { id: 'accepted', name: 'Accepted', color: 'green', category: 'ACCEPTED' },
   { id: 'accepted_not_proceeding', name: 'Accepted - Not Proceeding', color: 'purple', category: 'OFFER' },
   { id: 'initial_interview', name: 'Initial Interview', color: 'orange', category: 'INTERVIEWING' },
@@ -39,7 +40,7 @@ export const SEEDED_STATUS_OPTIONS: StatusOption[] = [
 export function applicationStatusLabel(status?: ApplicationStatus): string {
   const labels: Record<ApplicationStatus, string> = {
     LEAD: 'Not started', APPLIED: 'Applied', SCREENING: 'Screening',
-    INTERVIEWING: 'Interview', OFFER: 'Offer received', ACCEPTED: 'Accepted',
+    INTERVIEWING: 'Screening / Interview', OFFER: 'Offer received', ACCEPTED: 'Accepted',
     REJECTED: 'Not Accepted', WITHDRAWN: 'Not Proceeding',
   };
   return status ? labels[status] || 'Not started' : 'Not started';
@@ -61,6 +62,7 @@ export function getStatusCategory(statusName: string): ApplicationStatus {
   if (lower.includes('offer')) return 'OFFER';
   if (lower.includes('screen') && !lower.includes('not accept') && !lower.includes('reject')) return 'SCREENING';
   if (lower.includes('interview') && !lower.includes('not accept')) return 'INTERVIEWING';
+  if (lower.includes('assessment') && !lower.includes('not accept') && !lower.includes('reject')) return 'SCREENING';
   if (lower.includes('task') || lower.includes('exam') || lower.includes('test')) return 'INTERVIEWING';
   if (lower.includes('applied') || lower.includes('submitted')) return 'APPLIED';
   if (lower.includes('lead') || lower.includes('inquiry') || lower.includes('not started') || lower.includes('wishlist')) return 'LEAD';

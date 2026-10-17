@@ -28,8 +28,7 @@ interface ApplicationBoardProps {
 const COLUMNS: { status: ApplicationStatus; title: string; color: string; badgeDot: string }[] = [
   { status: 'LEAD', title: 'Leads & Wishlist', color: 'border-purple-200 bg-purple-50/40', badgeDot: 'bg-purple-400' },
   { status: 'APPLIED', title: 'Applied', color: 'border-sky-200 bg-sky-50/40', badgeDot: 'bg-sky-400' },
-  { status: 'SCREENING', title: 'Screening', color: 'border-amber-200 bg-amber-50/40', badgeDot: 'bg-amber-400' },
-  { status: 'INTERVIEWING', title: 'Interviewing', color: 'border-[#F1DDE9] bg-pink-50/40', badgeDot: 'bg-[#FF7AB3]' },
+  { status: 'INTERVIEWING', title: 'Screening / Interview', color: 'border-[#F1DDE9] bg-pink-50/40', badgeDot: 'bg-[#FF7AB3]' },
   { status: 'OFFER', title: 'Offers & Accepted 🎉', color: 'border-emerald-200 bg-emerald-50/40', badgeDot: 'bg-emerald-400' },
   { status: 'REJECTED', title: 'Archived / Rejected', color: 'border-stone-200 bg-stone-50/40', badgeDot: 'bg-stone-400' },
 ];
@@ -64,6 +63,7 @@ export default function ApplicationBoard({
     }
   }
   const matchesColumn = (status: ApplicationStatus, column: ApplicationStatus) => {
+    if (column === 'INTERVIEWING') return status === 'SCREENING' || status === 'INTERVIEWING';
     if (!isMember && column === 'REJECTED') return status === 'REJECTED' || status === 'WITHDRAWN';
     if (!isMember && column === 'OFFER') return status === 'OFFER' || status === 'ACCEPTED';
     return status === column;
@@ -73,8 +73,7 @@ export default function ApplicationBoard({
     ...memberColumns,
     ...COLUMNS.filter(col => !memberColumns.some(member => member.status === col.status) &&
       (availableStatuses.some(option => option.category === col.status) || applications.some(app => app.status === col.status))),
-  ] : COLUMNS).filter(col => col.status !== 'SCREENING' ||
-    availableStatuses.some(option => option.category === 'SCREENING') || applications.some(app => app.status === 'SCREENING'));
+  ] : COLUMNS);
 
   async function moveApplication(app: JobApplication, chosen: string) {
     const option = availableStatuses.find(status => status.name === chosen);

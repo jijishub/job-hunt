@@ -806,6 +806,9 @@ test('salary displays group numeric database strings, retain zero and default to
 test('screening statuses map to screening without changing interview or rejection categories',()=>{
  const {getStatusCategory}=loader()('src/lib/statuses.ts');
  assert.equal(getStatusCategory('Screening Call'),'SCREENING');
+ assert.equal(getStatusCategory('Online Assessment'),'SCREENING');
+ assert.equal(getStatusCategory('Online Assessment - Rejected'),'REJECTED');
+ assert.equal(getStatusCategory('Screening / Interview'),'INTERVIEWING');
  assert.equal(getStatusCategory('Initial Interview'),'INTERVIEWING');
  assert.equal(getStatusCategory('Technical Test'),'INTERVIEWING');
  assert.equal(getStatusCategory('Screening - Not Accepted'),'REJECTED');
@@ -866,7 +869,7 @@ test('legacy withdrawal labels cannot reappear as a live status option',async()=
 test('member status defaults and custom options are isolated from admin stages', async () => {
  let user={id:'member',role:'member'};let created;
  const route=loader({'@/lib/session-account':{getSessionAccount:async()=>user},'@/lib/db':{getCustomStatuses:async()=>[{id:'old',name:'Admin old'},{id:'mine',name:'My review',owner:'member'},{id:'other',name:'Private review',owner:'friend'}],getApplications:async()=>[],createCustomStatus:async data=>{created=data;return data;}}})('src/app/api/statuses/route.ts');
- const result=await (await route.GET()).json();assert.deepEqual(result.data.map(s=>s.name),['Not started','Applied','Interview','Accepted','Not Proceeding','My review']);
+ const result=await (await route.GET()).json();assert.deepEqual(result.data.map(s=>s.name),['Not started','Applied','Screening / Interview','Accepted','Not Proceeding','My review']);
  assert.equal((await route.POST(new Request('http://local',{method:'POST',body:JSON.stringify({name:'Phone call',owner:'friend'})}))).status,201);assert.equal(created.owner,'member');
  user={id:'admin',role:'admin'};const admin=await (await route.GET()).json();assert.ok(admin.data.some(s=>s.name==='Technical Interview'));assert.ok(admin.data.some(s=>s.name==='Admin old'));assert.equal(admin.data.some(s=>s.name==='My review'),false);
  user=null;assert.equal((await route.GET()).status,401);assert.equal((await route.POST(new Request('http://local',{method:'POST',body:'{}'}))).status,401);

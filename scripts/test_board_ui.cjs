@@ -67,16 +67,20 @@ test('board columns, custom moves, failed moves, add defaults and currency previ
     state.statuses.push({ id: 'custom_review', name: 'Phone review', category: 'SCREENING', color: 'orange' });
     await page.getByRole('button', { name: 'Table View', exact: true }).click();
     await page.getByLabel('Application visibility').selectOption('ALL');await page.getByRole('button', { name: 'Board View', exact: true }).click();
-    await page.getByRole('heading', { name: 'Screening', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Screening / Interview', exact: true }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: 'Screening', exact: true }).count(), 0);
     await page.getByLabel('Move applied engineer at Example').selectOption('Phone review');
     await page.waitForFunction(() => document.querySelector('select[aria-label="Move applied engineer at Example"]')?.value === 'Phone review');
     await page.getByLabel('Move applied engineer at Example').waitFor();
     assert.deepEqual(state.writes[0], { status: 'SCREENING', notion_status: 'Phone review' });
     assert.equal(state.apps[1].role_fit, 'STRONG');assert.equal(state.apps[1].analytics_stage, 'INTERVIEW');
-    const screeningColumn = page.getByRole('heading', { name: 'Screening', exact: true }).locator('..').locator('..').locator('..');
+    const screeningColumn = page.getByRole('heading', { name: 'Screening / Interview', exact: true }).locator('..').locator('..').locator('..');
     assert.equal(await screeningColumn.getByRole('heading', { name: 'applied engineer', exact: true }).count(), 1);
-    await page.getByRole('button', { name: 'Add application to Screening', exact: true }).click();
-    assert.equal(await page.getByLabel('Application stage', { exact: true }).inputValue(), 'Phone review');
+    assert.equal(await screeningColumn.getByRole('heading', { name: 'interview engineer', exact: true }).count(), 1);
+    const appliedColumn = page.getByRole('heading', { name: 'Applied', exact: true }).locator('..').locator('..').locator('..');
+    assert.equal(await appliedColumn.getByRole('heading', { name: 'applied engineer', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Add application to Screening / Interview', exact: true }).click();
+    assert.equal(await page.getByLabel('Application stage', { exact: true }).inputValue(), 'Initial Interview');
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     state.failNextMove = true;
     await page.getByLabel('Move applied engineer at Example').selectOption('Not Accepted');
@@ -93,9 +97,16 @@ test('member board shows every saved category once, including rejected and offer
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     const { page, state } = await dashboard(browser, 'member');
+    state.apps.push({ ...state.apps[1], id: 'assessment', role_title: 'assessment engineer', status: 'SCREENING', notion_status: 'Online Assessment' });
+    await page.reload();
     await page.getByLabel('Application visibility').selectOption('ALL');await page.getByRole('button', { name: 'Board View', exact: true }).click();
     await page.getByLabel('Move rejected engineer at Example').waitFor();
+    await page.waitForFunction(count => document.querySelectorAll('h4').length === count, state.apps.length);
     assert.equal(await page.locator('h4').count(), state.apps.length);
     for (const app of state.apps) assert.equal(await page.getByRole('heading', { name: app.role_title, exact: true }).count(), 1);
+    const screeningColumn = page.getByRole('heading', { name: 'Screening / Interview', exact: true }).locator('..').locator('..').locator('..');
+    assert.equal(await screeningColumn.getByRole('heading', { name: 'assessment engineer', exact: true }).count(), 1);
+    assert.equal(await screeningColumn.getByRole('heading', { name: 'interview engineer', exact: true }).count(), 1);
+    assert.equal(await page.getByRole('heading', { name: 'Screening', exact: true }).count(), 0);
   } finally { await browser.close(); }
 });
