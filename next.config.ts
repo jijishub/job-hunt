@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
   env: {
     NEXTAUTH_URL: resolvedAuthUrl,
     NEXT_PUBLIC_APP_VERSION: randomUUID(),
+    NEXT_PUBLIC_APP_COMMIT: process.env.VERCEL_GIT_COMMIT_SHA || '',
   },
   turbopack: {
     root: process.cwd(),
