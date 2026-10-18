@@ -16,8 +16,9 @@ export async function POST(request: Request) {
     const user = await getSessionAccount();
     if (!user) throw new CaptureError(401, 'SIGN_IN_REQUIRED', 'Sign in to manage extension credentials.');
     const body = await readCaptureJson(request) as Record<string, unknown>;
-    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => key !== 'label') || typeof body.label !== 'string' || !body.label.trim() || body.label.length > 100) throw new CaptureError(422, 'INVALID_LABEL', 'Enter a label of 1–100 characters.');
-    return captureResponse({ success: true, ...await issueExtensionCredential(user.id, body.label.trim()), account: { id: user.id, email: user.email }, capabilities: { capture: true, extension_assessments: true, assessments: false } }, 201);
+    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !['label', 'share_preferences'].includes(key)) || typeof body.label !== 'string' || !body.label.trim() || body.label.length > 100) throw new CaptureError(422, 'INVALID_LABEL', 'Enter a label of 1–100 characters.');
+    if (body.share_preferences !== undefined && typeof body.share_preferences !== 'boolean') throw new CaptureError(422, 'INVALID_SCOPE', 'Preference sharing must be true or false.');
+    return captureResponse({ success: true, ...await issueExtensionCredential(user.id, body.label.trim(), body.share_preferences === true), account: { id: user.id, email: user.email }, capabilities: { capture: true, extension_assessments: true, assessments: false, preferences: body.share_preferences === true, preference_events: body.share_preferences === true } }, 201);
   } catch (error) { return captureFailure(error); }
 }
 export async function DELETE(request: Request) {

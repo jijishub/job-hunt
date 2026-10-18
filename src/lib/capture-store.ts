@@ -18,11 +18,11 @@ export interface CaptureRecord {
 const secretHash = (secret: string) => createHash('sha256').update(secret).digest('hex');
 const publicCredential = ({ id, owner, label, scopes, created_at, expires_at, revoked_at }: ExtensionCredential) => ({ id, owner, label, scopes, created_at, expires_at, revoked_at });
 
-export async function issueExtensionCredential(owner: string, label: string) {
+export async function issueExtensionCredential(owner: string, label: string, sharePreferences = false) {
   const secret = `jh_capture_${randomBytes(32).toString('base64url')}`;
   const now = new Date(), sql = getDatabaseClient();
   const credential: ExtensionCredential = { id: randomUUID(), owner, label, token_hash: secretHash(secret),
-    scopes: ['captures:read', 'captures:write'], created_at: now.toISOString(), expires_at: new Date(now.getTime() + 86400000).toISOString(), revoked_at: null };
+    scopes: ['captures:read', 'captures:write', ...(sharePreferences ? ['preferences:read'] : [])], created_at: now.toISOString(), expires_at: new Date(now.getTime() + 86400000).toISOString(), revoked_at: null };
   if (sql) {
     const result = await sql.transaction([
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${'capture-credentials:' + owner},0));`,
@@ -54,7 +54,7 @@ export async function revokeExtensionCredential(owner: string, id: string) {
 export async function authenticateExtensionCredential(request: Request, scope: string): Promise<UserAccount> {
   return (await authenticateExtensionConnection(request, scope)).user;
 }
-export async function authenticateExtensionConnection(request: Request, scope: string): Promise<{ user: UserAccount; expires_at: string }> {
+export async function authenticateExtensionConnection(request: Request, scope: string): Promise<{ user: UserAccount; expires_at: string; scopes: string[] }> {
   const header = request.headers.get('authorization') || '';
   if (!/^Bearer jh_capture_[A-Za-z0-9_-]{43}$/.test(header)) throw new CaptureError(401, 'INVALID_CREDENTIAL', 'An extension capture credential is required.');
   const hash = secretHash(header.slice(7)), sql = getDatabaseClient();
@@ -64,7 +64,7 @@ export async function authenticateExtensionConnection(request: Request, scope: s
   if (!credential.scopes.includes(scope)) throw new CaptureError(403, 'INSUFFICIENT_SCOPE', 'Credential does not allow this action.');
   const user = await getUserById(credential.owner);
   if (!user) throw new CaptureError(401, 'INVALID_CREDENTIAL', 'The connected account is unavailable.');
-  return { user, expires_at: new Date(credential.expires_at).toISOString() };
+  return { user, expires_at: new Date(credential.expires_at).toISOString(), scopes: credential.scopes };
 }
 
 /** URL identity is deliberately conservative: never discard a query or fragment.
