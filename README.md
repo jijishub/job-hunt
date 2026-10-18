@@ -77,13 +77,13 @@ Unknown posting facts stay unknown: JSON imports and new records no longer assum
 
 Saved-role assessments preserve edits made while AI is running. If the record changes, reload it before assessing again.
 
-The new extension capture flow is designed to assess a posting against a selected local resume variant through the extension's configured AI gateway, then send the posting and completed result together. The tracker validates and saves them without running AI for that import. Existing server-side role fit and Gemini JSON import remain available. This aims to reduce server work; database usage still needs measurement before claiming cost savings.
+The deployed extension API saves postings and extension-generated fits without fetching your server resume or rerunning AI. New roles start at **Not started**; duplicate imports preserve existing edits, ratings and priority. Server-side role fit and Gemini import remain available. Create a revocable 24-hour credential in **My preferences → Job Hunt extension**. See the [capture contract](EXTENSION-CAPTURE-CONTRACT.md) for source preservation, provenance and delivery rules.
 
-The capture API and revocable 24-hour credentials under **My preferences → Job Hunt extension → Create extension credential** are deployed at **https://jobhunt.jizellecasia.site**. Capture delivery preserves source evidence, links exact duplicate openings, and saves new roles as Not started. New records retain supplied fit and resume/model provenance; existing records keep their fields, ratings and priority. The extension handoff now permits this HTTPS origin and loopback development. Deployment success and live authentication/error handling have been checked; authenticated capture delivery and production database-target equivalence remain unverified. Required schema is present on the configured primary connection; no migration was run during this verification. See [production integration evidence](PRODUCTION-INTEGRATION.md) and the [capture API contract](EXTENSION-CAPTURE-CONTRACT.md).
-
-Extensions can opt into read-only saved preferences and live change events using a new credential with **Share saved preferences and live updates** checked. See the [preference API contract](EXTENSION-PREFERENCES-CONTRACT.md). The extension must subscribe to this API to use it; the API does not automatically update existing fits.
+Check **Share saved preferences and live updates** when creating a new credential to allow read-only preference syncing. The extension must [subscribe to the preference API](EXTENSION-PREFERENCES-CONTRACT.md); existing fits stay unchanged. Authenticated production delivery and database-target equivalence remain unverified; see [deployment evidence and schema status](PRODUCTION-INTEGRATION.md). Usage savings have not been measured.
 
 ### Analytics from your saved records
+
+Archived jobs remain included in Analytics with their recorded hiring history. Archiving alone does not count as rejection; roles you never applied to remain **Not submitted**.
 
 Analytics reuses saved applications, assessments, and preferences. Loading the dashboard, changing scope, reviewing charts, and exporting a PDF never generate new AI assessments. Missing fit ratings stay **Unassessed**. The optional **Pipeline insights** card above the charts interprets computed statistics with your saved resume, assessments and preferences only after a click. Successful results are saved per scope, marked outdated after data changes, and preserved after failed retries.
 
