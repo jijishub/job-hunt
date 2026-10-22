@@ -31,6 +31,18 @@ function loader(overrides = {}) {
   return load;
 }
 const postingText = 'Requirements:\n- Build reliable TypeScript services with SQL databases.\n- Support customers and document production incidents.\n- Work with the team to test and deploy changes.';
+function legacyCredentials() {
+  return [
+    { id: randomUUID(), owner: 'legacy', label: 'Working pilot', token_hash: 'legacy-working', scopes: ['captures:read'], created_at: '2020-01-01T00:00:00Z', expires_at: '2099-01-01T00:00:00Z', revoked_at: null },
+    { id: randomUUID(), owner: 'legacy', label: 'Expired pilot', token_hash: 'legacy-expired', scopes: ['captures:read'], created_at: '2020-01-01T00:00:00Z', expires_at: '2020-01-02T00:00:00Z', revoked_at: null },
+    { id: randomUUID(), owner: 'legacy', label: 'Revoked pilot', token_hash: 'legacy-revoked', scopes: ['captures:read'], created_at: '2020-01-01T00:00:00Z', expires_at: '2099-01-01T00:00:00Z', revoked_at: '2020-01-02T00:00:00Z' },
+  ];
+}
+function assertMigratedCredentials(rows) {
+  assert.equal(rows.find(c => c.token_hash === 'legacy-working').expires_at, null, 'working pilot pairing becomes non-expiring');
+  assert.ok(rows.find(c => c.token_hash === 'legacy-expired').expires_at, 'expired credentials are not revived');
+  assert.ok(rows.find(c => c.token_hash === 'legacy-revoked').revoked_at, 'revoked credentials stay revoked');
+}
 function fixture(extra = {}) {
   return { schema_version: 1, capture_id: randomUUID(), captured_at: '2026-10-18T06:00:00Z',
     posting: { role_title: 'Support Engineer', company_name: 'Example', description: postingText, qualifications: [],
@@ -141,7 +153,14 @@ async function exercise(load, setSession, expire, inspect) {
   const connected = await connection.GET(new Request('http://local/api/v1/connection', { headers: { Authorization: `Bearer ${token}` } }));
   assert.equal(connected.status, 200);
   const connectedData = await connected.json(); assert.equal(connectedData.account.id, user.id);
-  assert.equal(connectedData.expires_at, new Date(credential.expires_at).toISOString(), 'connection returns the issued credential expiry');
+  assert.equal(credential.expires_at, null, 'new credentials never expire');
+  assert.equal(connectedData.expires_at, null, 'connection explicitly advertises no expiry');
+  assert.equal((await manage.POST(createRequest())).status, 409, 'an active credential prevents accidental duplicates');
+  const originalNow = Date.now;
+  try {
+    Date.now = () => originalNow() + 3650 * 86400000;
+    assert.equal((await connection.GET(new Request('http://local/api/v1/connection', { headers: { Authorization: `Bearer ${token}` } }))).status, 200, 'credential still works years later');
+  } finally { Date.now = originalNow; }
   assert.equal(connectedData.token, undefined); assert.equal(connectedData.token_hash, undefined);
   assert.equal(connectedData.capabilities.assessments, false); assert.equal(connectedData.limits.max_capture_bytes, 262144);
   assert.equal(connectedData.capabilities.extension_assessments, true);
@@ -207,11 +226,13 @@ async function exercise(load, setSession, expire, inspect) {
   setSession(user);
   assert.equal((await manage.DELETE(new Request('http://local/api/extension-credentials?id=' + credential.id, { method: 'DELETE', headers: { Origin: 'http://local' } }))).status, 200);
   assert.equal((await route.GET(lookup([body.capture_id]))).status, 401);
+  assert.deepEqual((await (await manage.GET()).json()).data, [], 'revoked credentials do not clutter the connection list');
   const expiring = await store.issueExtensionCredential(user.id, 'Expire'); await expire(expiring.credential.id);
   assert.equal((await route.POST(request(fixture(), expiring.token))).status, 401);
   assert.equal((await connection.GET(new Request('http://local/api/v1/connection', { headers: { Authorization: `Bearer ${expiring.token}` } }))).status, 401);
+  assert.deepEqual((await (await manage.GET()).json()).data, [], 'expired legacy credentials remain invalid and hidden');
   const limited = await Promise.allSettled(Array.from({ length: 6 }, () => store.issueExtensionCredential(user.id, 'Limit test')));
-  assert.equal(limited.filter(r => r.status === 'fulfilled').length, 5);
+  assert.equal(limited.filter(r => r.status === 'fulfilled').length, 1);
   assert.equal(limited.find(r => r.status === 'rejected').reason.code, 'CREDENTIAL_LIMIT');
   for (const result of limited) if (result.status === 'fulfilled') await store.revokeExtensionCredential(user.id, result.value.credential.id);
   return { user, store, db, route };
@@ -225,6 +246,9 @@ test('local authenticated ingestion preserves ownership, unknowns, idempotency, 
       resolve: (...parts) => parts.length === 1 && parts[0] === process.env.DB_LOCAL_DIR ? dir : path.resolve(...parts) };
     const load = loader({ path: wrappedPath, [path.join(root, 'src/lib/database.ts')]: { getDatabaseClient: () => null }, '@/lib/session-account': { getSessionAccount: async () => session } });
     const db = load('src/lib/db.ts');
+    const legacy = db.readLocalCaptureDatabase();
+    legacy.extension_credentials = legacyCredentials(); db.writeLocalCaptureDatabase(legacy);
+    assertMigratedCredentials(db.readLocalCaptureDatabase().extension_credentials);
     await exercise(load, value => { session = value; }, async id => {
       const data = db.readLocalCaptureDatabase(); data.extension_credentials.find(c => c.id === id).expires_at = '2020-01-01T00:00:00Z'; db.writeLocalCaptureDatabase(data);
     }, async () => db.readLocalCaptureDatabase());
@@ -241,7 +265,11 @@ test('real PostgreSQL capture ingestion is atomic and handles concurrent identit
     sql.transaction = queries => pg.transaction(async tx => { const rows = []; for (const query of queries) rows.push((await tx.query(query.text, query.values)).rows); return rows; });
     let session = null;
     const load = loader({ [path.join(root, 'src/lib/database.ts')]: { getDatabaseClient: () => sql }, '@/lib/session-account': { getSessionAccount: async () => session } });
+    // Start with the old NOT NULL schema to exercise the production upgrade.
+    await pg.exec('CREATE TABLE extension_credentials (id TEXT PRIMARY KEY, owner TEXT NOT NULL, label TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, scopes JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL, expires_at TIMESTAMPTZ NOT NULL, revoked_at TIMESTAMPTZ)');
+    for (const c of legacyCredentials()) await pg.query('INSERT INTO extension_credentials VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [c.id, c.owner, c.label, c.token_hash, JSON.stringify(c.scopes), c.created_at, c.expires_at, c.revoked_at]);
     await load('src/lib/db.ts').migrateDatabase();
+    assertMigratedCredentials((await pg.query("SELECT * FROM extension_credentials WHERE owner='legacy'")).rows);
     const context = await exercise(load, value => { session = value; }, async id => { await pg.query("UPDATE extension_credentials SET expires_at='2020-01-01' WHERE id=$1", [id]); }, async () => (await pg.query('SELECT * FROM extension_credentials')).rows);
     const body = fixture(); body.posting.job_url = 'https://example.com/rollback';
     const token = await context.store.issueExtensionCredential(context.user.id, 'Rollback');

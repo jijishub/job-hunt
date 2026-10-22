@@ -41,7 +41,7 @@ If the authoritative production target differs and lacks prerequisites, the exis
 
 ## Credential creation and imports
 
-Sign in at the canonical origin, then open **My preferences → Job Hunt extension → Create extension credential**. Copy the one-time secret into the extension's tracker pairing UI. It is separate from the AI key, lasts 24 hours, and grants `captures:read` and `captures:write`, with optional read-only `preferences:read` when sharing is selected; see [the preference API](EXTENSION-PREFERENCES-CONTRACT.md). The same card lists metadata and supports revocation. Keep secrets out of chat and reports.
+Sign in at the canonical origin, then open **My preferences → Job Hunt extension → Create extension credential**. Copy the one-time secret into the extension's tracker pairing UI. It is separate from the AI key, stays valid until revoked, and grants `captures:read` and `captures:write`, with optional read-only `preferences:read` when sharing is selected; see [the preference API](EXTENSION-PREFERENCES-CONTRACT.md). The same card lists metadata and supports revocation. Keep secrets out of chat and reports.
 
 The deployed implementation requires `request_assessment:false`, validates optional completed `extension_assessment`, and saves capture/receipt/new lead atomically. It does not load a server resume/preferences, call AI, or enqueue an assessment. Supplied fit applies only to a new Not started role; an existing opening keeps all fields and stores fit provenance with `stored_only`.
 

@@ -8,7 +8,7 @@ import { CaptureError, captureUuid, type validateCapture } from './capture-valid
 
 export interface ExtensionCredential {
   id: string; owner: string; label: string; token_hash: string; scopes: string[];
-  created_at: string; expires_at: string; revoked_at: string | null;
+  created_at: string; expires_at: string | null; revoked_at: string | null;
 }
 export interface CaptureRecord {
   owner: string; capture_id: string; request_hash: string; identity_key: string; application_id: string | null;
@@ -22,26 +22,26 @@ export async function issueExtensionCredential(owner: string, label: string, sha
   const secret = `jh_capture_${randomBytes(32).toString('base64url')}`;
   const now = new Date(), sql = getDatabaseClient();
   const credential: ExtensionCredential = { id: randomUUID(), owner, label, token_hash: secretHash(secret),
-    scopes: ['captures:read', 'captures:write', ...(sharePreferences ? ['preferences:read'] : [])], created_at: now.toISOString(), expires_at: new Date(now.getTime() + 86400000).toISOString(), revoked_at: null };
+    scopes: ['captures:read', 'captures:write', ...(sharePreferences ? ['preferences:read'] : [])], created_at: now.toISOString(), expires_at: null, revoked_at: null };
   if (sql) {
     const result = await sql.transaction([
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${'capture-credentials:' + owner},0));`,
       sql`INSERT INTO extension_credentials(id,owner,label,token_hash,scopes,created_at,expires_at)
         SELECT ${credential.id},${owner},${label},${credential.token_hash},${JSON.stringify(credential.scopes)}::jsonb,${credential.created_at},${credential.expires_at}
-        WHERE (SELECT count(*) FROM extension_credentials WHERE owner=${owner} AND revoked_at IS NULL AND expires_at>NOW()) < 5 RETURNING id;`,
+        WHERE NOT EXISTS (SELECT 1 FROM extension_credentials WHERE owner=${owner} AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>NOW())) RETURNING id;`,
     ]);
     if (!result[1].length) throw new CaptureError(409, 'CREDENTIAL_LIMIT', 'Revoke an active credential before creating another.');
   } else {
     const db = readLocalCaptureDatabase();
-    if ((db.extension_credentials || []).filter(c => c.owner === owner && !c.revoked_at && c.expires_at > credential.created_at).length >= 5) throw new CaptureError(409, 'CREDENTIAL_LIMIT', 'Revoke an active credential before creating another.');
+    if ((db.extension_credentials || []).some(c => c.owner === owner && !c.revoked_at && (c.expires_at === null || c.expires_at > credential.created_at))) throw new CaptureError(409, 'CREDENTIAL_LIMIT', 'Revoke an active credential before creating another.');
     (db.extension_credentials ??= []).push(credential); writeLocalCaptureDatabase(db);
   }
   return { credential: publicCredential(credential), token: secret };
 }
 export async function listExtensionCredentials(owner: string) {
   const sql = getDatabaseClient();
-  const rows = sql ? await sql`SELECT id,owner,label,scopes,created_at,expires_at,revoked_at FROM extension_credentials WHERE owner=${owner} ORDER BY created_at DESC;`
-    : (readLocalCaptureDatabase().extension_credentials || []).filter(c => c.owner === owner).map(publicCredential);
+  const rows = sql ? await sql`SELECT id,owner,label,scopes,created_at,expires_at,revoked_at FROM extension_credentials WHERE owner=${owner} AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>NOW()) ORDER BY created_at DESC;`
+    : (readLocalCaptureDatabase().extension_credentials || []).filter(c => c.owner === owner && !c.revoked_at && (c.expires_at === null || Date.parse(c.expires_at) > Date.now())).map(publicCredential);
   return rows;
 }
 export async function revokeExtensionCredential(owner: string, id: string) {
@@ -54,17 +54,17 @@ export async function revokeExtensionCredential(owner: string, id: string) {
 export async function authenticateExtensionCredential(request: Request, scope: string): Promise<UserAccount> {
   return (await authenticateExtensionConnection(request, scope)).user;
 }
-export async function authenticateExtensionConnection(request: Request, scope: string): Promise<{ user: UserAccount; expires_at: string; scopes: string[] }> {
+export async function authenticateExtensionConnection(request: Request, scope: string): Promise<{ user: UserAccount; expires_at: string | null; scopes: string[] }> {
   const header = request.headers.get('authorization') || '';
   if (!/^Bearer jh_capture_[A-Za-z0-9_-]{43}$/.test(header)) throw new CaptureError(401, 'INVALID_CREDENTIAL', 'An extension capture credential is required.');
   const hash = secretHash(header.slice(7)), sql = getDatabaseClient();
-  const credential = sql ? (await sql`SELECT owner,scopes,expires_at FROM extension_credentials WHERE token_hash=${hash} AND revoked_at IS NULL AND expires_at>NOW();`)[0]
-    : readLocalCaptureDatabase().extension_credentials?.find(c => c.token_hash === hash && !c.revoked_at && Date.parse(c.expires_at) > Date.now());
+  const credential = sql ? (await sql`SELECT owner,scopes,expires_at FROM extension_credentials WHERE token_hash=${hash} AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>NOW());`)[0]
+    : readLocalCaptureDatabase().extension_credentials?.find(c => c.token_hash === hash && !c.revoked_at && (c.expires_at === null || Date.parse(c.expires_at) > Date.now()));
   if (!credential) throw new CaptureError(401, 'INVALID_CREDENTIAL', 'The extension credential has expired or was revoked.');
   if (!credential.scopes.includes(scope)) throw new CaptureError(403, 'INSUFFICIENT_SCOPE', 'Credential does not allow this action.');
   const user = await getUserById(credential.owner);
   if (!user) throw new CaptureError(401, 'INVALID_CREDENTIAL', 'The connected account is unavailable.');
-  return { user, expires_at: new Date(credential.expires_at).toISOString(), scopes: credential.scopes };
+  return { user, expires_at: credential.expires_at === null ? null : new Date(credential.expires_at).toISOString(), scopes: credential.scopes };
 }
 
 /** URL identity is deliberately conservative: never discard a query or fragment.

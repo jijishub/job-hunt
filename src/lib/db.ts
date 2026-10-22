@@ -145,7 +145,16 @@ function writeLocalDb(data: LocalDatabase): void {
 // capture receipt and its lead are persisted by one atomic file replacement.
 export function readLocalCaptureDatabase() {
   if (getPostgresClient()) throw new Error('Local capture storage cannot be used with PostgreSQL.');
-  return readLocalDb();
+  const db = readLocalDb();
+  let changed = false;
+  for (const credential of db.extension_credentials || []) {
+    if (!credential.revoked_at && credential.expires_at && Date.parse(credential.expires_at) > Date.now()) {
+      credential.expires_at = null;
+      changed = true;
+    }
+  }
+  if (changed) writeLocalDb(db);
+  return db;
 }
 export function writeLocalCaptureDatabase(data: LocalDatabase) { writeLocalDb(data); }
 

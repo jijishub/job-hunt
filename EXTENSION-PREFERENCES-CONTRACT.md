@@ -4,7 +4,7 @@ Canonical origin: `https://jobhunt.jizellecasia.site`. This API lets the extensi
 
 ## Pairing and permissions
 
-In **My preferences → Job Hunt extension**, check **Share saved preferences and live updates** before creating a credential. The signed-in same-origin issuance request is `{ "label": "My browser", "share_preferences": true }`. This adds the read-only `preferences:read` scope to the existing capture scopes. Unchecked or omitted leaves capture-only behavior unchanged. Existing tokens do not gain access; create a replacement and revoke the old one. Expiry remains 24 hours, the secret is displayed once, and account ownership comes exclusively from the token.
+In **My preferences → Job Hunt extension**, check **Share saved preferences and live updates** before creating a credential. The signed-in same-origin issuance request is `{ "label": "My browser", "share_preferences": true }`. This adds the read-only `preferences:read` scope to the existing capture scopes. Unchecked or omitted leaves capture-only behavior unchanged. Existing tokens do not gain access; revoke the old credential before creating a replacement. Credentials stay valid until revoked, the secret is displayed once, and account ownership comes exclusively from the token.
 
 `GET /api/v1/connection` adds boolean `capabilities.preferences` and `capabilities.preference_events`, true only when that credential has the scope. No preference write, resume read or account administration scope exists.
 
