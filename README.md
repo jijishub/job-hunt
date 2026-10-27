@@ -142,6 +142,7 @@ Application saves finish after database persistence. Administrator Notion sync r
 | `npm run db:metrics -- LOG_FILE` | Summarize opt-in database/API metadata logs without connecting to the database. |
 | `npm run build` | Create the production build without changing database schema or data. |
 | `npm run db:migrate` | Apply database setup and migrations explicitly. |
+| `npm run db:migrate:credentials` | Apply targeted extension credential expiry migration explicitly. |
 | `npm run start` | Serve the production build. |
 | `npm run test:pipeline` | Check analytics, application APIs, and persistence. |
 | `npm run test:core` | Check pipeline, lead storage, Notion retry behavior, and secret configuration. |

@@ -39,6 +39,12 @@ No missing capture schema was found on that connection. No migration, setup, res
 
 If the authoritative production target differs and lacks prerequisites, the existing migration entrypoint is `npm run db:migrate` (`scripts/migrate_db.cjs` → `migrateDatabase` in `src/lib/db.ts`, including `migrateCaptureSchema` in `src/lib/capture-schema.ts`). Target it only at the approved Vercel **production** `POSTGRES_URL`/`DATABASE_URL`, never the development database. The exact capture changes are the four application ALTER statements for nullability, currency default and record version, plus the two CREATE TABLE and two CREATE INDEX statements in `capture-schema.ts`. Review the full entrypoint before execution: it also seeds/updates users, deletes a legacy demo user, moves legacy leads and archives duplicate rows. The repository requires a separately approved migration window; the extension handoff explicitly preserves that requirement. Do not run this broad migration merely to reconfirm already-present capture objects.
 
+## Non-expiring credential rollout
+
+On October 22, 2026 (Asia/Shanghai), the configured primary connection still had `expires_at NOT NULL`. The targeted credential migration completed and verified that expiry is now nullable. No broad migration ran. Authenticated issuance on the live site and equivalence between this connection and the live deployment remain unverified.
+
+If credential creation returns `503 CAPTURE_UNAVAILABLE` after deploying non-expiring credentials, check whether `extension_credentials.expires_at` still has a NOT NULL constraint. New credentials insert `null` for expiry. For an existing credential table, run `npm run db:migrate:credentials` against the production connection. It only makes expiry nullable and upgrades still-valid credentials, in one transaction; expired and revoked credentials remain invalid. It avoids the unrelated maintenance in the broad migration. Confirm that the configured connection is the live deployment's target.
+
 ## Credential creation and imports
 
 Sign in at the canonical origin, then open **My preferences → Job Hunt extension → Create extension credential**. Copy the one-time secret into the extension's tracker pairing UI. It is separate from the AI key, stays valid until revoked, and grants `captures:read` and `captures:write`, with optional read-only `preferences:read` when sharing is selected; see [the preference API](EXTENSION-PREFERENCES-CONTRACT.md). The same card lists metadata and supports revocation. Keep secrets out of chat and reports.

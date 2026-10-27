@@ -9,6 +9,7 @@
     "db:metrics": "node scripts/report_database_metrics.cjs",
     "logos:prepare": "node scripts/prepare_logo_migration.cjs",
     "db:migrate": "node scripts/migrate_db.cjs",
+    "db:migrate:credentials": "node scripts/migrate_extension_credentials.cjs",
     "db:migrate:dev": "node scripts/migrate_db.cjs --development",
     "test:save:ui": "node --test scripts/test_save_ui.cjs",
     "start": "next start",
