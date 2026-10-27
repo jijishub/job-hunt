@@ -8,7 +8,7 @@ import { validRoleFit } from '@/lib/role-fit';
 import { NextResponse } from 'next/server';
 import { getApplications, createApplication, getOrCreateCompany, getCompanies, getCandidatePreferences } from '@/lib/db';
 import { stageForStatus } from '@/lib/analytics-stages';
-import { isArchivedApplication } from '@/lib/application-workflow';
+import { isArchivedApplication, isScreeningOrProgression } from '@/lib/application-workflow';
 import { pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
 import { scheduleApplicationNotionSync } from '@/lib/application-notion-sync';
 import { normalizeOfferFields } from '@/lib/salary-offers';
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     if (body.not_proceeding != null && typeof body.not_proceeding !== 'boolean') return NextResponse.json({ success: false, error: 'Invalid Not Proceeding flag.' }, { status: 400 });
     body.owner = user.id;
     if (body.role_fit != null && !validRoleFit(body.role_fit)) return NextResponse.json({ success: false, error: 'Invalid role fit.' }, { status: 400 });
-    const {
+    let {
       company_name,
       company_logo,
       company_website,
@@ -105,15 +105,20 @@ export async function POST(request: Request) {
     }
 
     const preferences = await getCandidatePreferences(user.id);
+    const targetNotionStatus = body.notion_status || (status === 'LEAD' ? 'Not started' : undefined);
+    const targetStage = stageForStatus(targetNotionStatus || status, status, preferences?.analytics_status_stages);
+    const targetStageIndex = ANALYTICS_STAGES.indexOf(targetStage);
+    date_applied = date_applied || (targetStageIndex >= 1 || status === 'APPLIED' ? new Date().toISOString() : undefined);
+    const finalFirstResponse = body.first_response_at || (isScreeningOrProgression(targetNotionStatus || status, status, preferences?.analytics_status_stages, preferences?.analytics_rejection_statuses) ? new Date().toISOString() : null);
     const newApp = await createApplication({
-      ...analyticsFieldUpdates(null, body),
+      ...analyticsFieldUpdates(null, { ...body, first_response_at: finalFirstResponse }),
       company_id: company?.id || undefined,
       company_name: company?.name || company_name.trim(),
       company_logo: company?.logo_url || company_logo,
       role_title,
       information: body.information ?? body.job_description,
       job_description: body.information ?? body.job_description,
-      analytics_stage: stageForStatus(body.notion_status || status, status, preferences?.analytics_status_stages),
+      analytics_stage: targetStage,
       not_proceeding: Boolean(body.not_proceeding),
       role_fit: body.role_fit || null,
       role_fit_source: body.role_fit ? (body.role_fit_source === 'ai' ? 'ai' : 'manual') : null,
@@ -132,7 +137,7 @@ export async function POST(request: Request) {
       offer_pay_period: body.offer_pay_period || 'MONTHLY',
       expected_salary_amount: body.expected_salary_amount ?? null,
       expected_salary_currency: body.expected_salary_currency || 'PHP',
-      expected_salary_pay_period: body.expected_salary_pay_period || 'MONTHLY',
+      expected_salary_pay_period: body.expected_salary_pay_period || 'MONTHLY', first_response_at: finalFirstResponse,
       contact_name,
       contact_email,
       date_applied,
@@ -140,7 +145,7 @@ export async function POST(request: Request) {
       notes,
       owner: body.owner,
       source: body.source,
-      notion_status: body.notion_status || (status === 'LEAD' ? 'Not started' : undefined),
+      notion_status: targetNotionStatus,
       sync_status: 'PENDING',
     });
 

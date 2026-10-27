@@ -51,7 +51,7 @@ The analytics are the part I get excited about: which roles reach interviews, ho
 3. **Track what happens.** Update hiring stages, record the actual first employer response date, and add an offer when it arrives.
 4. **Explore your progress.** Review the patterns in Analytics and decide what to try next.
 
-New applications start at **Not started** with today's date; both are editable. Role-fit analysis runs when you request it. AI discovery provides search ideas to research, and leads stay separate until you mark them applied. Salary comparisons pair the same application with matching currency and pay period.
+New leads and applications start at **Not started** without an applied date. When you first mark or save an application as **Applied**, today's date is automatically captured on **Date applied** and kept. When you receive screening or progression (moving from Applied to Screening, Assessment, Interview, or custom progression statuses configured in My preferences), the **First employer response** timestamp is automatically captured as the date of that status switch and retained. Both dates remain editable. Role-fit analysis runs when you request it. AI discovery provides search ideas to research, and leads stay separate until you mark them applied. Salary comparisons pair the same application with matching currency and pay period.
 
 Use **Failed Assessment** for an unsuccessful assessment, whether online or in person. It belongs under **Archived / Rejected** on the board and retains **Screening** as its recruitment phase in analytics. The older **Failed Online Assessment** label is recognized as **Failed Assessment**.
 
@@ -95,7 +95,7 @@ Seniority uses explicit title keywords: **Junior AI Engineer** is Junior, while 
 
 Application age comes from the existing submission date and the reporting date; no age field is stored. The unanswered chart excludes closed and previously progressed applications, and keeps missing, invalid, or future dates under unknown age. Default ranges are **0–7, 8–14, 15–30, and 31+ days**. You can change the three boundaries in My preferences; they are display groups, not hiring benchmarks. Aging refreshes when the reporting day changes.
 
-Callback averages and medians require an actual saved **First employer response** timestamp. Status-history dates record saves, so they do not count as employer response or interview dates. The 7/14/30-day response rates exclude applications too recent to complete the window and report unknown timing separately. Time to interview remains unknown without a recorded interview event date. Counting rules and exclusions are available under **Data checks & counting rules** in Analytics.
+Callback averages and medians require an actual saved **First employer response** timestamp. Moving an application from Applied into a screening or progression status automatically captures this first response date (and respects custom status mappings from My preferences). Status-history dates record database saves, so other stage transitions do not overwrite your recorded first response date. The 7/14/30-day response rates exclude applications too recent to complete the window and report unknown timing separately. Time to interview remains unknown without a recorded interview event date. Counting rules and exclusions are available under **Data checks & counting rules** in Analytics.
 
 ## Built with
 

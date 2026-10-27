@@ -54,7 +54,7 @@ export async function PUT(
     delete body.id; delete body.owner; delete body.created_at; delete body.stage_history;
     Object.assign(body, analyticsFieldUpdates(existingApp, body));
     const preferences = await getCandidatePreferences(user.id);
-    Object.assign(body, applicationWorkflowUpdates(existingApp, body, preferences?.analytics_status_stages));
+    Object.assign(body, applicationWorkflowUpdates(existingApp, body, preferences?.analytics_status_stages, preferences?.analytics_rejection_statuses));
     const localArchiveChange = isArchivedApplication(existingApp) !== isArchivedApplication({ ...existingApp, ...body });
     const ensureCompany = body.ensure_company === true;
     delete body.ensure_company;

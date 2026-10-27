@@ -289,10 +289,18 @@ export default function JobHuntDashboard() {
         a.id === id
           ? {
               ...a,
-              ...applicationWorkflowUpdates(a, { status: newStatus, notion_status: notionStatusName }),
+              ...applicationWorkflowUpdates(a, { status: newStatus, notion_status: notionStatusName }, workflowPreferences.analytics_status_stages, workflowPreferences.analytics_rejection_statuses),
             }
           : a
       )
+    );
+    setSelectedApp((prev) =>
+      prev && prev.id === id
+        ? {
+            ...prev,
+            ...applicationWorkflowUpdates(prev, { status: newStatus, notion_status: notionStatusName }, workflowPreferences.analytics_status_stages, workflowPreferences.analytics_rejection_statuses),
+          }
+        : prev
     );
     try {
       const response = await fetch(`/api/applications/${id}`, {
@@ -306,6 +314,9 @@ export default function JobHuntDashboard() {
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Failed to update status');
       setApplications((prev) => prev.map((app) => app.id === id ? result.data : app));
+      if (selectedApp?.id === id) {
+        setSelectedApp(result.data);
+      }
       if (result.sync_error) alert(`Application saved. Notion sync failed: ${result.sync_error}`);
     } catch (e) {
       console.error('Failed to update status:', e);

@@ -906,3 +906,54 @@ test('removed preset lead feed stays empty for every authenticated account', asy
  for(const role of ['admin','member']){user={id:role,role};const response=await route.GET(new Request('http://local/api/leads?role=admin&q=React&source=LinkedIn'));assert.equal(response.status,200);const result=await response.json();assert.deepEqual(result.data,[]);assert.equal(result.portfolioConnected,false);assert.equal(result.matchedProfile,undefined);}
  user=null;assert.equal((await route.GET()).status,401);
 });
+
+test('automatic capture and retention for date_applied and first_response_at', async () => {
+ const workflow = loader()('src/lib/application-workflow.ts');
+ const { isScreeningOrProgression, applicationWorkflowUpdates } = workflow;
+
+ assert.equal(isScreeningOrProgression('Not started', 'LEAD'), false);
+ assert.equal(isScreeningOrProgression('Applied', 'APPLIED'), false);
+ assert.equal(isScreeningOrProgression('Screening', 'SCREENING'), true);
+ assert.equal(isScreeningOrProgression('Assessment', 'SCREENING'), true);
+ assert.equal(isScreeningOrProgression('Initial Interview', 'INTERVIEWING'), true);
+ assert.equal(isScreeningOrProgression('Technical Interview', 'INTERVIEWING'), true);
+ assert.equal(isScreeningOrProgression('Final Interview', 'INTERVIEWING'), true);
+ assert.equal(isScreeningOrProgression('Accepted', 'ACCEPTED'), true);
+ assert.equal(isScreeningOrProgression('Not Accepted', 'REJECTED'), false);
+ assert.equal(isScreeningOrProgression('Failed Assessment', 'REJECTED'), false);
+ assert.equal(isScreeningOrProgression('Not Proceeding', 'WITHDRAWN'), false);
+ assert.equal(isScreeningOrProgression('Custom Review', 'APPLIED', { 'custom review': 'SCREENING' }), true);
+
+ const lead = sample({ status: 'LEAD', notion_status: 'Not started', date_applied: undefined });
+ const applied = applicationWorkflowUpdates(lead, { status: 'APPLIED', notion_status: 'Applied' });
+ assert.ok(applied.date_applied);
+ assert.equal(applied.first_response_at, undefined);
+
+ const keptApplied = applicationWorkflowUpdates(applied, { notes: 'Updated notes' });
+ assert.equal(keptApplied.date_applied, applied.date_applied);
+
+ const existingDate = '2026-10-15T00:00:00.000Z';
+ const manualApp = sample({ status: 'LEAD', date_applied: existingDate });
+ const updatedManual = applicationWorkflowUpdates(manualApp, { status: 'APPLIED', notion_status: 'Applied' });
+ assert.equal(updatedManual.date_applied, existingDate);
+
+ const inScreening = applicationWorkflowUpdates(applied, { status: 'SCREENING', notion_status: 'Screening' });
+ assert.ok(inScreening.first_response_at);
+ assert.equal(inScreening.date_applied, applied.date_applied);
+
+ const inInterview = applicationWorkflowUpdates(inScreening, { status: 'INTERVIEWING', notion_status: 'Technical Interview' });
+ assert.equal(inInterview.first_response_at, inScreening.first_response_at);
+
+ const inAssessment = applicationWorkflowUpdates(applied, { status: 'SCREENING', notion_status: 'Online Assessment' });
+ assert.ok(inAssessment.first_response_at);
+
+ const inCustom = applicationWorkflowUpdates(applied, { status: 'APPLIED', notion_status: 'Custom Review' }, { 'custom review': 'SCREENING' });
+ assert.ok(inCustom.first_response_at);
+
+ const rejected = applicationWorkflowUpdates(applied, { status: 'REJECTED', notion_status: 'Not Accepted' });
+ assert.equal(rejected.first_response_at, undefined);
+
+ const explicitDate = '2026-10-20T12:00:00.000Z';
+ const overridden = applicationWorkflowUpdates(applied, { status: 'SCREENING', notion_status: 'Screening', first_response_at: explicitDate });
+ assert.equal(overridden.first_response_at, explicitDate);
+});

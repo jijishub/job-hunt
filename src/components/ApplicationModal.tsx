@@ -1,8 +1,8 @@
 'use client';
 
 import { CURRENCIES } from '@/lib/currencies';
-import { ANALYTICS_STAGES, STAGE_LABELS, reachedStage, AnalyticsStage } from '@/lib/analytics-stages';
-import { isArchivedApplication } from '@/lib/application-workflow';
+import { ANALYTICS_STAGES, STAGE_LABELS, reachedStage, stageForStatus, AnalyticsStage } from '@/lib/analytics-stages';
+import { isArchivedApplication, isScreeningOrProgression } from '@/lib/application-workflow';
 import CloseButton from './CloseButton';
 import CurrencyInput from './CurrencyInput';
 import { OFFER_PAY_PERIODS } from '@/lib/salary-offers';
@@ -88,6 +88,10 @@ function localDateTime(value?: string | null) {
   if (!Number.isFinite(date.getTime())) return '';
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${String(date.getMilliseconds()).padStart(3, '0')}`;
+}
+function getTodayDateString(): string {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 }
 
 export default function ApplicationModal({
@@ -261,7 +265,13 @@ export default function ApplicationModal({
       setJobUrl(initialData.job_url || '');
       setContactName(initialData.contact_name || '');
       setContactEmail(initialData.contact_email || '');
-      setDateApplied(initialData.date_applied ? initialData.date_applied.split('T')[0] : '');
+      if (initialData.date_applied) {
+        setDateApplied(initialData.date_applied.split('T')[0]);
+      } else if (!initialData.id && (initialData.status === 'APPLIED' || resolvedNotionStatus === 'Applied')) {
+        setDateApplied(getTodayDateString());
+      } else {
+        setDateApplied('');
+      }
       setNotes(initialData.notes || '');
       setOwner(initialData.owner || currentUserId || users?.[0]?.id || 'admin');
     } else {
@@ -281,8 +291,8 @@ export default function ApplicationModal({
       setJobUrl('');
       setContactName('');
       setContactEmail('');
-      const today = new Date();
-      setDateApplied(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`);
+      setDateApplied('');
+
       setNotes('');
       setOwner(currentUserId || users?.[0]?.id || 'admin');
     }
@@ -351,6 +361,14 @@ export default function ApplicationModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting || !roleTitle.trim() || !companyName.trim()) return;
+    const stage = stageForStatus(notionStatus, status, analyticsMapping);
+    const stageIndex = ANALYTICS_STAGES.indexOf(stage);
+    const computedDateApplied = dateApplied
+      ? new Date(dateApplied).toISOString()
+      : ((stageIndex >= 1 || status === 'APPLIED') ? new Date().toISOString() : undefined);
+    const computedFirstResponse = firstResponse
+      ? new Date(firstResponse).toISOString()
+      : (isScreeningOrProgression(notionStatus, status, analyticsMapping) && (!initialData?.id || initialData.status === 'APPLIED') ? new Date().toISOString() : null);
 
     setIsSubmitting(true);
     try {
@@ -364,7 +382,7 @@ export default function ApplicationModal({
         seniority_level: seniorityOverride,
         seniority_level_source: seniorityOverride ? 'manual' : 'derived',
         job_platform: jobPlatform.trim() || null,
-        first_response_at: firstResponse ? new Date(firstResponse).toISOString() : null,
+        first_response_at: computedFirstResponse,
         company_name: companyName.trim(),
         company_logo: customLogoUrl || undefined,
         status,
@@ -388,7 +406,7 @@ export default function ApplicationModal({
         job_url: jobUrl.trim() || undefined,
         contact_name: contactName.trim() || undefined,
         contact_email: contactEmail.trim() || undefined,
-        date_applied: dateApplied ? new Date(dateApplied).toISOString() : undefined,
+        date_applied: computedDateApplied,
         notes: notes.trim(),
         owner: currentUserId || owner || 'admin',
       });
@@ -480,7 +498,16 @@ export default function ApplicationModal({
                         const chosen = e.target.value;
                         if (getStatusCategory(chosen) === 'WITHDRAWN' || /not proceeding/i.test(chosen)) { setNotProceeding(true); return; }
                         setNotionStatus(chosen);
-                        setStatus(statusOptions.find(option => option.name === chosen)?.category || getStatusCategory(chosen));
+                        const category = statusOptions.find(option => option.name === chosen)?.category || getStatusCategory(chosen);
+                        setStatus(category);
+                        const stage = stageForStatus(chosen, category, analyticsMapping);
+                        const stageIndex = ANALYTICS_STAGES.indexOf(stage);
+                        if ((stageIndex >= 1 || category === 'APPLIED') && !dateApplied) {
+                          setDateApplied(getTodayDateString());
+                        }
+                        if (isScreeningOrProgression(chosen, category, analyticsMapping) && !firstResponse) {
+                          setFirstResponse(localDateTime(new Date().toISOString()));
+                        }
                       }}
                       className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs font-medium text-[#4A3E44] bg-white transition"
                     >
@@ -519,7 +546,16 @@ export default function ApplicationModal({
                               const newOpt = data.data;
                               setStatusOptions((prev) => [...prev, newOpt]);
                               setNotionStatus(newOpt.name);
-                              setStatus(newOpt.category || getStatusCategory(newOpt.name));
+                              const cat = newOpt.category || getStatusCategory(newOpt.name);
+                              setStatus(cat);
+                              const stage = stageForStatus(newOpt.name, cat, analyticsMapping);
+                              const stageIndex = ANALYTICS_STAGES.indexOf(stage);
+                              if ((stageIndex >= 1 || cat === 'APPLIED') && !dateApplied) {
+                                setDateApplied(getTodayDateString());
+                              }
+                              if (isScreeningOrProgression(newOpt.name, cat, analyticsMapping) && !firstResponse) {
+                                setFirstResponse(localDateTime(new Date().toISOString()));
+                              }
                               setNewStatusInput('');
                               setIsAddingCustomStatus(false);
                             }
