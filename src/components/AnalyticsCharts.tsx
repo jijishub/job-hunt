@@ -14,7 +14,7 @@ export default function AnalyticsCharts({ stats, onReview, section = 'all' }: { 
   const metricLabel = metric === 'offerRate' ? 'Offers' : metric === 'rejectionRate' ? 'Rejections' : 'Screening or later';
   if (!stats.total && section !== 'all' && section !== 'pipeline') return null;
   if (!stats.total) return <section className={card}><h3 className="font-semibold">Your charts start here</h3><p className="mt-2 text-sm text-[#736A6D]">Add an application to see your progress. Unassessed roles can stay unassessed.</p></section>;
-  return <div className={section === 'all' ? 'grid gap-4 lg:grid-cols-2' : 'contents'}>
+  return <div className={section === 'fit' || section === 'outcomes' ? 'contents' : 'grid gap-4 lg:grid-cols-2'}>
     {(section === 'all' || section === 'pipeline') && <section className={card} aria-label="Pipeline progression chart">
       <h3 className="text-sm font-bold">Reached or passed</h3>
       <p className="mt-1 mb-4 text-xs text-[#736A6D]">Earlier phases may be inferred. Click a segment to review its roles.</p>
@@ -78,7 +78,7 @@ export default function AnalyticsCharts({ stats, onReview, section = 'all' }: { 
           {stats.activity.map((month, index) => {
             const height = month.count / Math.max(2, Math.ceil(Math.max(0, ...stats.activity.map(item => item.count)) / 2) * 2) * 120;
             const select = () => onReview({ kind: 'month', value: month.month, label: month.label });
-            return <g key={month.month} role="button" tabIndex={0} aria-label={`Review ${month.count} applications in ${month.label}`} onClick={select} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(); } }} className="cursor-pointer">
+            return <g key={month.month} role="button" tabIndex={0} aria-label={`Review ${month.count} applications in ${month.label}`} onClick={select} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(); } }} className="cursor-pointer focus:outline-none">
               <title>{month.label}: {month.count} submitted applications</title><rect x={44 + index * 55} y={155 - height} width="30" height={height} rx="4" fill="#A8CCF0" />
               <text x={59 + index * 55} y={147 - height} textAnchor="middle" fontSize="11" fill="#4A3E44">{month.count}</text><text x={59 + index * 55} y="177" textAnchor="middle" fontSize="10" fill="#736A6D">{month.label}</text>
             </g>;
