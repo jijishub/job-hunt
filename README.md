@@ -91,7 +91,7 @@ Check **Share saved preferences and live updates** when creating a new credentia
 
 Archived jobs remain included in Analytics with their recorded hiring history. Archiving alone does not count as rejection; roles you never applied to remain **Not submitted**.
 
-Analytics reuses saved applications, assessments, and preferences. Loading the dashboard, changing scope, reviewing charts, and exporting a PDF never generate new AI assessments. Missing fit ratings stay **Unassessed**. The optional **Pipeline insights** card above the charts interprets computed statistics with your saved resume, assessments and preferences only after a click. Successful results are saved per scope, marked outdated after data changes, and preserved after failed retries.
+Analytics reuses saved applications, assessments, and preferences. Loading the dashboard, changing scope, reviewing charts, and exporting a PDF never generate new AI assessments. Missing fit ratings stay **Unassessed**. The dashboard focuses directly on deterministic metrics computed from your saved records.
 
 The dashboard and PDF follow four readable sections: **Pipeline, Effectiveness, Timing, and Career insights**. The branded PDF refreshes saved data at export time, contains no AI interpretations, and normally fits four pages. Click dashboard charts to review their applications; long preference targets or extra salary units can add a PDF appendix.
 

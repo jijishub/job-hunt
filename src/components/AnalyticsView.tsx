@@ -6,7 +6,6 @@ import { pipelineAnalytics, isInternship, uniqueApplications, currentOutcome, ap
 import AnalyticsComparisons from './AnalyticsComparisons';
 import AnalyticsAging from './AnalyticsAging';
 import AnalyticsCareer from './AnalyticsCareer';
-import PipelineInsights from './PipelineInsights';
 import { analyticsReportData } from '@/lib/analytics-report';
 import { jobTitleKeywords, KEYWORD_MIN_APPLICATIONS } from '@/lib/job-title-keywords';
 import { effectiveSeniority, SENIORITY_LEVELS } from '@/lib/application-analytics-fields';
@@ -134,7 +133,6 @@ export default function AnalyticsView({ applications, accountName, onEditApp, pr
       </div>
     </div>
     {message && <p role="status" className="rounded-xl bg-[#FFF0F6] p-3 text-xs text-[#9D3C5E]">{message}</p>}
-    <PipelineInsights scope={scope} dataVersion={signature} total={stats.total} />
     {preferenceError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{preferenceError} Reload to retry.</p>}
     {!preferencesReady ? <p role="status" className="text-sm text-[#736A6D]">{preferenceError ? 'Analytics paused until your saved settings load.' : 'Loading your analytics settings…'}</p> : <>
       {scope === 'ALL' && report.types.length > 1 && <p className="rounded-xl bg-[#FFF0F6] p-3 text-xs text-[#736A6D]">All combines internships and non-internship applications. Use the filter to compare them separately; historical and recent records have different observation time.</p>}
