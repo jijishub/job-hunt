@@ -127,17 +127,18 @@ export default function ResumeAnalyzerView({
       setLocation(selectedLocation);
       setSalaryRange(selectedSalaryRange);
       setWorkModel(selectedWorkModel);
+      setJobDescription(selectedJobDescription);
       if (selectedIsSummary) {
-        setJobDescription('');
         fetch(`/api/applications/${encodeURIComponent(selectedAppId)}`, { signal: controller.signal }).then(r => r.json()).then(result => {
           if (!result.success || !result.data) throw new Error(result.error || 'Job details could not be loaded.');
-          setJobDescription(result.data.information || result.data.job_description || '');
+          const fullDesc = result.data.information || result.data.job_description;
+          if (fullDesc) setJobDescription(fullDesc);
           if (result.data.location?.trim()) setLocation(result.data.location.trim());
           const fetchedSalary = formatSalaryRange(result.data.salary_min, result.data.salary_max, result.data.salary_currency);
           if (fetchedSalary.trim()) setSalaryRange(fetchedSalary.trim());
           if (result.data.work_model) setWorkModel(formatWorkModel(result.data.work_model));
         }).catch(error => { if (error.name !== 'AbortError') setError(error.message); });
-      } else setJobDescription(selectedJobDescription);
+      }
     }
     return () => controller.abort();
   }, [selectedAppId, hasSelectedApplication, selectedJobTitle, selectedCompanyName, selectedLocation, selectedSalaryRange, selectedWorkModel, selectedJobDescription, selectedIsSummary]);
@@ -862,6 +863,7 @@ export default function ResumeAnalyzerView({
           location={location}
           salaryRange={salaryRange}
           workModel={workModel}
+          jobDescription={jobDescription}
           candidateName={session?.user?.name || 'Candidate Profile'}
           reportRef={reportRef}
         />

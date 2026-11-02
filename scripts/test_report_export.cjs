@@ -49,6 +49,8 @@ async function run() {
     {
       const html = renderToStaticMarkup(React.createElement(Report, { result,
         jobTitle: 'Software Engineer', companyName: 'Example Company', candidateName: 'Test Candidate',
+        location: 'Metro Manila', salaryRange: 'PHP 100,000 – 150,000', workModel: 'Hybrid',
+        jobDescription: 'Develop high-performance frontends and workflow automation tools. Requires TypeScript, React, and Next.js.',
         reportRef: { current: null } }));
       await page.setContent(`<style>${css}</style>${html}<aside><img src="https://example.invalid/slow.png">${'<p>Unrelated app content</p>'.repeat(2000)}</aside>`, { waitUntil: 'domcontentloaded' });
       await page.addScriptTag({ content: compile('src/lib/report-pagination.ts').replace(

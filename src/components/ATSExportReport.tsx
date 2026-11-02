@@ -22,6 +22,7 @@ interface ATSExportReportProps {
   location?: string;
   salaryRange?: string;
   workModel?: string;
+  jobDescription?: string;
   candidateName?: string;
   reportRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -33,6 +34,7 @@ export default function ATSExportReport({
   location,
   salaryRange,
   workModel,
+  jobDescription,
   candidateName = 'Candidate Profile',
   reportRef,
 }: ATSExportReportProps) {
@@ -141,6 +143,18 @@ export default function ATSExportReport({
               </span>
             </div>
           </div>
+
+          {jobDescription && (
+            <div className="bg-[#FAF7F9] p-3.5 rounded-xl border border-[#F1DDE9]/60 space-y-1.5 mt-2.5">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#9D3C5E]">
+                <FileText className="w-3.5 h-3.5 text-[#FF7AB3]" />
+                <span>Job Description & Requirements</span>
+              </div>
+              <div className="text-xs text-[#4A3E44] leading-relaxed whitespace-pre-wrap font-sans">
+                {jobDescription}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ATS Scorecard & Executive Summary */}
