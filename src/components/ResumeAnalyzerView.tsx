@@ -9,6 +9,7 @@ import { captureReport } from '@/lib/report-capture';
 import { JobApplication } from '@/types/job';
 import { AIModelId, AVAILABLE_AI_MODELS, ResumeAnalysisResult } from '@/lib/ai-types';
 import { ATS_BROWSER_TIMEOUT_MS } from '@/lib/ai-request-limits';
+import { formatSalaryRange } from '@/lib/currencies';
 import {
   Sparkles,
   FileText,
@@ -51,8 +52,25 @@ export default function ResumeAnalyzerView({
   const [resumeText, setResumeText] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [location, setLocation] = useState('');
+  const [salaryRange, setSalaryRange] = useState('');
+  const [workModel, setWorkModel] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [selectedAppId, setSelectedAppId] = useState<string>(initialSelectedAppId || '');
+
+  const formatWorkModel = (wm?: string | null): string => {
+    if (!wm || !wm.trim()) return 'N/A';
+    const upper = wm.trim().toUpperCase();
+    if (upper === 'REMOTE') return 'Remote';
+    if (upper === 'HYBRID') return 'Hybrid';
+    if (upper === 'ON_SITE' || upper === 'ONSITE') return 'On-site';
+    return wm;
+  };
+
+  const formatAppSalary = (min?: number | null, max?: number | null, currency?: string | null): string => {
+    const formatted = formatSalaryRange(min, max, currency);
+    return formatted.trim() ? formatted : 'N/A';
+  };
 
   // Loading & Result states
   const [isLoading, setIsLoading] = useState(false);
@@ -87,7 +105,7 @@ export default function ResumeAnalyzerView({
   const analysisVersion = useRef(0);
   const activeAnalysis = useRef<AbortController | null>(null);
   useEffect(() => () => { activeAnalysis.current?.abort(); }, []);
-  useEffect(() => { analysisVersion.current++; setResult(null); }, [resumeText, jobTitle, companyName, jobDescription, selectedAppId]);
+  useEffect(() => { analysisVersion.current++; setResult(null); }, [resumeText, jobTitle, companyName, location, salaryRange, workModel, jobDescription, selectedAppId]);
   useEffect(() => { analysisVersion.current++; }, [selectedModel]);
   useEffect(() => { if (initialSelectedAppId) setSelectedAppId(initialSelectedAppId); }, [initialSelectedAppId]);
 
@@ -96,6 +114,9 @@ export default function ResumeAnalyzerView({
   const hasSelectedApplication = Boolean(selectedApplication);
   const selectedJobTitle = selectedApplication?.role_title || '';
   const selectedCompanyName = selectedApplication?.company_name || '';
+  const selectedLocation = selectedApplication?.location?.trim() || 'N/A';
+  const selectedSalaryRange = formatAppSalary(selectedApplication?.salary_min, selectedApplication?.salary_max, selectedApplication?.salary_currency);
+  const selectedWorkModel = formatWorkModel(selectedApplication?.work_model);
   const selectedJobDescription = selectedApplication?.information || selectedApplication?.job_description || '';
   const selectedIsSummary = selectedApplication?.summary_only;
   useEffect(() => {
@@ -103,16 +124,23 @@ export default function ResumeAnalyzerView({
     if (selectedAppId && hasSelectedApplication) {
       setJobTitle(selectedJobTitle);
       setCompanyName(selectedCompanyName);
+      setLocation(selectedLocation);
+      setSalaryRange(selectedSalaryRange);
+      setWorkModel(selectedWorkModel);
       if (selectedIsSummary) {
         setJobDescription('');
         fetch(`/api/applications/${encodeURIComponent(selectedAppId)}`, { signal: controller.signal }).then(r => r.json()).then(result => {
           if (!result.success || !result.data) throw new Error(result.error || 'Job details could not be loaded.');
           setJobDescription(result.data.information || result.data.job_description || '');
+          if (result.data.location?.trim()) setLocation(result.data.location.trim());
+          const fetchedSalary = formatSalaryRange(result.data.salary_min, result.data.salary_max, result.data.salary_currency);
+          if (fetchedSalary.trim()) setSalaryRange(fetchedSalary.trim());
+          if (result.data.work_model) setWorkModel(formatWorkModel(result.data.work_model));
         }).catch(error => { if (error.name !== 'AbortError') setError(error.message); });
       } else setJobDescription(selectedJobDescription);
     }
     return () => controller.abort();
-  }, [selectedAppId, hasSelectedApplication, selectedJobTitle, selectedCompanyName, selectedJobDescription, selectedIsSummary]);
+  }, [selectedAppId, hasSelectedApplication, selectedJobTitle, selectedCompanyName, selectedLocation, selectedSalaryRange, selectedWorkModel, selectedJobDescription, selectedIsSummary]);
 
   // Auto-import candidate portfolio/bio from jizellecasia.vercel.app
   const handleAutoImportPortfolio = async () => {
@@ -396,6 +424,46 @@ export default function ResumeAnalyzerView({
               </div>
             </div>
 
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-[#736A6D] mb-1">Location</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Metro Manila or N/A"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs text-[#4A3E44]"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#736A6D] mb-1">Salary Range</label>
+                <input
+                  type="text"
+                  placeholder="e.g. PHP 80,000 or N/A"
+                  value={salaryRange}
+                  onChange={(e) => setSalaryRange(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs text-[#4A3E44]"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#736A6D] mb-1">Mode of Work</label>
+                <input
+                  type="text"
+                  list="work-model-options"
+                  placeholder="e.g. Hybrid, Remote, On-site"
+                  value={workModel}
+                  onChange={(e) => setWorkModel(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#F1DDE9] focus:outline-none focus:border-[#FF7AB3] text-xs text-[#4A3E44]"
+                />
+                <datalist id="work-model-options">
+                  <option value="Remote" />
+                  <option value="Hybrid" />
+                  <option value="On-site" />
+                  <option value="N/A" />
+                </datalist>
+              </div>
+            </div>
+
             <div>
               <label className="block text-[11px] font-semibold text-[#736A6D] mb-1">
                 Job Description & Requirements *
@@ -515,6 +583,22 @@ export default function ResumeAnalyzerView({
                     <span>{exportSuccessMsg}</span>
                   </div>
                 )}
+
+                {/* Target Opportunity summary pills */}
+                <div className="mt-3 flex flex-wrap items-center gap-2 pt-3 border-t border-[#F1DDE9]/60 text-xs">
+                  <span className="px-2.5 py-1 rounded-lg bg-[#FAF7F9] border border-[#F1DDE9] font-medium text-[#4A3E44]">
+                    <strong className="text-[#9D3C5E]">Target:</strong> {jobTitle || 'Role'} <span className="text-[#9D3C5E]">@</span> {companyName || 'Company'}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-lg bg-[#FAF7F9] border border-[#F1DDE9] text-[#736A6D]">
+                    <strong className="text-[#4A3E44]">Location:</strong> {location?.trim() ? location : 'N/A'}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-lg bg-[#FAF7F9] border border-[#F1DDE9] text-[#736A6D]">
+                    <strong className="text-[#4A3E44]">Salary:</strong> {salaryRange?.trim() ? salaryRange : 'N/A'}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-lg bg-[#FAF7F9] border border-[#F1DDE9] text-[#736A6D]">
+                    <strong className="text-[#4A3E44]">Mode:</strong> {workModel?.trim() ? workModel : 'N/A'}
+                  </span>
+                </div>
 
                 {/* Sub-nav Tabs */}
                 <div className="flex items-center gap-1.5 pt-4 overflow-x-auto">
@@ -775,6 +859,9 @@ export default function ResumeAnalyzerView({
           result={result}
           jobTitle={jobTitle}
           companyName={companyName}
+          location={location}
+          salaryRange={salaryRange}
+          workModel={workModel}
           candidateName={session?.user?.name || 'Candidate Profile'}
           reportRef={reportRef}
         />

@@ -9,12 +9,19 @@ import {
   Tag,
   FileText,
   MessageSquare,
+  Briefcase,
+  MapPin,
+  DollarSign,
+  Building2,
 } from 'lucide-react';
 
 interface ATSExportReportProps {
   result: ResumeAnalysisResult;
   jobTitle: string;
   companyName: string;
+  location?: string;
+  salaryRange?: string;
+  workModel?: string;
   candidateName?: string;
   reportRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -23,6 +30,9 @@ export default function ATSExportReport({
   result,
   jobTitle,
   companyName,
+  location,
+  salaryRange,
+  workModel,
   candidateName = 'Candidate Profile',
   reportRef,
 }: ATSExportReportProps) {
@@ -90,6 +100,46 @@ export default function ATSExportReport({
             <div>Candidate: <strong className="text-[#4A3E44]">{candidateName}</strong></div>
             <div>Analyzed: <strong className="text-[#4A3E44]">{formattedDate}</strong></div>
             <div>Model: <span className="font-semibold text-[#9D3C5E]">{result.modelUsed}</span></div>
+          </div>
+        </div>
+
+        {/* Target Job Opportunity Details Card */}
+        <div className="bg-white rounded-2xl p-5 border border-[#F1DDE9] shadow-xs space-y-2.5">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[#9D3C5E] flex items-center gap-1.5">
+            <Briefcase className="w-3.5 h-3.5 text-[#FF7AB3]" />
+            <span>Target Job Opportunity Details</span>
+          </div>
+          <div className="grid grid-cols-4 gap-3 text-xs">
+            <div className="bg-[#FAF7F9] p-3 rounded-xl border border-[#F1DDE9]/60">
+              <span className="text-[10px] uppercase font-semibold text-[#736A6D] block mb-0.5">Role & Company</span>
+              <span className="font-bold text-[#4A3E44] block truncate" title={`${jobTitle || 'Target Role'} @ ${companyName || 'Target Company'}`}>
+                {jobTitle || 'Target Role'} <span className="text-[#9D3C5E]">@</span> {companyName || 'Target Company'}
+              </span>
+            </div>
+            <div className="bg-[#FAF7F9] p-3 rounded-xl border border-[#F1DDE9]/60">
+              <span className="text-[10px] uppercase font-semibold text-[#736A6D] block mb-0.5 flex items-center gap-1">
+                <MapPin className="w-3 h-3 text-[#FF7AB3]" /> Location
+              </span>
+              <span className="font-bold text-[#4A3E44] block truncate" title={location?.trim() ? location : 'N/A'}>
+                {location?.trim() ? location : 'N/A'}
+              </span>
+            </div>
+            <div className="bg-[#FAF7F9] p-3 rounded-xl border border-[#F1DDE9]/60">
+              <span className="text-[10px] uppercase font-semibold text-[#736A6D] block mb-0.5 flex items-center gap-1">
+                <DollarSign className="w-3 h-3 text-[#FF7AB3]" /> Salary Range
+              </span>
+              <span className="font-bold text-[#4A3E44] block truncate" title={salaryRange?.trim() ? salaryRange : 'N/A'}>
+                {salaryRange?.trim() ? salaryRange : 'N/A'}
+              </span>
+            </div>
+            <div className="bg-[#FAF7F9] p-3 rounded-xl border border-[#F1DDE9]/60">
+              <span className="text-[10px] uppercase font-semibold text-[#736A6D] block mb-0.5 flex items-center gap-1">
+                <Building2 className="w-3 h-3 text-[#FF7AB3]" /> Mode of Work
+              </span>
+              <span className="font-bold text-[#4A3E44] block truncate" title={workModel?.trim() ? workModel : 'N/A'}>
+                {workModel?.trim() ? workModel : 'N/A'}
+              </span>
+            </div>
           </div>
         </div>
 
