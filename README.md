@@ -16,6 +16,9 @@
 
 **Job Hunt is a personalized job application and leads platform** that brings application tracking, AI resume tools, interactive analytics, salary insights, and two-way Notion sync into one workspace.
 
+> [!NOTE]
+> Extended with a Chrome side-panel extension (Manifest V3) to capture live job postings, run local AI role-fit assessments, and auto-fill applications directly into the tracker.
+
 This public repository showcases a personal project and includes owner-specific job-application RPA kept for code backup. It is not maintained as a clone-and-run template; those workflows depend on personal configuration.
 
 Save the roles that interest you, keep your notes close, and explore how your applications move through the hiring process. From your first internship to your next career move, your records grow into a picture you can actually learn from.
@@ -33,6 +36,7 @@ The analytics are the part I get excited about: which roles reach interviews, ho
 | Feature | What it brings to your search |
 | --- | --- |
 | **Your application pipeline** | Switch between a table and board; keep job descriptions, personal notes, dates, and hiring stages together. Screening and interviews share a **Screening / Interview** column after Applied, including online and in-person assessments. |
+| **Chrome side-panel extension** | Capture live job postings (Manifest V3), run local AI role-fit assessments, and auto-fill applications directly into the tracker. |
 | **Automatic progress and reversible archiving** | Analytics follows the highest recorded hiring phase. Not Proceeding archives locally without changing the recorded job status or Notion backup. Use Archive to review a record and uncheck Not Proceeding to restore it. Works for admins and members. |
 | **A home for promising leads** | Browse Saved leads or Discover, and open Quick Add from the same toolbar to save a real posting in a modal. See each lead's profile-fit rating and click it to open that lead's details and saved assessment. |
 | **AI when you need it** | Use your master resume for ATS matching and role-fit assessments, with explanations you can review. Switching tabs keeps the current ATS report available when you return. |
@@ -65,7 +69,7 @@ The Guide starts with saving your master resume. When a newer deployment is avai
 
 Use the bottom-right **Import job JSON** shortcut, paste Gemini's JSON, then choose **Fill draft & assess fit**. Review the filled draft and requested role-fit assessment before clicking **Create Application**. If AI fails, you can save as Unassessed.
 
-Standard import remains available under **New App ? Job description (Information) ? Import job JSON ? Fill draft from JSON**, with no in-app AI request or browser automation required. Check the company, role, description, location, salary and dates against the posting. Keep **Not started** for a lead, or choose **Applied** after submitting. Neither import creates a record until you save.
+Standard import remains available under **New App → Job description (Information) → Import job JSON → Fill draft from JSON**, with no in-app AI request or browser automation required. Check the company, role, description, location, salary and dates against the posting. Keep **Not started** for a lead, or choose **Applied** after submitting. Neither import creates a record until you save.
 
 The JSON prompt includes `seniority_level`, `job_platform`, and `first_response_at`. Gemini leaves seniority null; the importer derives it from the title using the application's rules and preserves existing manual seniority overrides in the draft. Platforms can come from explicit context or deterministic URL matching. Referral and Walk-in need explicit context. Response dates remain blank unless you supply the actual employer response time; job-posting dates and status update times are not used. Null or omitted response dates leave an existing recorded response unchanged.
 
@@ -76,6 +80,8 @@ The workspace adapts to mobile screens: lead cards fit the viewport, account men
 Unknown posting facts stay unknown: JSON imports and new records no longer assume Full-time, On-site, or PHP when job type, work model, or advertised salary currency is missing. You can select these values in the form. Salary amounts without a currency are labeled **Currency unknown**. Offers and personal salary expectations keep their separate units.
 
 Saved-role assessments preserve edits made while AI is running. If the record changes, reload it before assessing again.
+
+### Chrome side-panel extension (Manifest V3)
 
 The deployed extension API saves postings and extension-generated fits without fetching your server resume or rerunning AI. New roles start at **Not started**; duplicate imports preserve existing edits, ratings and priority. Server-side role fit and Gemini import remain available. Create a credential that stays valid until revoked in **My preferences → Job Hunt extension**. See the [capture contract](EXTENSION-CAPTURE-CONTRACT.md) for source preservation, provenance and delivery rules.
 
