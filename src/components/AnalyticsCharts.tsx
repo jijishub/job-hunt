@@ -14,7 +14,7 @@ export default function AnalyticsCharts({ stats, onReview, section = 'all' }: { 
   const metricLabel = metric === 'offerRate' ? 'Offers' : metric === 'rejectionRate' ? 'Rejections' : 'Screening or later';
   if (!stats.total && section !== 'all' && section !== 'pipeline') return null;
   if (!stats.total) return <section className={card}><h3 className="font-semibold">Your charts start here</h3><p className="mt-2 text-sm text-[#736A6D]">Add an application to see your progress. Unassessed roles can stay unassessed.</p></section>;
-  return <div className="grid gap-4 lg:grid-cols-2">
+  return <div className={section === 'all' ? 'grid gap-4 lg:grid-cols-2' : 'contents'}>
     {(section === 'all' || section === 'pipeline') && <section className={card} aria-label="Pipeline progression chart">
       <h3 className="text-sm font-bold">Reached or passed</h3>
       <p className="mt-1 mb-4 text-xs text-[#736A6D]">Earlier phases may be inferred. Click a segment to review its roles.</p>

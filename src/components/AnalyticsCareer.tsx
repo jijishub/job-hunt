@@ -16,6 +16,6 @@ export default function AnalyticsCareer({ stats, report, onReview }: { stats: Pi
     <section className={analyticsCard} aria-label="Seniority effectiveness"><h3 className="text-sm font-bold">Seniority progression</h3><p className="mt-1 text-xs text-[#736A6D]">Explicit title levels and saved overrides; unlabeled roles stay Unspecified.</p><div className="my-4"><RateLegend /></div><AnalyticsRateBars rows={report.seniority} kind="seniority" onReview={onReview} /></section>
   </div>
   {report.types.length > 1 && <details className={`${analyticsCard} text-xs`}><summary className="cursor-pointer font-semibold">Compare application types</summary><p className="my-3 text-[#736A6D]">Historical internships and recent non-internship applications have different hiring contexts and observation time. These totals describe each group; use the scope filter to examine them separately.</p><RateLegend /><div className="mt-4"><AnalyticsRateBars rows={report.types} kind="type" onReview={onReview} /></div></details>}
-  <div className="grid gap-3 md:grid-cols-3">{report.findings.map(finding => <section key={finding.title} className="min-w-0 rounded-2xl border border-[#F1DDE9] bg-[#FFF0F6] p-5"><h3 className="text-sm font-bold text-[#9D3C5E]">{finding.title}</h3><p className="mt-2 text-xs leading-relaxed text-[#736A6D]">{finding.text}</p></section>)}</div>
+  
   </div>;
 }

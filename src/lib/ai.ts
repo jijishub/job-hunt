@@ -4,9 +4,8 @@ export * from './ai-types';
 
 export function getAIConfig() {
   const baseUrl = (process.env.AI_BASE_URL || 'https://api.jizellecasia.site/v1').replace(/\/+$/, '');
-  const apiKey =
-    process.env.AI_API_KEY ||
-    process.env.TOKEN_POOL || '';
+  const rawApiKey = (process.env.AI_API_KEY || process.env.TOKEN_POOL || '').trim();
+  const apiKey = rawApiKey.replace(/^['"]+|['"]+$/g, '');
   const defaultModel = (process.env.AI_DEFAULT_MODEL || 'luna') as AIModelId;
 
   return {
@@ -87,6 +86,12 @@ export async function callGeminiJSON<T>(
   try {
     return JSON.parse(cleanJson) as T;
   } catch {
+    const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]) as T;
+      } catch {}
+    }
     throw new Error('AI returned an unparseable response. Please try again.');
   }
 }

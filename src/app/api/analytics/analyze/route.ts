@@ -40,6 +40,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, data: { report, currentVersion: current.snapshotVersion, outdated: current.snapshotVersion !== report.snapshotVersion } }, { headers: { 'Cache-Control': 'private, no-store' } });
     }
     catch (error) {
+        console.error('Pipeline analysis error:', error);
         const message = error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name) ? 'AI did not respond in time. Your analytics remain available; try again later.' : error instanceof Error && /AI returned an (invalid insight|unsupported numerical claim)|insight could not be saved/.test(error.message) ? error.message : 'AI insights are unavailable right now. Your analytics and last successful analysis remain available.';
         return NextResponse.json({ success: false, error: message }, { status: 502 });
     }
