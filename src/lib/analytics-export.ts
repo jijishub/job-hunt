@@ -188,7 +188,7 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
   const exclusions = stats.timing.windows.map(window => `${window.days}d: ${window.immature} recent / ${window.unknownTiming} unknown`).join('; ');
   wrap(`Window exclusions (${exclusions}). Each rate uses only mature, eligible records. Age groups follow your preferences. Save/status timestamps do not establish responses or interviews.`, 16, 270, 178, 7.3, 2);
 
-  page('Career insights', 'Observed results, limitations and suggested next steps');
+  page('Career insights', 'Preference alignment, seniority progression, and salary comparisons');
   panel(16, 59, 87, 70); panel(107, 59, 87, 70); label('Preference alignment', 21, 68, 11, colors.ink, true);
   const knownAlignment = stats.preferenceAlignment.filter(item => item.label !== 'UNKNOWN').reduce((sum, item) => sum + item.count, 0);
   if (knownAlignment > 0) {
@@ -236,15 +236,13 @@ export async function analyticsPdf(applications: JobApplication[], accountName: 
     wrap(stats.salaryOffers.expectedCount ? `${stats.salaryOffers.expectedCount} salary expectations saved; no actual offers recorded yet.` : 'No actual salary offers or expectations recorded yet.', 21, 156, 168, 9, 2);
     stats.salaryOffers.expectations.slice(0, 2).forEach((group, i) => label(`${group.currency} / ${offerPeriodLabel(group.period)}: median expected ${formatSalaryRange(group.median, undefined, group.currency)}${stats.salaryOffers.expectations.length > 1 ? ` · ${group.count} expectations` : ''}`, 21, 169 + i * 7, 8, colors.rose));
   } else label(`Green = median offer; dot = median expectation; line = monthly minimum${extraSalaryGroups.length ? `; ${extraSalaryGroups.length} more groups in appendix` : ''}.`, 21, 190, 6.8, colors.muted);
-  report.findings.forEach((finding, i) => {
-    const x = 16 + i * 61.5; panel(x, 201, 55, 36, colors.pink); label(finding.title, x + 3, 208, 9, colors.rose, true); wrap(finding.text, x + 3, 214, 49, 7.8, 6);
-  });
   const human = (values?: string[]) => values?.length ? values.map(value => value.replaceAll('_', ' ').toLowerCase()).join(', ') : 'Not set';
   const targetText = targets ? `Targets: ${targets.target_roles?.join(', ') || 'Not set'}; companies: ${targets.target_companies?.join(', ') || 'Not set'}; locations: ${targets.preferred_locations?.join(', ') || 'Not set'}; work: ${human(targets.work_models)}; types: ${human(targets.job_types)}; minimum monthly pay: ${formatSalaryRange(targets.salary_min, undefined, targets.salary_currency) || 'Not set'}; priorities: ${targets.dealbreakers?.trim() || 'Not set'}.` : 'Preference targets: Not set.';
-  const targetLines = lines(targetText, 178, 7.5), longTargets = targetLines.length > 4;
-  label('Preference targets', 16, 244, 9, colors.ink, true);
-  wrap(longTargets ? 'Your full preference targets continue in the appendix; they remain available in My preferences.' : targetText, 16, 249, 178, 7.5, 4);
-  wrap('Counts describe saved outcomes. Based on limited application data, comparisons should be treated cautiously; they do not predict your next application.', 16, 269, 178, 7.5, 3);
+  const targetLines = lines(targetText, 168, 8), longTargets = targetLines.length > 5;
+  panel(16, 201, 178, 62);
+  label('Preference targets', 21, 211, 10, colors.ink, true);
+  wrap(longTargets ? 'Your full preference targets continue in the appendix; they remain available in My preferences.' : targetText, 21, 217, 168, 8, 5);
+  wrap('Counts describe saved outcomes. Based on limited application data, comparisons should be treated cautiously; they do not predict your next application.', 16, 270, 178, 7.5, 2);
 
   // Exceptional long saved text or many pay units gets a readable appendix, not clipping.
   let appendixY = 0;
