@@ -8,7 +8,7 @@ import { validRoleFit } from '@/lib/role-fit';
 import { NextResponse } from 'next/server';
 import { getApplications, createApplication, getOrCreateCompany, getCompanies, getCandidatePreferences } from '@/lib/db';
 import { stageForStatus } from '@/lib/analytics-stages';
-import { isArchivedApplication, isScreeningOrProgression } from '@/lib/application-workflow';
+import { isArchivedApplication, isEmployerResponseStatus, isScreeningOrProgression } from '@/lib/application-workflow';
 import { pullApplicationsFromNotion, getNotionConfig } from '@/lib/notion';
 import { scheduleApplicationNotionSync } from '@/lib/application-notion-sync';
 import { normalizeOfferFields } from '@/lib/salary-offers';
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     const targetStage = stageForStatus(targetNotionStatus || status, status, preferences?.analytics_status_stages);
     const targetStageIndex = ANALYTICS_STAGES.indexOf(targetStage);
     date_applied = date_applied || (targetStageIndex >= 1 || status === 'APPLIED' ? new Date().toISOString() : undefined);
-    const finalFirstResponse = body.first_response_at || (isScreeningOrProgression(targetNotionStatus || status, status, preferences?.analytics_status_stages, preferences?.analytics_rejection_statuses) ? new Date().toISOString() : null);
+    const finalFirstResponse = body.first_response_at || (isEmployerResponseStatus(targetNotionStatus || status, status, preferences?.analytics_status_stages, preferences?.analytics_rejection_statuses) ? new Date().toISOString() : null);
     const newApp = await createApplication({
       ...analyticsFieldUpdates(null, { ...body, first_response_at: finalFirstResponse }),
       company_id: company?.id || undefined,

@@ -20,6 +20,17 @@ export function isScreeningOrProgression(
   return stageIndex >= 2 || ['SCREENING', 'INTERVIEWING', 'OFFER', 'ACCEPTED'].includes(category);
 }
 
+export function isEmployerResponseStatus(
+  notionStatus: string,
+  category: ApplicationStatus,
+  mapping: Record<string, AnalyticsStage> = {},
+  rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES
+): boolean {
+  if (category === 'WITHDRAWN' || /not proceeding/i.test(canonicalStatusName(notionStatus))) return false;
+  if (isScreeningOrProgression(notionStatus, category, mapping, rejectionStatuses)) return true;
+  return category === 'REJECTED' || isRejectionStatus(notionStatus, rejectionStatuses);
+}
+
 export function displayApplicationStatus(app: Pick<JobApplication, 'status' | 'notion_status' | 'not_proceeding'>, mapping: Record<string, AnalyticsStage> = {}, rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES) {
   if (isArchivedApplication(app)) return 'WITHDRAWN';
   const label = app.notion_status?.trim() || applicationStatusLabel(app.status);
@@ -72,12 +83,12 @@ export function applicationWorkflowUpdates(saved: JobApplication, updates: Parti
       next.date_applied = new Date().toISOString();
     }
 
-    // Auto-capture first_response_at when switching to Screening or progression statuses
+    // Auto-capture first_response_at when switching to Screening, progression, or employer response statuses
     if (Object.hasOwn(updates, 'first_response_at')) {
       next.first_response_at = updates.first_response_at;
     } else if (saved.first_response_at) {
       next.first_response_at = saved.first_response_at;
-    } else if (isScreeningOrProgression(label, category, mapping, rejectionStatuses)) {
+    } else if (isEmployerResponseStatus(label, category, mapping, rejectionStatuses)) {
       next.first_response_at = new Date().toISOString();
     }
   }

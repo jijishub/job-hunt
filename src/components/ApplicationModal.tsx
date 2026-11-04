@@ -2,7 +2,7 @@
 
 import { CURRENCIES } from '@/lib/currencies';
 import { ANALYTICS_STAGES, STAGE_LABELS, reachedStage, stageForStatus, AnalyticsStage } from '@/lib/analytics-stages';
-import { isArchivedApplication, isScreeningOrProgression } from '@/lib/application-workflow';
+import { isArchivedApplication, isEmployerResponseStatus, isScreeningOrProgression } from '@/lib/application-workflow';
 import CloseButton from './CloseButton';
 import CurrencyInput from './CurrencyInput';
 import { OFFER_PAY_PERIODS } from '@/lib/salary-offers';
@@ -368,7 +368,7 @@ export default function ApplicationModal({
       : ((stageIndex >= 1 || status === 'APPLIED') ? new Date().toISOString() : undefined);
     const computedFirstResponse = firstResponse
       ? new Date(firstResponse).toISOString()
-      : (isScreeningOrProgression(notionStatus, status, analyticsMapping) && (!initialData?.id || initialData.status === 'APPLIED') ? new Date().toISOString() : null);
+      : (isEmployerResponseStatus(notionStatus, status, analyticsMapping) && (!initialData?.id || initialData.status === 'APPLIED') ? new Date().toISOString() : null);
 
     setIsSubmitting(true);
     try {
@@ -505,7 +505,7 @@ export default function ApplicationModal({
                         if ((stageIndex >= 1 || category === 'APPLIED') && !dateApplied) {
                           setDateApplied(getTodayDateString());
                         }
-                        if (isScreeningOrProgression(chosen, category, analyticsMapping) && !firstResponse) {
+                        if (isEmployerResponseStatus(chosen, category, analyticsMapping) && !firstResponse) {
                           setFirstResponse(localDateTime(new Date().toISOString()));
                         }
                       }}
@@ -553,7 +553,7 @@ export default function ApplicationModal({
                               if ((stageIndex >= 1 || cat === 'APPLIED') && !dateApplied) {
                                 setDateApplied(getTodayDateString());
                               }
-                              if (isScreeningOrProgression(newOpt.name, cat, analyticsMapping) && !firstResponse) {
+                              if (isEmployerResponseStatus(newOpt.name, cat, analyticsMapping) && !firstResponse) {
                                 setFirstResponse(localDateTime(new Date().toISOString()));
                               }
                               setNewStatusInput('');

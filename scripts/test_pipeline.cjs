@@ -909,7 +909,7 @@ test('removed preset lead feed stays empty for every authenticated account', asy
 
 test('automatic capture and retention for date_applied and first_response_at', async () => {
  const workflow = loader()('src/lib/application-workflow.ts');
- const { isScreeningOrProgression, applicationWorkflowUpdates } = workflow;
+ const { isScreeningOrProgression, isEmployerResponseStatus, applicationWorkflowUpdates } = workflow;
 
  assert.equal(isScreeningOrProgression('Not started', 'LEAD'), false);
  assert.equal(isScreeningOrProgression('Applied', 'APPLIED'), false);
@@ -923,6 +923,19 @@ test('automatic capture and retention for date_applied and first_response_at', a
  assert.equal(isScreeningOrProgression('Failed Assessment', 'REJECTED'), false);
  assert.equal(isScreeningOrProgression('Not Proceeding', 'WITHDRAWN'), false);
  assert.equal(isScreeningOrProgression('Custom Review', 'APPLIED', { 'custom review': 'SCREENING' }), true);
+
+ assert.equal(isEmployerResponseStatus('Not started', 'LEAD'), false);
+ assert.equal(isEmployerResponseStatus('Applied', 'APPLIED'), false);
+ assert.equal(isEmployerResponseStatus('Screening', 'SCREENING'), true);
+ assert.equal(isEmployerResponseStatus('Assessment', 'SCREENING'), true);
+ assert.equal(isEmployerResponseStatus('Initial Interview', 'INTERVIEWING'), true);
+ assert.equal(isEmployerResponseStatus('Technical Interview', 'INTERVIEWING'), true);
+ assert.equal(isEmployerResponseStatus('Final Interview', 'INTERVIEWING'), true);
+ assert.equal(isEmployerResponseStatus('Accepted', 'ACCEPTED'), true);
+ assert.equal(isEmployerResponseStatus('Not Accepted', 'REJECTED'), true);
+ assert.equal(isEmployerResponseStatus('Failed Assessment', 'REJECTED'), true);
+ assert.equal(isEmployerResponseStatus('Not Proceeding', 'WITHDRAWN'), false);
+ assert.equal(isEmployerResponseStatus('Custom Review', 'APPLIED', { 'custom review': 'SCREENING' }), true);
 
  const lead = sample({ status: 'LEAD', notion_status: 'Not started', date_applied: undefined });
  const applied = applicationWorkflowUpdates(lead, { status: 'APPLIED', notion_status: 'Applied' });
@@ -951,7 +964,17 @@ test('automatic capture and retention for date_applied and first_response_at', a
  assert.ok(inCustom.first_response_at);
 
  const rejected = applicationWorkflowUpdates(applied, { status: 'REJECTED', notion_status: 'Not Accepted' });
- assert.equal(rejected.first_response_at, undefined);
+ assert.ok(rejected.first_response_at);
+
+ const existingResponseDate = '2026-10-18T08:00:00.000Z';
+ const rejectedWithExisting = applicationWorkflowUpdates(
+   sample({ ...applied, first_response_at: existingResponseDate }),
+   { status: 'REJECTED', notion_status: 'Not Accepted' }
+ );
+ assert.equal(rejectedWithExisting.first_response_at, existingResponseDate);
+
+ const withdrawn = applicationWorkflowUpdates(applied, { status: 'WITHDRAWN', notion_status: 'Not Proceeding' });
+ assert.equal(withdrawn.first_response_at, undefined);
 
  const explicitDate = '2026-10-20T12:00:00.000Z';
  const overridden = applicationWorkflowUpdates(applied, { status: 'SCREENING', notion_status: 'Screening', first_response_at: explicitDate });
