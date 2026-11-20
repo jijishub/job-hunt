@@ -4,6 +4,7 @@ import { fetchApplicationSummaries, hydrateApplication } from '@/lib/application
 import { applicationSummary } from '@/lib/application-summary';
 import { ownsApplication } from '@/lib/ownership';
 import { applicationWorkflowUpdates, displayApplicationStatus, displayApplicationStatusLabel, isArchivedApplication } from '@/lib/application-workflow';
+import { isWithdrawalStatusName } from '@/lib/statuses';
 import { isInternship } from '@/lib/analytics';
 import { DefaultView, DEFAULT_VIEWS, type PersonalPreferences } from '@/lib/preferences';
 
@@ -284,12 +285,22 @@ export default function JobHuntDashboard() {
     newStatus: ApplicationStatus,
     notionStatusName?: string
   ) => {
+    const currentApp = applications.find((a) => a.id === id);
+    const restoringFromBoard = Boolean(
+      currentApp &&
+      isArchivedApplication(currentApp) &&
+      newStatus !== 'WITHDRAWN' &&
+      !isWithdrawalStatusName(notionStatusName)
+    );
+    const payload = restoringFromBoard
+      ? { status: newStatus, notion_status: notionStatusName, not_proceeding: false }
+      : { status: newStatus, notion_status: notionStatusName };
     setApplications((prev) =>
       prev.map((a) =>
         a.id === id
           ? {
               ...a,
-              ...applicationWorkflowUpdates(a, { status: newStatus, notion_status: notionStatusName }, workflowPreferences.analytics_status_stages, workflowPreferences.analytics_rejection_statuses),
+              ...applicationWorkflowUpdates(a, payload, workflowPreferences.analytics_status_stages, workflowPreferences.analytics_rejection_statuses),
             }
           : a
       )
@@ -298,7 +309,7 @@ export default function JobHuntDashboard() {
       prev && prev.id === id
         ? {
             ...prev,
-            ...applicationWorkflowUpdates(prev, { status: newStatus, notion_status: notionStatusName }, workflowPreferences.analytics_status_stages, workflowPreferences.analytics_rejection_statuses),
+            ...applicationWorkflowUpdates(prev, payload, workflowPreferences.analytics_status_stages, workflowPreferences.analytics_rejection_statuses),
           }
         : prev
     );
@@ -306,10 +317,7 @@ export default function JobHuntDashboard() {
       const response = await fetch(`/api/applications/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: newStatus,
-          notion_status: notionStatusName,
-        }),
+        body: JSON.stringify(payload),
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Failed to update status');

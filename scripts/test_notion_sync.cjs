@@ -133,6 +133,11 @@ async function run() {
     assert.equal(await moduleObject.exports.pushApplicationToNotion(withdrawn), 'page-existing');
     assert.equal(calls.length, before, 'Local withdrawal must not modify the Notion backup');
   }
+  const declinedOffer = { ...adminApp, status: 'OFFER', notion_status: 'Accepted - Not Proceeding', not_proceeding: false };
+  const beforeOfferPush = calls.length;
+  assert.equal(await moduleObject.exports.pushApplicationToNotion(declinedOffer), 'page-existing');
+  assert.equal(calls.length, beforeOfferPush + 1, 'Accepted - Not Proceeding is active and must still sync to Notion');
+  assert.equal(calls.at(-1).properties['Application Status'].select.name, 'Accepted - Not Proceeding');
   records[0].status = 'INTERVIEWING';records[0].notion_status = 'Interview';records[0].not_proceeding = true;records[0].sync_status = 'SYNCED';
   const archivedSnapshot = JSON.stringify(records[0]);const before = calls.length;
   await moduleObject.exports.pushApplicationToNotion(records[0]);await moduleObject.exports.pullApplicationsFromNotion();

@@ -10,7 +10,7 @@ async function dashboard(browser, role = 'admin') {
     { id: 'lead', name: 'Not started', category: 'LEAD', color: 'gray' },
     { id: 'applied', name: 'Applied', category: 'APPLIED', color: 'blue' },
     { id: 'interview', name: 'Initial Interview', category: 'INTERVIEWING', color: 'orange' },
-    { id: 'offer', name: 'Accepted - Not Proceeding', category: 'OFFER', color: 'purple' },
+    { id: 'offer', name: 'Accepted - Not Proceeding', category: 'OFFER', color: 'green' },
     { id: 'accepted', name: 'Accepted', category: 'ACCEPTED', color: 'green' },
     { id: 'rejected', name: 'Not Accepted', category: 'REJECTED', color: 'gray' },
     { id: 'withdrawn', name: 'Not Proceeding', category: 'WITHDRAWN', color: 'red' }
@@ -57,18 +57,18 @@ test('board columns, custom moves, failed moves, add defaults and currency previ
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     const { page, state } = await dashboard(browser);
-    await page.getByText('PHP 60,000.00 – 80,000.00', { exact: true }).waitFor();
+    await page.getByText('Currency unknown 60,000.00 – 80,000.00', { exact: true }).waitFor();
     assert.equal(await page.getByText('USD 1,200.00 – 2,000.00', { exact: true }).count(), 1);
     await page.getByLabel('Application visibility').selectOption('ALL');await page.getByRole('button', { name: 'Board View', exact: true }).click();
     await page.getByLabel('Move applied engineer at Example').waitFor();
     assert.equal(await page.locator('h4').count(), state.apps.length);
     assert.equal(await page.getByRole('heading', { name: 'Screening', exact: true }).count(), 0);
     assert.equal(await page.getByRole('heading', { name: 'Screening Call', exact: true }).count(), 0);
-    assert.equal(await page.getByText('PHP 60,000.00 – 80,000.00', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Currency unknown 60,000.00 – 80,000.00', { exact: true }).count(), 1);
     await page.getByRole('button', { name: 'Add application to Applied', exact: true }).click();
     assert.equal(await page.getByLabel('Application stage', { exact: true }).inputValue(), 'Applied');
-    assert.equal(await page.getByLabel('Salary currency', { exact: true }).inputValue(), 'PHP');
-    assert.deepEqual(await page.getByLabel('Salary currency', { exact: true }).locator('option').allTextContents(), ['PHP', 'USD']);
+    assert.equal(await page.getByLabel('Salary currency', { exact: true }).inputValue(), '');
+    assert.deepEqual(await page.getByLabel('Salary currency', { exact: true }).locator('option').allTextContents(), ['Unknown currency', 'PHP', 'USD']);
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     // The category deliberately cannot be inferred from this name.
     state.statuses.push({ id: 'custom_review', name: 'Phone review', category: 'SCREENING', color: 'orange' });
@@ -148,5 +148,50 @@ test('assessment cards leave Applied and rejection preferences update the board 
     await Promise.all([page.waitForResponse(response => new URL(response.url()).pathname === '/api/preferences'), page.reload()]);
     await page.getByRole('button', { name: 'Board View', exact: true }).click();
     await column('Archived / Rejected').getByRole('heading', { name: 'review role', exact: true }).waitFor();
+  } finally { await browser.close(); }
+});
+
+test('Accepted - Not Proceeding stays active in Offers & Accepted in green unless counted as rejection', async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const { page, state } = await dashboard(browser);
+    await page.getByRole('button', { name: 'Board View', exact: true }).click();
+    const column = title => page.getByRole('heading', { name: title, exact: true }).locator('..').locator('..').locator('..');
+    const offerColumn = column('Offers & Accepted 🎉');
+    const archivedColumn = column('Archived / Rejected');
+
+    await offerColumn.getByRole('heading', { name: 'offer engineer', exact: true }).waitFor();
+    assert.equal(await archivedColumn.getByRole('heading', { name: 'offer engineer', exact: true }).count(), 0);
+    assert.equal(await archivedColumn.getByRole('heading', { name: 'withdrawn engineer', exact: true }).count(), 0);
+
+    const offerCard = offerColumn.getByRole('heading', { name: 'offer engineer', exact: true }).locator('..').locator('..');
+    const badge = offerCard.locator('span', { hasText: 'Accepted - Not Proceeding' }).first();
+    const badgeClass = await badge.getAttribute('class');
+    assert.match(badgeClass || '', /bg-emerald-50/);
+    assert.match(badgeClass || '', /text-emerald-800/);
+
+    await page.getByLabel('Move applied engineer at Example').selectOption('Accepted - Not Proceeding');
+    await offerColumn.getByRole('heading', { name: 'applied engineer', exact: true }).waitFor();
+    assert.deepEqual(state.writes.at(-1), { status: 'OFFER', notion_status: 'Accepted - Not Proceeding' });
+
+    await offerColumn.getByRole('heading', { name: 'lead engineer', exact: true }).waitFor({ state: 'detached' }).catch(() => {});
+    await column('Leads & Wishlist').getByRole('heading', { name: 'lead engineer', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.getByLabel('Application stage', { exact: true }).selectOption('Accepted - Not Proceeding');
+    assert.equal(await page.getByRole('checkbox', { name: 'Not Proceeding', exact: true }).isChecked(), false);
+    await page.getByRole('button', { name: 'Save Changes', exact: true }).click();
+    await page.getByRole('heading', { name: 'Edit Application', exact: true }).waitFor({ state: 'hidden' });
+    assert.equal(state.writes.at(-1).not_proceeding, false);
+    assert.equal(state.writes.at(-1).status, 'OFFER');
+    assert.equal(state.writes.at(-1).notion_status, 'Accepted - Not Proceeding');
+    await offerColumn.getByRole('heading', { name: 'lead engineer', exact: true }).waitFor();
+
+    await page.getByRole('button', { name: 'My preferences', exact: true }).click();
+    await page.getByLabel('Count Accepted - Not Proceeding as rejection', { exact: true }).check();
+    await page.getByRole('button', { name: 'Save preferences', exact: true }).click();
+    await page.getByText('Preferences saved.', { exact: false }).waitFor();
+    await page.getByRole('button', { name: 'Close preferences', exact: true }).click();
+    await archivedColumn.getByRole('heading', { name: 'offer engineer', exact: true }).waitFor();
+    assert.equal(await offerColumn.getByRole('heading', { name: 'offer engineer', exact: true }).count(), 0);
   } finally { await browser.close(); }
 });

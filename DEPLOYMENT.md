@@ -189,6 +189,7 @@ Once deployed, run these smoke checks:
 6. **Application fields for admins and members**:
    - Confirm online and in-person assessments appear in **Screening / Interview**, after Applied. Check an older assessment saved as Applied as well as a newly created record.
    - Set a record to **Failed Assessment** and verify it appears under **Archived / Rejected**, retains Screening in analytics, and does not count as having reached Interview. The older **Failed Online Assessment** label should display as **Failed Assessment**.
+   - Set a record to **Accepted - Not Proceeding** and verify it remains active in **Offers & Accepted 🎉** with green styling (not **Archived / Rejected**), preserves **Acceptance / offer** in analytics, syncs normally with Notion, and moves to **Archived / Rejected** only when **Counts as rejection** is checked in My preferences (or **Not Proceeding** is checked to archive).
    - Open an application and confirm **Referral** and **Walk-in** are suggested in Job platform; custom values remain available.
    - Confirm **Junior AI Engineer** derives as Junior and **AI Engineer** as Unspecified. Set a manual seniority or role-family override, change the title, and verify it persists. Reset to Automatic and verify the title rules take over.
    - Record an actual first employer response date, save, reopen, and confirm it is retained. The form uses local time and stores UTC.
@@ -202,8 +203,8 @@ Once deployed, run these smoke checks:
    - Change age boundaries in My preferences and verify the unanswered chart, age drilldowns and PDF use the same non-overlapping ranges. Closed or previously progressed records must not appear as unanswered.
    - Verify the 7/14/30-day response windows exclude applications too recent to complete each window and report unknown timing separately. Callback time must use recorded first responses, not save timestamps or pending age; time to interview remains unknown without an actual event date.
    - Inspect the exported PDF: the actual logo should render on each A4 page, with readable labels and no AI text or placeholders. Save a new application from another session before exporting and confirm the fresh saved totals are included.
-   - Confirm Pipeline insights appears above charts. Click **Analyze my pipeline with AI** explicitly. A failure must leave filtering and PDF export available; a failed retry must preserve the last successful interpretation. Reload and verify the saved scope-specific report remains; change an application, preference or resume and verify the outdated label appears without a new AI request.
-   - Job Scout and Pipeline insights allow 45 seconds for AI within their 60-second routes. Check tab navigation and failed retries with `node --test scripts/test_optional_ai_ui.cjs`; these checks use simulated responses, not member data or live AI calls.
+   - Confirm the Analytics dashboard focuses on deterministic metrics and PDF exports without automatic AI requests.
+   - Job Scout allows 45 seconds for AI within its 60-second route. Check tab navigation and failed retries with `node --test scripts/test_optional_ai_ui.cjs`; these checks use simulated responses, not member data or live AI calls.
 
 Local verification commands are `npm run test:core`, `npm run test:job-platforms`, and `npm run test:analytics:ui`. Browser tests need a running local server at `http://localhost:3100` (or `PIPELINE_TEST_URL`). A successful local build or mocked browser test does not establish that a live deployment has passed these smoke checks. See [RPA-COMMANDS.md](RPA-COMMANDS.md) for optional URL platform backfill instructions.
 

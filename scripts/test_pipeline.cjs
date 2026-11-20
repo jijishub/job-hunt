@@ -980,3 +980,51 @@ test('automatic capture and retention for date_applied and first_response_at', a
  const overridden = applicationWorkflowUpdates(applied, { status: 'SCREENING', notion_status: 'Screening', first_response_at: explicitDate });
  assert.equal(overridden.first_response_at, explicitDate);
 });
+
+test('Accepted - Not Proceeding belongs to Offers & Accepted in green rather than Archived / Rejected', () => {
+ const load = loader();
+ const statuses = load('src/lib/statuses.ts');
+ const workflow = load('src/lib/application-workflow.ts');
+
+ assert.equal(statuses.isWithdrawalStatusName('Not Proceeding'), true);
+ assert.equal(statuses.isWithdrawalStatusName('Do not Proceed'), true);
+ assert.equal(statuses.isWithdrawalStatusName('Accepted - Not Proceeding'), false);
+
+ const option = statuses.SEEDED_STATUS_OPTIONS.find(s => s.name === 'Accepted - Not Proceeding');
+ assert.ok(option);
+ assert.equal(option.color, 'green');
+ assert.equal(option.category, 'OFFER');
+
+ const style = statuses.getStatusStyle('Accepted - Not Proceeding');
+ assert.equal(style.bg, 'bg-emerald-50');
+ assert.equal(style.text, 'text-emerald-800');
+ assert.equal(style.border, 'border-emerald-200');
+ assert.equal(style.dot, 'bg-emerald-500');
+ assert.equal(style.dotColor, '#10b981');
+
+ const declinedOffer = sample({ status: 'OFFER', notion_status: 'Accepted - Not Proceeding', not_proceeding: false });
+ assert.equal(workflow.isArchivedApplication(declinedOffer), false);
+ assert.equal(workflow.displayApplicationStatus(declinedOffer), 'OFFER');
+ assert.equal(workflow.displayApplicationStatus(declinedOffer, {}, ['Accepted - Not Proceeding']), 'REJECTED');
+ assert.equal(workflow.displayApplicationStatus({ ...declinedOffer, not_proceeding: true }), 'WITHDRAWN');
+ assert.equal(workflow.displayApplicationStatusLabel(declinedOffer), 'Accepted - Not Proceeding');
+
+ assert.equal(workflow.isScreeningOrProgression('Accepted - Not Proceeding', 'OFFER'), true);
+ assert.equal(workflow.isEmployerResponseStatus('Accepted - Not Proceeding', 'OFFER'), true);
+
+ const applied = sample({ status: 'APPLIED', notion_status: 'Applied', date_applied: '2026-10-10T00:00:00.000Z' });
+ const updated = workflow.applicationWorkflowUpdates(applied, { status: 'OFFER', notion_status: 'Accepted - Not Proceeding' });
+ assert.equal(updated.status, 'OFFER');
+ assert.equal(updated.notion_status, 'Accepted - Not Proceeding');
+ assert.equal(updated.analytics_stage, 'OFFER');
+ assert.ok(updated.first_response_at);
+ assert.notEqual(updated.not_proceeding, true);
+
+ const archivedOffer = sample({ status: 'OFFER', notion_status: 'Accepted - Not Proceeding', not_proceeding: true });
+ const restored = workflow.applicationWorkflowUpdates(archivedOffer, { not_proceeding: false });
+ const mergedOffer = { ...archivedOffer, ...restored };
+ assert.equal(restored.not_proceeding, false);
+ assert.equal(mergedOffer.status, 'OFFER');
+ assert.equal(mergedOffer.notion_status, 'Accepted - Not Proceeding');
+ assert.equal(workflow.isArchivedApplication(mergedOffer), false);
+});

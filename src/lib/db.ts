@@ -569,7 +569,7 @@ export async function getApplications(includeLeads = true, user?: Pick<UserAccou
 export async function getPendingNotionApplications() {
   const sql = getPostgresClient();
   if (sql) {
-    const rows = await sql`SELECT a.* FROM applications a WHERE (a.sync_status IS DISTINCT FROM 'SYNCED' OR nullif(a.notion_page_id,'') IS NULL) AND a.status<>'LEAD' AND coalesce(a.not_proceeding,false)=false AND a.status<>'WITHDRAWN' AND coalesce(a.notion_status,'') NOT ILIKE '%not proceeding%';`;
+    const rows = await sql`SELECT a.* FROM applications a WHERE (a.sync_status IS DISTINCT FROM 'SYNCED' OR nullif(a.notion_page_id,'') IS NULL) AND a.status<>'LEAD' AND coalesce(a.not_proceeding,false)=false AND a.status<>'WITHDRAWN' AND lower(trim(coalesce(a.notion_status,''))) NOT IN ('not proceeding', 'do not proceed') AND NOT (coalesce(a.notion_status,'') ILIKE '%not proceeding%' AND coalesce(a.notion_status,'') NOT ILIKE '%accept%' AND coalesce(a.notion_status,'') NOT ILIKE '%offer%');`;
     return rows as JobApplication[];
   }
   return (await getApplications(false)).filter(app => app.status !== 'LEAD' && (app.sync_status !== 'SYNCED' || !app.notion_page_id));

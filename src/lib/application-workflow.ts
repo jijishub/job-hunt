@@ -1,10 +1,10 @@
 import type { JobApplication, ApplicationStatus } from '@/types/job';
 import { ANALYTICS_STAGES, DEFAULT_REJECTION_STATUSES, reachedStage, stageForStatus, type AnalyticsStage } from './analytics-stages';
-import { applicationStatusLabel, canonicalStatusName, isRejectionStatus, statusCategoryForLabel } from './statuses';
+import { applicationStatusLabel, canonicalStatusName, isRejectionStatus, isWithdrawalStatusName, statusCategoryForLabel } from './statuses';
 
 export function isArchivedApplication(app: Pick<JobApplication, 'status' | 'notion_status' | 'not_proceeding'>) {
   return app.not_proceeding === true || app.status === 'WITHDRAWN'
-    || /not proceeding/i.test(canonicalStatusName(app.notion_status || ''));
+    || isWithdrawalStatusName(app.notion_status);
 }
 
 export function isScreeningOrProgression(
@@ -26,7 +26,7 @@ export function isEmployerResponseStatus(
   mapping: Record<string, AnalyticsStage> = {},
   rejectionStatuses: readonly string[] = DEFAULT_REJECTION_STATUSES
 ): boolean {
-  if (category === 'WITHDRAWN' || /not proceeding/i.test(canonicalStatusName(notionStatus))) return false;
+  if (category === 'WITHDRAWN' || isWithdrawalStatusName(notionStatus)) return false;
   if (isScreeningOrProgression(notionStatus, category, mapping, rejectionStatuses)) return true;
   return category === 'REJECTED' || isRejectionStatus(notionStatus, rejectionStatuses);
 }
@@ -56,13 +56,19 @@ export function applicationWorkflowUpdates(saved: JobApplication, updates: Parti
     next.notion_status = saved.notion_status;
   } else if (restoring) {
     next.not_proceeding = false;
-    if (saved.status === 'WITHDRAWN' || /not proceeding/i.test(saved.notion_status || '')) {
+    if (saved.status === 'WITHDRAWN' || isWithdrawalStatusName(saved.notion_status)) {
       const previous = [...(saved.stage_history || [])].reverse().find(stage => !isArchivedApplication(stage));
       const fallback = ['LEAD', 'APPLIED', 'SCREENING', 'INTERVIEWING', 'INTERVIEWING', 'OFFER'] as const;
       next.status = previous?.status || (saved.status !== 'WITHDRAWN' ? saved.status : fallback[reachedStage(saved, mapping)]);
       next.notion_status = previous?.notion_status || applicationStatusLabel(next.status);
     }
-  } else if (next.status && next.status !== saved.status && isArchivedApplication(saved)) {
+  } else if (
+    isArchivedApplication(saved) &&
+    ((next.status && next.status !== saved.status) ||
+      (next.notion_status &&
+        canonicalStatusName(next.notion_status) !== canonicalStatusName(saved.notion_status || '') &&
+        !isWithdrawalStatusName(next.notion_status)))
+  ) {
     next.not_proceeding = false;
   }
   if (!withdrawing && !isArchivedApplication({ ...saved, ...next })) {

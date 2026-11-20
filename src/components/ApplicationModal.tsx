@@ -1,7 +1,7 @@
 'use client';
 
 import { CURRENCIES } from '@/lib/currencies';
-import { ANALYTICS_STAGES, STAGE_LABELS, reachedStage, stageForStatus, AnalyticsStage } from '@/lib/analytics-stages';
+import { ANALYTICS_STAGES, DEFAULT_REJECTION_STATUSES, STAGE_LABELS, reachedStage, stageForStatus, AnalyticsStage } from '@/lib/analytics-stages';
 import { isArchivedApplication, isEmployerResponseStatus, isScreeningOrProgression } from '@/lib/application-workflow';
 import CloseButton from './CloseButton';
 import CurrencyInput from './CurrencyInput';
@@ -27,7 +27,7 @@ import {
   Plus,
   Upload,
 } from 'lucide-react';
-import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, applicationStatusLabel, canonicalStatusName, statusCategoryForLabel, getStatusCategory, StatusOption } from '@/lib/statuses';
+import { SEEDED_STATUS_OPTIONS, MEMBER_STATUS_OPTIONS, applicationStatusLabel, canonicalStatusName, statusCategoryForLabel, getStatusCategory, isWithdrawalStatusName, StatusOption } from '@/lib/statuses';
 
 interface ApplicationModalProps {
   isOpen: boolean;
@@ -127,6 +127,7 @@ export default function ApplicationModal({
   const [service, setService] = useState('');
   const [notionStatus, setNotionStatus] = useState('Not started');
   const [analyticsMapping, setAnalyticsMapping] = useState<Record<string, AnalyticsStage>>({});
+  const [analyticsRejectionStatuses, setAnalyticsRejectionStatuses] = useState<readonly string[]>(DEFAULT_REJECTION_STATUSES);
   const [notProceeding,setNotProceeding] = useState(false);
   const [salaryMin, setSalaryMin] = useState<string>('');
   const [salaryMax, setSalaryMax] = useState<string>('');
@@ -192,6 +193,7 @@ export default function ApplicationModal({
 
   useEffect(() => {
     setAnalyticsMapping({});
+    setAnalyticsRejectionStatuses(DEFAULT_REJECTION_STATUSES);
     setCustomPlatforms([]);
     setAddingPlatform(false);
     setNewPlatform('');
@@ -201,6 +203,7 @@ export default function ApplicationModal({
     fetch('/api/preferences', { signal: controller.signal }).then(response => response.json()).then(data => {
       if (data.success && !controller.signal.aborted) {
         setAnalyticsMapping(data.data?.analytics_status_stages || {});
+        setAnalyticsRejectionStatuses(data.data?.analytics_rejection_statuses ?? DEFAULT_REJECTION_STATUSES);
         setCustomPlatforms(data.data?.job_platform_options || []);
       }
     }).catch(() => {});
@@ -368,7 +371,7 @@ export default function ApplicationModal({
       : ((stageIndex >= 1 || status === 'APPLIED') ? new Date().toISOString() : undefined);
     const computedFirstResponse = firstResponse
       ? new Date(firstResponse).toISOString()
-      : (isEmployerResponseStatus(notionStatus, status, analyticsMapping) && (!initialData?.id || initialData.status === 'APPLIED') ? new Date().toISOString() : null);
+      : (isEmployerResponseStatus(notionStatus, status, analyticsMapping, analyticsRejectionStatuses) && (!initialData?.id || initialData.status === 'APPLIED') ? new Date().toISOString() : null);
 
     setIsSubmitting(true);
     try {
@@ -496,7 +499,7 @@ export default function ApplicationModal({
                       value={notionStatus || 'Not started'}
                       onChange={(e) => {
                         const chosen = e.target.value;
-                        if (getStatusCategory(chosen) === 'WITHDRAWN' || /not proceeding/i.test(chosen)) { setNotProceeding(true); return; }
+                        if (getStatusCategory(chosen) === 'WITHDRAWN' || isWithdrawalStatusName(chosen)) { setNotProceeding(true); return; }
                         setNotionStatus(chosen);
                         const category = statusOptions.find(option => option.name === chosen)?.category || getStatusCategory(chosen);
                         setStatus(category);
@@ -505,7 +508,7 @@ export default function ApplicationModal({
                         if ((stageIndex >= 1 || category === 'APPLIED') && !dateApplied) {
                           setDateApplied(getTodayDateString());
                         }
-                        if (isEmployerResponseStatus(chosen, category, analyticsMapping) && !firstResponse) {
+                        if (isEmployerResponseStatus(chosen, category, analyticsMapping, analyticsRejectionStatuses) && !firstResponse) {
                           setFirstResponse(localDateTime(new Date().toISOString()));
                         }
                       }}
@@ -553,7 +556,7 @@ export default function ApplicationModal({
                               if ((stageIndex >= 1 || cat === 'APPLIED') && !dateApplied) {
                                 setDateApplied(getTodayDateString());
                               }
-                              if (isEmployerResponseStatus(newOpt.name, cat, analyticsMapping) && !firstResponse) {
+                              if (isEmployerResponseStatus(newOpt.name, cat, analyticsMapping, analyticsRejectionStatuses) && !firstResponse) {
                                 setFirstResponse(localDateTime(new Date().toISOString()));
                               }
                               setNewStatusInput('');

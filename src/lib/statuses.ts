@@ -23,7 +23,7 @@ export const SEEDED_STATUS_OPTIONS: StatusOption[] = [
   { id: 'screening', name: 'Screening', color: 'blue', category: 'SCREENING' },
   { id: 'failed_assessment', name: 'Failed Assessment', color: 'red', category: 'REJECTED' },
   { id: 'accepted', name: 'Accepted', color: 'green', category: 'ACCEPTED' },
-  { id: 'accepted_not_proceeding', name: 'Accepted - Not Proceeding', color: 'purple', category: 'OFFER' },
+  { id: 'accepted_not_proceeding', name: 'Accepted - Not Proceeding', color: 'green', category: 'OFFER' },
   { id: 'initial_interview', name: 'Initial Interview', color: 'orange', category: 'INTERVIEWING' },
   { id: 'technical_interview', name: 'Technical Interview', color: 'brown', category: 'INTERVIEWING' },
   { id: 'interview_task', name: 'Interview Task', color: 'purple', category: 'INTERVIEWING' },
@@ -60,6 +60,13 @@ export function statusCategoryForLabel(name: string, savedCategory: ApplicationS
   return savedCategory;
 }
 
+export function isWithdrawalStatusName(statusName?: string | null): boolean {
+  const lower = canonicalStatusName(statusName || '').toLowerCase();
+  if (!lower) return false;
+  if (lower === 'not proceeding') return true;
+  return lower.includes('not proceeding') && !lower.includes('accept') && !lower.includes('offer');
+}
+
 export function isRejectionStatus(name: string, rejectionStatuses: readonly string[]): boolean {
   const key = canonicalStatusName(name).toLowerCase();
   return rejectionStatuses.some(status => canonicalStatusName(status).toLowerCase() === key);
@@ -74,7 +81,7 @@ export function getStatusCategory(statusName: string): ApplicationStatus {
 
   // Heuristic categorization for custom user statuses
   if (/\b(failed|unsuccessful|rejected)\b/.test(lower) || lower.includes('not accepted') || lower.includes('repeated')) return 'REJECTED';
-  if (lower.includes('withdraw') || lower.includes('not proceeding') || lower.includes('drop')) return 'WITHDRAWN';
+  if (lower.includes('withdraw') || isWithdrawalStatusName(statusName) || lower.includes('drop')) return 'WITHDRAWN';
   if (lower.includes('accept') && !lower.includes('not accept')) return 'ACCEPTED';
   if (lower.includes('offer')) return 'OFFER';
   if (lower.includes('screen') && !lower.includes('not accept') && !lower.includes('reject')) return 'SCREENING';
@@ -83,8 +90,6 @@ export function getStatusCategory(statusName: string): ApplicationStatus {
   if (lower.includes('task') || lower.includes('exam') || lower.includes('test')) return 'INTERVIEWING';
   if (lower.includes('applied') || lower.includes('submitted')) return 'APPLIED';
   if (lower.includes('lead') || lower.includes('inquiry') || lower.includes('not started') || lower.includes('wishlist')) return 'LEAD';
-  if (lower.includes('not accepted') || lower.includes('reject') || lower.includes('repeated')) return 'REJECTED';
-  if (lower.includes('withdraw') || lower.includes('not proceeding') || lower.includes('drop')) return 'WITHDRAWN';
 
   return 'APPLIED';
 }
@@ -100,23 +105,13 @@ export interface StatusStyle {
 export function getStatusStyle(statusName: string): StatusStyle {
   const lower = statusName.toLowerCase().trim();
 
-  if (lower === 'accepted' || lower === 'accepted 🎉') {
+  if (lower === 'accepted' || lower === 'accepted 🎉' || lower === 'accepted - not proceeding') {
     return {
       bg: 'bg-emerald-50',
       text: 'text-emerald-800',
       border: 'border-emerald-200',
       dot: 'bg-emerald-500',
       dotColor: '#10b981',
-    };
-  }
-
-  if (lower === 'accepted - not proceeding') {
-    return {
-      bg: 'bg-fuchsia-50',
-      text: 'text-fuchsia-800',
-      border: 'border-fuchsia-200',
-      dot: 'bg-fuchsia-500',
-      dotColor: '#d946ef',
     };
   }
 
