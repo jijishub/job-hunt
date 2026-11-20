@@ -195,3 +195,45 @@ test('Accepted - Not Proceeding stays active in Offers & Accepted in green unles
     assert.equal(await offerColumn.getByRole('heading', { name: 'offer engineer', exact: true }).count(), 0);
   } finally { await browser.close(); }
 });
+
+test('professional applications always display ahead of internships in table and board views', async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    const user = { id: 'hierarchy_owner', name: 'Hierarchy Owner', email: 'hierarchy@example.com', role: 'admin' };
+    const statuses = [
+      { id: 'accepted', name: 'Accepted', category: 'ACCEPTED', color: 'green' },
+      { id: 'offer', name: 'Accepted - Not Proceeding', category: 'OFFER', color: 'green' },
+    ];
+    const base = { owner: user.id, priority: 'MEDIUM', work_model: 'REMOTE', salary_currency: 'PHP', created_at: '2026-10-10', sync_status: 'SYNCED' };
+    const apps = [
+      { ...base, id: 'mergepoint', company_name: 'Mergepoint AI', role_title: 'Solutions Engineer', job_type: 'FULL_TIME', status: 'ACCEPTED', notion_status: 'Accepted', updated_at: '2026-11-11T21:19:48Z' },
+      { ...base, id: 'sgv', company_name: 'SGV & Co.', role_title: 'Associate AI/ML Engineer', job_type: 'FULL_TIME', status: 'ACCEPTED', notion_status: 'Accepted', updated_at: '2026-11-20T02:31:40Z' },
+      { ...base, id: 'filoil', company_name: 'FilOil Corporation', role_title: 'IT Intern', job_type: 'INTERNSHIP', status: 'OFFER', notion_status: 'Accepted - Not Proceeding', updated_at: '2026-11-21T05:00:00Z' },
+    ];
+    await page.route('**/api/**', async route => {
+      const pathname = new URL(route.request().url()).pathname;
+      let data = { success: true, data: [] };
+      if (pathname === '/api/auth/session') data = { user, expires: '2099-01-01' };
+      else if (pathname === '/api/users') data = { success: true, data: [user] };
+      else if (pathname === '/api/notion/sync') data = { configured: false };
+      else if (pathname === '/api/statuses') data = { success: true, data: statuses };
+      else if (pathname === '/api/preferences') data = { success: true, data: {} };
+      else if (pathname === '/api/applications') data = { success: true, data: apps };
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(data) });
+    });
+    await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname === '/api/preferences'),
+      page.goto(process.env.PIPELINE_TEST_URL || 'http://localhost:3100'),
+    ]);
+    await page.getByRole('table').getByText('Associate AI/ML Engineer', { exact: true }).waitFor();
+    const tableTitles = await page.locator('tbody tr td:first-child span.font-semibold').allTextContents();
+    assert.deepEqual(tableTitles, ['Associate AI/ML Engineer', 'Solutions Engineer', 'IT Intern']);
+
+    await page.getByRole('button', { name: 'Board View', exact: true }).click();
+    const offerColumn = page.getByRole('heading', { name: 'Offers & Accepted 🎉', exact: true }).locator('..').locator('..').locator('..');
+    await offerColumn.getByRole('heading', { name: 'Associate AI/ML Engineer', exact: true }).waitFor();
+    const boardTitles = await offerColumn.locator('h4').allTextContents();
+    assert.deepEqual(boardTitles, ['Associate AI/ML Engineer', 'Solutions Engineer', 'IT Intern']);
+  } finally { await browser.close(); }
+});

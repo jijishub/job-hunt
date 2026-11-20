@@ -6,6 +6,7 @@ import { JobApplication, UserAccount, ApplicationStatus, Company } from '@/types
 import JobDiscoveryHub from './JobDiscoveryHub';
 import StatusBadge from './StatusBadge';
 import { displayApplicationStatusLabel, isArchivedApplication } from '@/lib/application-workflow';
+import { isInternship } from '@/lib/analytics';
 import PriorityBadge from './PriorityBadge';
 import RoleFitBadge from './RoleFitBadge';
 import CloseButton from './CloseButton';
@@ -41,7 +42,7 @@ export default function JobLeadsView({ onAddToTracker, existingApplications, cur
   const visibleLeads = tab === 'archived' ? archivedLeads : leads;
   const shown = visibleLeads
     .filter(app => (app.role_title + ' ' + app.company_name).toLowerCase().includes(query.trim().toLowerCase()))
-    .sort((a, b) => ((a.role_fit ? fitOrder[a.role_fit] : 3) - (b.role_fit ? fitOrder[b.role_fit] : 3)) || ((a.priority && a.priority in priorityOrder ? priorityOrder[a.priority] : 1) - (b.priority && b.priority in priorityOrder ? priorityOrder[b.priority] : 1)));
+    .sort((a, b) => (Number(isInternship(a)) - Number(isInternship(b))) || ((a.role_fit ? fitOrder[a.role_fit] : 3) - (b.role_fit ? fitOrder[b.role_fit] : 3)) || ((a.priority && a.priority in priorityOrder ? priorityOrder[a.priority] : 1) - (b.priority && b.priority in priorityOrder ? priorityOrder[b.priority] : 1)));
   async function action(key: string, run: () => Promise<void>) {
     setBusy(key); setMessage('');
     try { await run(); } catch (error) { setMessage(error instanceof Error ? error.message : 'Please try again.'); }

@@ -452,6 +452,8 @@ export default function JobHuntDashboard() {
         return true;
       })
       .sort((a, b) => {
+        const internshipOrder = Number(isInternship(a)) - Number(isInternship(b));
+        if (internshipOrder !== 0) return internshipOrder;
         if (sortBy === 'updated') {
           return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
         }
